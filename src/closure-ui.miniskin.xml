@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<miniskin>
+  <mockup-list/>
+  <bucket-list omit="embed,module">
+    <bucket src=".">
+      <resource-list urlbase="/closure-ui">
+        <item type="static,parse" src="./_source.list" file="./generated/closure-ui.js"/>
+        <item type="static,parse" src="./_doc.list" file="./generated/closure-ui.md"/>
+      </resource-list>
+    </bucket>
+  </bucket-list>
+</miniskin>

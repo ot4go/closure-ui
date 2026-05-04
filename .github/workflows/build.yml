@@ -1,0 +1,26 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: .build/go.mod
+
+      - run: go -C .build run .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: closure-ui
+          path: |
+            release/closure-ui.js
+            release/closure-ui.min.js
+            release/closure-ui.md

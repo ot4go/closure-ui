@@ -1,0 +1,651 @@
+/*<%% note:
+# `<closure-template>`
+
+Declarative submission spec for a `<target-closure>`. Holds the URL,
+HTTP method, send behaviour, sections to package, hidden fields and
+response handling for one or more button roles. Lives inside the
+closure as a markup-only element (`display: none`) and is invoked by
+the closure when a `<closure-btn>` fires.
+
+Multiple templates may live inside one closure. The button's
+`closure-template="…"` and `ct-role="…"` attributes pick which one
+runs and which `<template-url>` / `<template-section>` set applies.
+
+## Attributes (on `<closure-template>`)
+
+| Attribute | Description |
+|---|---|
+| `name="x"`                | template identity (matched by `closure-btn`'s `closure-template` attr) |
+| `send-behavior="x"`       | `submit` (default) \| `submit-xform` \| `fetch` \| `fetch-json` \| `fetch-xform` |
+| `parse="closure-response"`| pipe responses through `ClosureResponse` |
+| `delegate-response`       | hand the response to the surrounding container (e.g. `<closure-lightbox>`) instead of writing it inline |
+
+`submit-json` is intentionally **not** supported — there is no browser
+enctype that produces a JSON body via form submit.
+
+## Child elements
+
+### `<template-url>` — destination
+
+| Attribute | Description |
+|---|---|
+| `url="…"`                  | static URL |
+| `dyn-url-id="id"`          | element whose value is read at submit time as the URL |
+| `method="POST"`            | HTTP method (default `POST`) |
+| `ct-role="x"`              | only applies when the firing button has this `ct-role` |
+| `switch="<id> == v"`       | guard: only applies when the referenced control has this value (`!=` also supported) |
+| `response-target-id="id"`  | element to receive the response body |
+| `response-target-ok-id`    | overrides `response-target-id` on success |
+| `response-target-fail-id`  | overrides `response-target-id` on failure |
+| `response-lightbox-id`     | lightbox to receive `showResponse` / `showError` |
+| `response-lightbox-ok-id`  | overrides on success |
+| `response-lightbox-fail-id`| overrides on failure |
+| `send-behavior="x"`        | per-role override of the template-level send-behavior |
+
+URL resolution order: per-role `<template-url>` (dyn first, then static)
+→ default `<template-url>` (dyn first, then static) → current page URL.
+
+### `<template-section>` — data packaging
+
+| Attribute | Description |
+|---|---|
+| `from-form="formName"` | name of the source form (matched against `<form name="…">`) |
+| `name="x"`             | section key applied to fields when packaging |
+| `mode="flat\|prefix\|json\|json-multi"` | how to flatten the section into the outgoing form |
+| `prefix="x"`           | override the section name as the prefix (only with `mode="prefix"`) |
+| `no-prefix`            | flatten without any prefix |
+| `separator="x"`        | character between prefix and field (default `_`) |
+| `switch="<id> == v"`   | guard (same syntax as `<template-url>`) |
+
+### `<template-field>` — extra hidden fields
+
+| Attribute | Description |
+|---|---|
+| `name="x"`           | hidden input name |
+| `value="x"`          | static value |
+| `dyn-value-id="id"`  | read value from another element at submit time |
+| `switch="<id> == v"` | guard |
+
+### `<template-loading>` — placeholder while in-flight
+
+Inner HTML written into `response-target-*` while the request is open.
+Cleared automatically when the response arrives.
+
+### `<template-response-ok>` — success template
+
+Inner HTML rendered into the response target on success.
+Supports `{{code}}` and `{{text}}` substitutions for the HTTP status.
+
+### `<template-response-fail>` — failure template
+
+Inner HTML rendered on failure. Selected by best-match:
+
+| Attribute | Description |
+|---|---|
+| `type="network\|http\|parse"` | match a specific failure family |
+| `code="404"`                   | match a specific HTTP status |
+| (none)                         | catch-all |
+
+### `<template-lock-dirty>` / `<template-dirty-clean>`
+
+Declarative dirty-state automation. Run after a request completes to
+mark or clean the closure's dirty templates without code.
+
+## Public methods
+
+| Method | Description |
+|---|---|
+| `execute(role, forms, submittedForm, btnData)` | invoked by `<target-closure>` for the firing button |
+
+## Behaviour
+
+> **Note:** when `delegate-response` is set, the template does **not**
+> insert the response into a target. It dispatches a
+> `closure-template-response` event up to the enclosing closure (via
+> `_notifyClosure`), letting the lightbox or another container handle
+> the body. Useful for modals that own their own rendering.
+
+> **Note:** when no `<template-section>` is declared and a
+> `submittedForm` is passed in (e.g. a native form submit captured by
+> `<target-closure>`), `execute` packages **its** fields verbatim
+> instead of inventing sections.
+
+> **Note:** the `ct-role` resolution always prefers a role-specific
+> child (`<template-url ct-role="approve">`) over the catch-all
+> (`<template-url>`). If the role-specific child has a `switch` guard
+> that fails, the resolver does **not** fall through to the catch-all
+> automatically — author guards accordingly.
+
+---
+%%>*/
+
+class ClosureTemplate extends HTMLElement {
+  connectedCallback() { this.style.display = 'none'; }
+
+  execute(role, forms, submittedForm, btnData) {
+    var sendBehavior = this._resolveSendBehavior(role);
+    var url = this._resolveUrl(role);
+    var method = this._resolveMethod(role);
+    var sections = this._getSections(role);
+    var fields = this._getFields(role);
+    var responseAttrs = this._getResponseAttrs(role);
+
+    // Collect data from forms
+    var data = {};
+    if (sections.length > 0 && forms.length > 0) {
+      data = this._collectData(forms);
+    }
+
+    // Build the submission form
+    var form = document.createElement('form');
+    form.method = method;
+    form.action = url;
+    form.style.display = 'none';
+
+    // If no sections, use the submitted form's data as-is
+    if (sections.length === 0 && submittedForm) {
+      new FormData(submittedForm).forEach(function(value, key) {
+        var hidden = document.createElement('input');
+        hidden.type = 'hidden';
+        hidden.name = key;
+        hidden.value = value;
+        form.appendChild(hidden);
+      });
+    } else {
+      // Package data per template-section
+      this._packageSections(form, sections, data);
+    }
+
+    // Add template-fields
+    fields.forEach(function(f) {
+      var hidden = document.createElement('input');
+      hidden.type = 'hidden';
+      hidden.name = f.name;
+      hidden.value = f.value;
+      form.appendChild(hidden);
+    });
+
+    // Merge button sections into data
+    if (btnData && btnData.sections) {
+      for (var sec in btnData.sections) {
+        if (!data[sec]) data[sec] = {};
+        var fields = btnData.sections[sec];
+        for (var key in fields) {
+          data[sec][key] = fields[key];
+        }
+      }
+    }
+
+    // Send
+    var self = this;
+    if (sendBehavior.startsWith('fetch')) {
+      var fetchUrl = url || window.location.href;
+      var fetchOpts = { method: method, credentials: 'same-origin' };
+      var headers = this._getHeaders();
+
+      if (sendBehavior === 'fetch-json') {
+        var jsonData = {};
+        new FormData(form).forEach(function(v, k) { jsonData[k] = v; });
+        headers['Content-Type'] = 'application/json';
+        fetchOpts.body = JSON.stringify(jsonData);
+      } else {
+        fetchOpts.body = new URLSearchParams(new FormData(form));
+      }
+
+      if (Object.keys(headers).length) fetchOpts.headers = headers;
+
+      self._showLoading(responseAttrs);
+      fetch(fetchUrl, fetchOpts).then(function(r) {
+        self._handleResponse(r, responseAttrs, role);
+      }).catch(function(err) {
+        self._clearLoading(responseAttrs);
+        self._handleFail('no-response', 0, err.message, responseAttrs);
+      });
+    } else {
+      document.body.appendChild(form);
+      form.submit();
+    }
+  }
+
+  // ---
+  _resolveSendBehavior(role) {
+    var urlEl = this._findUrlElement(role);
+    if (urlEl && urlEl.hasAttribute('send-behavior')) {
+      return urlEl.getAttribute('send-behavior');
+    }
+    return this.getAttribute('send-behavior') || 'submit';
+  }
+
+  // ---
+  _resolveUrl(role) {
+    var urlEl = this._findUrlElement(role);
+    if (!urlEl) return '';
+    var dynId = urlEl.getAttribute('dyn-url-id');
+    if (dynId) {
+      var el = document.getElementById(dynId);
+      if (el) return el.value !== undefined ? el.value : el.textContent;
+    }
+    return urlEl.getAttribute('url') || '';
+  }
+
+  // ---
+  _resolveMethod(role) {
+    var urlEl = this._findUrlElement(role);
+    if (urlEl && urlEl.hasAttribute('method')) {
+      return urlEl.getAttribute('method');
+    }
+    return 'POST';
+  }
+
+  // ---
+  _passesSwitch(el) {
+    var switchId = el.getAttribute('ct-switch-id');
+    if (!switchId) return true;
+    var target = document.getElementById(switchId);
+    if (!target) return false;
+    return target.value === (el.getAttribute('ct-switch-value') || '');
+  }
+
+  // ---
+  _findUrlElement(role) {
+    var urls = this.querySelectorAll('template-url');
+    var roleMatch = null;
+    var defaultMatch = null;
+    for (var i = 0; i < urls.length; i++) {
+      if (!this._passesSwitch(urls[i])) continue;
+      var r = urls[i].getAttribute('ct-role');
+      if (r && r === role) { roleMatch = urls[i]; break; }
+      if (!r && !defaultMatch) defaultMatch = urls[i];
+    }
+    return roleMatch || defaultMatch;
+  }
+
+  // ---
+  _getSections(role) {
+    var all = this.querySelectorAll('template-section');
+    var roleItems = [];
+    var defaultItems = [];
+    var starItems = [];
+    for (var i = 0; i < all.length; i++) {
+      if (!this._passesSwitch(all[i])) continue;
+      var r = all[i].getAttribute('ct-role');
+      if (r === '*') { starItems.push(all[i]); }
+      else if (r && r === role) { roleItems.push(all[i]); }
+      else if (!r) { defaultItems.push(all[i]); }
+    }
+    // ct-role="*" always included. ct-role-specific overrides defaults.
+    var result = starItems.concat(roleItems.length > 0 ? roleItems : defaultItems);
+    return result;
+  }
+
+  // ---
+  _getFields(role) {
+    var all = this.querySelectorAll('template-field');
+    var roleItems = [];
+    var defaultItems = [];
+    var starItems = [];
+    for (var i = 0; i < all.length; i++) {
+      if (!this._passesSwitch(all[i])) continue;
+      var r = all[i].getAttribute('ct-role');
+      var name = all[i].getAttribute('name') || '';
+      var value = all[i].getAttribute('value') || '';
+      var item = { name: name, value: value };
+      if (r === '*') { starItems.push(item); }
+      else if (r && r === role) { roleItems.push(item); }
+      else if (!r) { defaultItems.push(item); }
+    }
+    return starItems.concat(roleItems.length > 0 ? roleItems : defaultItems);
+  }
+
+  // ---
+  _getHeaders() {
+    var headers = {};
+    this.querySelectorAll('template-header').forEach(function(h) {
+      var name = h.getAttribute('name') || '';
+      var value = h.getAttribute('value') || '';
+      if (name) headers[name] = value;
+    });
+    return headers;
+  }
+
+  // ---
+  _shouldParseResponse() {
+    var tr = this.querySelector('template-response');
+    return tr && tr.getAttribute('parse') === 'closure-response';
+  }
+
+  // ---
+  _shouldDelegateResponse() {
+    var tr = this.querySelector('template-response');
+    return tr && tr.hasAttribute('delegate-response');
+  }
+
+  // ---
+  _getResponseAttrs(role) {
+    var urlEl = this._findUrlElement(role);
+    if (!urlEl) return {};
+    var attrs = {};
+    for (var i = 0; i < urlEl.attributes.length; i++) {
+      var a = urlEl.attributes[i];
+      if (a.name.startsWith('response-')) {
+        attrs[a.name] = a.value;
+      }
+    }
+    return attrs;
+  }
+
+  // ---
+  _collectData(forms) {
+    var data = {};
+    forms.forEach(function(form) {
+      var section = form.getAttribute('section') || '';
+      if (!data[section]) data[section] = {};
+      var target = data[section];
+      new FormData(form).forEach(function(value, key) {
+        target[key] = value;
+      });
+    });
+    return data;
+  }
+
+  // ---
+  _packageSections(form, sections, data) {
+    // Track captured sections for "*" catch-all
+    var capturedSections = {};
+    sections.forEach(function(sec) {
+      var s = sec.getAttribute('section') || '';
+      if (s && s !== '*') capturedSections[s] = true;
+    });
+
+    var self = this;
+    sections.forEach(function(sec) {
+      var sectionName = sec.getAttribute('section') || '';
+      var name = sec.getAttribute('name') || '';
+      var noPrefix = sec.hasAttribute('no-prefix');
+      var separator = sec.hasAttribute('prefix-separator') ? sec.getAttribute('prefix-separator') : '_';
+      var standalone = sec.hasAttribute('standalone-inputs');
+
+      // Determine which data sections to include
+      var sectionData = {};
+      if (sectionName === '*') {
+        for (var key in data) {
+          if (!capturedSections[key]) sectionData[key] = data[key];
+        }
+      } else if (sectionName === '') {
+        sectionData = data;
+      } else {
+        if (data[sectionName]) sectionData[sectionName] = data[sectionName];
+      }
+
+      if (standalone) {
+        for (var section in sectionData) {
+          var fields = sectionData[section];
+          var pfx = self._buildPrefix(section, noPrefix, separator);
+          for (var field in fields) {
+            var hidden = document.createElement('input');
+            hidden.type = 'hidden';
+            hidden.name = pfx + field;
+            hidden.value = fields[field];
+            form.appendChild(hidden);
+          }
+        }
+      } else {
+        var result = {};
+        for (var section in sectionData) {
+          var fields = sectionData[section];
+          var pfx = self._buildPrefix(section, noPrefix, separator);
+          for (var field in fields) {
+            result[pfx + field] = fields[field];
+          }
+        }
+        var hidden = document.createElement('input');
+        hidden.type = 'hidden';
+        hidden.name = name;
+        hidden.value = JSON.stringify(result);
+        form.appendChild(hidden);
+      }
+    });
+  }
+
+  // ---
+  _buildPrefix(section, noPrefix, separator) {
+    if (noPrefix) return '';
+    if (!section) return '';
+    return section + separator;
+  }
+
+  // ---
+  _handleResponse(response, responseAttrs, role) {
+    var self = this;
+    response.text().then(function(html) {
+      /*<%% if:mockup %%>*/
+      console.log('DBG _handleResponse: delegate=', self._shouldDelegateResponse(), 'parse=', self._shouldParseResponse());
+      console.log('DBG _handleResponse: responseAttrs=', responseAttrs);
+      /*<%% end %%>*/
+      self._clearLoading(responseAttrs);
+
+      if (!response.ok) {
+        var handled = self._handleFail(String(response.status), response.status, html, responseAttrs);
+        if (handled) return;
+      }
+
+      // Delegate: skip parsing, let the target handle it
+      if (response.ok && self._shouldDelegateResponse()) {
+        /*<%% if:mockup %%>*/
+        console.log('DBG: delegating response');
+        /*<%% end %%>*/
+        // Fall through — HTML goes to lightbox/target as-is, they parse it
+      }
+      // Parse closure-response directives if enabled
+      else if (response.ok && self._shouldParseResponse()) {
+        var closure = self.closest('target-closure');
+        var result = ClosureResponse.process(html, closure);
+        if (result) {
+          if (result.handled) {
+            self._executeDirtyClean(true, role);
+            self._notifyClosure(html, response, role);
+            return;
+          }
+          html = result.html;
+        }
+      }
+
+      // Check template-response-ok
+      if (response.ok) {
+        var okEl = self._findResponseOk();
+        if (okEl) {
+          html = self._renderTemplate(okEl, response.status, html);
+        }
+      }
+
+      var suffix = response.ok ? 'ok' : 'fail';
+
+      // Lightbox
+      var lbId = responseAttrs['response-lightbox-' + suffix + '-id']
+              || responseAttrs['response-lightbox-id'];
+      if (lbId) {
+        var lb = document.getElementById(lbId);
+        /*<%% if:mockup %%>*/
+        console.log('DBG: lightbox id=', lbId, 'found=', !!lb, 'showResponse=', !!(lb && lb.showResponse));
+        /*<%% end %%>*/
+        if (lb) {
+          if (response.ok) lb.showResponse(html);
+          else lb.showError(html);
+        }
+      }
+
+      // Target
+      var targetId = responseAttrs['response-target-' + suffix + '-id']
+                  || responseAttrs['response-target-id'];
+      if (targetId) {
+        var target = document.getElementById(targetId);
+        if (target) target.innerHTML = html;
+      }
+
+      // template-response-ok with its own target
+      if (response.ok) {
+        var okEl = self._findResponseOk();
+        if (okEl && okEl.hasAttribute('target')) {
+          var okTarget = document.getElementById(okEl.getAttribute('target'));
+          if (okTarget) okTarget.innerHTML = html;
+        }
+      }
+
+      // Dirty clean
+      self._executeDirtyClean(response.ok, role);
+      self._notifyClosure(html, response, role);
+    });
+  }
+
+
+  // ---
+  _notifyClosure(html, response, role) {
+    var closure = this.closest('target-closure');
+    if (closure) {
+      closure.dispatchEvent(new CustomEvent('closure-response', {
+        detail: { html: html, ok: response.ok, status: response.status, role: role },
+        bubbles: false,
+      }));
+    }
+  }
+
+  // ---
+  _showLoading(responseAttrs) {
+    var loadingEl = this.querySelector('template-loading');
+    if (!loadingEl) return;
+    var html = loadingEl.innerHTML;
+    var targetId = loadingEl.getAttribute('target');
+    if (targetId) {
+      var target = document.getElementById(targetId);
+      if (target) target.innerHTML = html;
+    } else {
+      // Fallback to response targets
+      var tId = responseAttrs['response-target-ok-id']
+             || responseAttrs['response-target-id'];
+      if (tId) {
+        var t = document.getElementById(tId);
+        if (t) t.innerHTML = html;
+      }
+      var lbId = responseAttrs['response-lightbox-ok-id']
+              || responseAttrs['response-lightbox-id'];
+      if (lbId) {
+        var lb = document.getElementById(lbId);
+        if (lb) lb.showResponse(html);
+      }
+    }
+  }
+
+  // ---
+  _clearLoading(responseAttrs) {
+    var loadingEl = this.querySelector('template-loading');
+    if (!loadingEl) return;
+    var targetId = loadingEl.getAttribute('target');
+    if (targetId) {
+      var target = document.getElementById(targetId);
+      if (target) target.innerHTML = '';
+    } else {
+      var tId = responseAttrs['response-target-ok-id']
+             || responseAttrs['response-target-id'];
+      if (tId) {
+        var t = document.getElementById(tId);
+        if (t) t.innerHTML = '';
+      }
+    }
+  }
+
+  // ---
+  _findResponseOk() {
+    return this.querySelector('template-response-ok');
+  }
+
+  // ---
+  _renderTemplate(el, code, text) {
+    var content = el.cloneNode(true);
+    content.querySelectorAll('[bind-response-code]').forEach(function(e) {
+      e.textContent = String(code);
+    });
+    content.querySelectorAll('[bind-response-text]').forEach(function(e) {
+      e.textContent = text;
+    });
+    return content.innerHTML;
+  }
+
+  // ---
+  _handleFail(type, code, text, responseAttrs) {
+    // Find matching template-response-fail
+    var failEl = this._findFailTemplate(type, code);
+    if (!failEl) return false;
+
+    // Clone content and bind error data
+    var content = failEl.cloneNode(true);
+    content.querySelectorAll('[bind-error-code]').forEach(function(el) {
+      el.textContent = String(code);
+    });
+    content.querySelectorAll('[bind-error-text]').forEach(function(el) {
+      el.textContent = text;
+    });
+
+    var html = content.innerHTML;
+
+    // Determine target
+    var targetId = failEl.getAttribute('target');
+    if (targetId) {
+      var target = document.getElementById(targetId);
+      if (target) target.innerHTML = html;
+    } else {
+      // Fallback: response-target-fail-id or response-lightbox-fail-id
+      var lbId = responseAttrs['response-lightbox-fail-id']
+              || responseAttrs['response-lightbox-id'];
+      if (lbId) {
+        var lb = document.getElementById(lbId);
+        if (lb) lb.showError(html);
+      }
+      var tId = responseAttrs['response-target-fail-id']
+             || responseAttrs['response-target-id'];
+      if (tId) {
+        var t = document.getElementById(tId);
+        if (t) t.innerHTML = html;
+      }
+    }
+    return true;
+  }
+
+  // ---
+  _findFailTemplate(type, code) {
+    var all = this.querySelectorAll('template-response-fail');
+    var exactMatch = null;
+    var rangeMatch = null;
+    var noResponseMatch = null;
+
+    for (var i = 0; i < all.length; i++) {
+      var t = all[i].getAttribute('type') || '';
+      if (t === type) { exactMatch = all[i]; break; }
+      if (t === 'no-response' && type === 'no-response') { noResponseMatch = all[i]; }
+      // Range match: 5xx, 4xx, etc.
+      if (t.length === 3 && t.charAt(1) === 'x' && t.charAt(2) === 'x') {
+        var rangeStart = parseInt(t.charAt(0)) * 100;
+        if (code >= rangeStart && code < rangeStart + 100) {
+          rangeMatch = all[i];
+        }
+      }
+    }
+    return exactMatch || rangeMatch || noResponseMatch;
+  }
+
+  // ---
+  _executeDirtyClean(ok, role) {
+    var cleans = this.querySelectorAll('template-dirty-clean');
+    var closure = this.closest('target-closure');
+    if (!closure) return;
+
+    for (var i = 0; i < cleans.length; i++) {
+      var result = cleans[i].getAttribute('result') || 'ok';
+      if (result === 'always' || (result === 'ok' && ok)) {
+        var templates = cleans[i].getAttribute('templates') || '';
+        closure.cleanDirty(templates);
+      }
+    }
+  }
+}
+
+customElements.define('closure-template', ClosureTemplate);
