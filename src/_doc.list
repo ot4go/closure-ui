@@ -1,6 +1,8 @@
 <%% doc-block-begin: b1  %%>
 <%% include-notes:closure_helper_functions.js %%>
 
+<%% include-notes:signal_event.js %%>
+
 <%% include-notes:btn_grid.js %%>
 
 <%% include-notes:update_clock_time.js %%>

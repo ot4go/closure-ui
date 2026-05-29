@@ -1,4 +1,5 @@
 /* <%% include:closure_helper_functions.js%%> */
+/* <%% include:signal_event.js%%> */
 /* <%% include:update_clock_time.js%%> */
 /* <%% include:credential_password.js%%> */
 /* <%% include:btn_grid.js%%> */

@@ -1,3 +1,199 @@
+
+- [Helpers](#helpers)
+  - [`applyWidthRange(el)`](#applywidthrangeel)
+- [`<signal-event>`](#signal-event)
+  - [Attributes](#attributes)
+  - [Example](#example)
+  - [Behaviour](#behaviour)
+- [`<btn-grid>`](#btn-grid)
+  - [Attributes](#attributes-1)
+  - [Children](#children)
+  - [Example](#example-1)
+  - [CSS Variables](#css-variables)
+- [`<clock-display>`](#clock-display)
+  - [Attributes](#attributes-2)
+  - [Format](#format)
+  - [Example](#example-2)
+  - [CSS Variables](#css-variables-1)
+  - [Behaviour](#behaviour-1)
+- [`<credential-pwd>`](#credential-pwd)
+  - [Attributes](#attributes-3)
+  - [Properties](#properties)
+  - [Events](#events)
+  - [Example](#example-3)
+  - [CSS Variables](#css-variables-2)
+  - [Behaviour](#behaviour-2)
+- [`<data-map>`](#data-map)
+  - [Children](#children-1)
+  - [Methods](#methods)
+  - [Example](#example-4)
+  - [Behaviour](#behaviour-3)
+- [`<map-item>`](#map-item)
+  - [Attributes](#attributes-4)
+  - [Example](#example-5)
+  - [Behaviour](#behaviour-4)
+- [`ClosureResponse` (global object)](#closureresponse-global-object)
+  - [Public API](#public-api)
+  - [Markup the processor recognises](#markup-the-processor-recognises)
+  - [`<response-item>` types](#response-item-types)
+  - [Behaviour](#behaviour-5)
+- [`<target-closure>`](#target-closure)
+  - [Attributes](#attributes-5)
+  - [Public methods](#public-methods)
+  - [Events](#events-1)
+  - [Inner declarative elements](#inner-declarative-elements)
+  - [Example](#example-6)
+  - [Behaviour](#behaviour-6)
+- [`<closure-template>`](#closure-template)
+  - [Attributes (on `<closure-template>`)](#attributes-on-closure-template)
+  - [Child elements](#child-elements)
+  - [Public methods](#public-methods-1)
+  - [Behaviour](#behaviour-7)
+- [`<closure-btn>`](#closure-btn)
+  - [Attributes](#attributes-6)
+  - [Events](#events-2)
+  - [Methods](#methods-1)
+  - [Example](#example-7)
+  - [CSS Variables](#css-variables-3)
+  - [Behaviour](#behaviour-8)
+- [`<closure-btn-item>`](#closure-btn-item)
+  - [Attributes](#attributes-7)
+  - [Methods](#methods-2)
+  - [Example](#example-8)
+  - [CSS Variables](#css-variables-4)
+  - [Behaviour](#behaviour-9)
+- [`<closure-lightbox>`](#closure-lightbox)
+  - [Attributes](#attributes-8)
+  - [Methods](#methods-3)
+  - [Events](#events-3)
+  - [Subscribed closure tags](#subscribed-closure-tags)
+  - [Example](#example-9)
+  - [CSS Variables](#css-variables-5)
+  - [Behaviour](#behaviour-10)
+- [`<closure-status-bar>`](#closure-status-bar)
+  - [Attributes](#attributes-9)
+  - [Children](#children-2)
+  - [Example](#example-10)
+  - [CSS Variables](#css-variables-6)
+  - [Behaviour](#behaviour-11)
+- [`<status-msg>`](#status-msg)
+  - [Example](#example-11)
+- [`<status-part>`](#status-part)
+  - [Attributes](#attributes-10)
+  - [Example](#example-12)
+  - [Behaviour](#behaviour-12)
+- [`<status-buttons>`](#status-buttons)
+  - [Attributes](#attributes-11)
+  - [Children](#children-3)
+  - [Example](#example-13)
+  - [CSS Variables](#css-variables-7)
+  - [Behaviour](#behaviour-13)
+- [`<status-kv>`](#status-kv)
+  - [Attributes](#attributes-12)
+  - [Properties](#properties-1)
+  - [Example](#example-14)
+  - [CSS Variables](#css-variables-8)
+  - [Behaviour](#behaviour-14)
+- [`<closure-filter-bar>`](#closure-filter-bar)
+  - [Attributes](#attributes-13)
+  - [Children](#children-4)
+  - [Events](#events-4)
+  - [Properties / Methods](#properties-methods)
+  - [Example](#example-15)
+  - [CSS Variables](#css-variables-9)
+  - [Behaviour](#behaviour-15)
+- [`<closure-data-grid>`](#closure-data-grid)
+  - [Data sources](#data-sources)
+  - [Children (configuration)](#children-configuration)
+  - [Selection vs focus](#selection-vs-focus)
+  - [Methods](#methods-4)
+  - [Events](#events-5)
+  - [Example](#example-16)
+  - [CSS Variables](#css-variables-10)
+  - [Behaviour](#behaviour-16)
+- [`<closure-data-grid>` children](#closure-data-grid-children)
+  - [Tags](#tags)
+  - [Example](#example-17)
+  - [Behaviour](#behaviour-17)
+- [`<closure-row-viewer>`](#closure-row-viewer)
+  - [Attributes](#attributes-14)
+  - [Per-child binding attributes](#per-child-binding-attributes)
+  - [Properties](#properties-2)
+  - [Example](#example-18)
+  - [Behaviour](#behaviour-18)
+- [`<closure-checkbox-tree>`](#closure-checkbox-tree)
+  - [Attributes](#attributes-15)
+  - [Children](#children-5)
+  - [Form value](#form-value)
+  - [Properties](#properties-3)
+  - [Methods](#methods-5)
+  - [Events](#events-6)
+  - [Example](#example-19)
+  - [Behaviour](#behaviour-19)
+- [`<cbt-item>`](#cbt-item)
+  - [Attributes](#attributes-16)
+  - [Example](#example-20)
+  - [Behaviour](#behaviour-20)
+- [`<closure-checkbox-group>`](#closure-checkbox-group)
+  - [Attributes](#attributes-17)
+  - [Children](#children-6)
+  - [Form value](#form-value-1)
+  - [Properties](#properties-4)
+  - [Methods](#methods-6)
+  - [Events](#events-7)
+  - [Example](#example-21)
+  - [Behaviour](#behaviour-21)
+- [`<closure-tab-bar>`](#closure-tab-bar)
+  - [Attributes](#attributes-18)
+  - [Children](#children-7)
+  - [Methods](#methods-7)
+  - [Events](#events-8)
+  - [Example](#example-22)
+  - [CSS Variables](#css-variables-11)
+  - [Behaviour](#behaviour-22)
+- [`<closure-tab>`](#closure-tab)
+  - [Attributes](#attributes-19)
+  - [Example](#example-23)
+  - [Behaviour](#behaviour-23)
+- [`<closure-summary>`](#closure-summary)
+  - [Pairing](#pairing)
+  - [Attributes](#attributes-20)
+  - [Methods](#methods-8)
+  - [CSS Variables](#css-variables-12)
+  - [Behaviour](#behaviour-24)
+- [`<closure-form-row>`](#closure-form-row)
+  - [Attributes](#attributes-21)
+  - [Children](#children-8)
+  - [Density](#density)
+  - [Example](#example-24)
+  - [CSS Variables](#css-variables-13)
+  - [Behaviour](#behaviour-25)
+- [`<closure-form-field>`](#closure-form-field)
+  - [Attributes](#attributes-22)
+  - [Children](#children-9)
+  - [Example](#example-25)
+  - [Behaviour](#behaviour-26)
+- [`<closure-data-source>`](#closure-data-source)
+  - [Attributes](#attributes-23)
+  - [Children](#children-10)
+  - [Example](#example-26)
+  - [Behaviour](#behaviour-27)
+- [`<fingerprint-hands>`](#fingerprint-hands)
+  - [Attributes](#attributes-24)
+  - [Form value](#form-value-2)
+  - [Properties](#properties-5)
+  - [Events](#events-9)
+  - [Example](#example-27)
+  - [CSS Variables](#css-variables-14)
+  - [Behaviour](#behaviour-28)
+- [`<session-keep-alive>`](#session-keep-alive)
+  - [Attributes](#attributes-25)
+  - [Events](#events-10)
+  - [Example](#example-28)
+  - [CSS Variables](#css-variables-15)
+  - [Behaviour](#behaviour-29)
+
+
 # Helpers
 
 Functions shared by closure-ui components. Loaded first in `_source.list`
@@ -19,6 +215,58 @@ duplicating the parser.
 | `*,300px` or `-,300px`          | only `max-width` |
 
 `*` and `-` are interchangeable as "unset / unbounded" sentinels.
+
+---
+
+# `<signal-event>`
+
+Aseptic one-shot event dispatcher. Used to deliver named signals from a
+streamed HTML response (or any other HTML payload) to JavaScript listeners
+on the page. The element never renders (`display: none`); on connect it
+reads its `name` and `data-*` attributes, dispatches a `CustomEvent` on
+`document`, and removes itself from the DOM.
+
+It is intentionally decoupled — no registry of its own, no target lookup,
+no bubbling by default. Listeners subscribe with the standard DOM API:
+`document.addEventListener(name, handler)`.
+
+## Attributes
+
+| Attribute | Description |
+|---|---|
+| `name="x"`  | event name passed to `CustomEvent` (required) |
+| `bubbles`   | if present, the event bubbles (default: `false`) |
+| `data-*`    | every `data-*` becomes a key of `event.detail`, with the `data-` prefix stripped; the key keeps its original kebab-case |
+
+## Example
+
+```html
+<signal-event name="need-fingerprint"
+              data-token="abc123"
+              data-employee-id="42"></signal-event>
+```
+
+```js
+document.addEventListener('need-fingerprint', (e) => {
+  const token      = e.detail['token'];
+  const employeeId = e.detail['employee-id'];
+  // …
+});
+```
+
+## Behaviour
+
+> **Note:** the element fires exactly once, in `connectedCallback`, and
+> removes itself afterwards. For a script to receive the event the
+> matching `addEventListener` must already be registered when the element
+> is parsed — in a streamed response, place the `<script>` that
+> subscribes earlier in the document than the `<signal-event>` tags that
+> trigger it.
+
+> **Note:** the event is dispatched on `document`. There is no
+> `target-id` attribute — the emitter does not know who listens, that is
+> the point of the pub/sub split. If a listener wants to scope itself, it
+> filters inside its handler.
 
 ---
 
@@ -1045,7 +1293,7 @@ Re-themed automatically by `type=...` attributes (background, border,
 > `closure-status-bar-label-style`) so it can target light-DOM elements
 > outside the shadow root.
 
----
+---78428
 
 # `<status-msg>`
 
