@@ -10,7 +10,7 @@ trivial implementation and are always loaded as a set.
 
 | Tag | Purpose |
 |---|---|
-| `<grid-col>`         | column descriptor: `name`, `label`, `width`, `type`, `map-data-id` |
+| `<grid-col>`         | column descriptor: `name`, `label`, `width`, `align`, `fill`, `type`, `map-data-id` |
 | `<grid-key>`         | per-row identity (text content is one or more `name`s, comma-separated) |
 | `<grid-layout>`      | layout overrides: `page-size`, scroll mode, `auto-page-size` |
 | `<g-row>`            | one row of inline data (contains `<g-col>` cells) |
@@ -38,6 +38,17 @@ trivial implementation and are always loaded as a set.
   <on-fetch-error><p>Could not load.</p></on-fetch-error>
 </closure-data-grid>
 ```
+
+## `<grid-col>` sizing attributes
+
+| Attribute | Purpose |
+|---|---|
+| `width="N"` | fixed width in pixels |
+| `width="12ch"` / `width="20%"` | CSS length passed through |
+| `align="left\|center\|right"` | explicit text alignment |
+| `fill` | in an `auto-fit` grid, this column absorbs remaining width |
+
+`fill` belongs on `<grid-col>`, not on `<g-col>`.
 
 ## Behaviour
 

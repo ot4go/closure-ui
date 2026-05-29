@@ -17,7 +17,7 @@ controls. Selection and focus are tracked separately so consumers like
 
 | Tag | Purpose |
 |---|---|
-| `<grid-col>`        | column definition (`name`, `label`, `width`, `type`, `map-data-id`) |
+| `<grid-col>`        | column definition (`name`, `label`, `width`, `align`, `fill`, `type`, `map-data-id`) |
 | `<grid-key>`        | per-row identity (composed of one or more `name`s) |
 | `<grid-layout>`     | overrides `page-size`, scrolling mode, etc. |
 | `<query-definition>`| dynamic-mode endpoint and defaults |
@@ -69,6 +69,43 @@ the keyboard while the selection drives a side panel.
 
 <closure-row-viewer target="users">…</closure-row-viewer>
 ```
+
+## Column sizing
+
+`<grid-col width="...">` accepts:
+
+| Value | Meaning |
+|---|---|
+| `width="120"` | `120px` (backwards-compatible numeric shorthand) |
+| `width="12ch"` | any CSS length is passed through |
+| `width="20%"` | percentage width |
+
+If `width` is set and `align` is omitted, the grid keeps the legacy
+behaviour of centering that column. Use `align="left"`,
+`align="center"`, or `align="right"` to opt into a specific alignment.
+
+For content-sized columns, add `auto-fit` to the grid. In this mode,
+columns without `fill` are measured from their header/body text and the
+column marked with `fill` receives the remaining horizontal space.
+
+```html
+<closure-data-grid id="periods" page-size="all" auto-fit>
+  <grid-col name="from" label="From"></grid-col>
+  <grid-col name="to"   label="To"></grid-col>
+  <grid-col name="wd"   label="WD" align="right"></grid-col>
+  <grid-col name="note" label="" fill></grid-col>
+
+  <g-row>
+    <g-col name="from">May 11, 2026</g-col>
+    <g-col name="to">May 24, 2026</g-col>
+    <g-col name="wd">14</g-col>
+    <g-col name="note">Ready</g-col>
+  </g-row>
+</closure-data-grid>
+```
+
+Only `<grid-col>` supports `fill`; putting `fill` on `<g-col>` has no
+effect because sizing is calculated per column, not per cell.
 
 ## CSS Variables
 
@@ -182,6 +219,8 @@ class ClosureDataGrid extends HTMLElement {
       type:     el.getAttribute('type') || 'text',
       mapId:    el.getAttribute('map-data-id') || '',
       width:    el.getAttribute('width') || '',
+      align:    this._normalizeAlign(el.getAttribute('align') || ''),
+      fill:     el.hasAttribute('fill'),
       collapse: el.hasAttribute('collapse'),
       key:      el.hasAttribute('key'),
       el:       el,
@@ -405,6 +444,60 @@ class ClosureDataGrid extends HTMLElement {
   }
 
   // ---
+  _cssLength(value) {
+    const v = String(value || '').trim();
+    if (!v) return '';
+    if (/^-?\d+(\.\d+)?$/.test(v)) return v + 'px';
+    return v;
+  }
+
+  // ---
+  _normalizeAlign(value) {
+    const align = String(value || '').trim().toLowerCase();
+    return /^(left|center|right)$/.test(align) ? align : '';
+  }
+
+  // ---
+  _applyColumnPresentation(el, col, isBodyCell) {
+    if (col.width) {
+      el.style.width = this._cssLength(col.width);
+      if (isBodyCell) el.style.padding = '6px 4px';
+    }
+    if (col.align) {
+      el.style.textAlign = col.align;
+    } else if (col.width) {
+      el.style.textAlign = 'center';
+    }
+  }
+
+  // ---
+  _cellContentWidth(cell) {
+    const cs = getComputedStyle(cell);
+    const probe = document.createElement('span');
+    probe.style.cssText = [
+      'position:fixed',
+      'left:-10000px',
+      'top:-10000px',
+      'visibility:hidden',
+      'white-space:nowrap',
+      'font:' + cs.font,
+      'letter-spacing:' + cs.letterSpacing,
+    ].join(';');
+    probe.textContent = cell.textContent || '';
+    document.body.appendChild(probe);
+    const pad = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+    const width = Math.ceil(probe.getBoundingClientRect().width + pad + 2);
+    probe.remove();
+    return width;
+  }
+
+  // ---
+  _autoFitColumnWidth(idx, ths) {
+    const columnCells = Array.from(this._tbody.querySelectorAll('tr td:nth-child(' + (idx + 1) + ')'));
+    return Math.max(this._cellContentWidth(ths[idx]), ...columnCells.map(cell => this._cellContentWidth(cell)));
+  }
+
+  // ---
   get pageSize() {
     const ps = this.getAttribute('page-size');
     if (!ps || ps === 'all') return this._total;
@@ -448,8 +541,7 @@ class ClosureDataGrid extends HTMLElement {
       const headRow = document.createElement('tr');
       this._cols.forEach(col => {
         const th = document.createElement('th');
-        if (col.width) th.style.width = col.width + 'px';
-        if (col.width) th.style.textAlign = 'center';
+        this._applyColumnPresentation(th, col, false);
         if (col.collapse) th.className = 'dg-col-collapse';
         if (col.type === 'actions') {
           th.textContent = '⋮';
@@ -509,6 +601,7 @@ class ClosureDataGrid extends HTMLElement {
 
     // Events
     this._setupEvents();
+    this._setupAutoFitResizeObserver();
 
     // Auto-focus
     if (this.hasAttribute('autofocus')) this.focus();
@@ -525,6 +618,22 @@ class ClosureDataGrid extends HTMLElement {
         this._updatePagination();
       });
     }
+  }
+
+  // ---
+  _setupAutoFitResizeObserver() {
+    if (!this.hasAttribute('auto-fit') || !window.ResizeObserver || this._autoFitResizeObserver) return;
+    this._autoFitLastWidth = Math.floor(this._bodyWrap ? this._bodyWrap.clientWidth : this.clientWidth);
+    this._autoFitResizeObserver = new ResizeObserver(() => {
+      if (this._autoFitResizeRaf) cancelAnimationFrame(this._autoFitResizeRaf);
+      this._autoFitResizeRaf = requestAnimationFrame(() => {
+        const width = Math.floor(this._bodyWrap ? this._bodyWrap.clientWidth : this.clientWidth);
+        if (!width || width === this._autoFitLastWidth) return;
+        this._autoFitLastWidth = width;
+        this._syncColWidths();
+      });
+    });
+    this._autoFitResizeObserver.observe(this._bodyWrap || this);
   }
 
   // ---
@@ -664,7 +773,7 @@ class ClosureDataGrid extends HTMLElement {
       const val = row[col.name] || '';
 
       if (col.collapse) { td.className = 'dg-col-collapse'; td.title = val; }
-      if (col.width) { td.style.padding = '6px 4px'; td.style.textAlign = 'center'; }
+      this._applyColumnPresentation(td, col, true);
 
       if (col.mapId) {
         const map = document.getElementById(col.mapId);
@@ -773,16 +882,75 @@ class ClosureDataGrid extends HTMLElement {
   // ---
   _syncColWidths() {
     if (!this._headTable) return; // headless mode
-    const ths = Array.from(this._headTable.querySelectorAll('th'));
-    if (!ths.length) return;
-    let cg = this._bodyTable.querySelector('colgroup');
-    if (!cg) { cg = document.createElement('colgroup'); this._bodyTable.prepend(cg); }
-    cg.innerHTML = '';
-    ths.forEach(th => {
-      const col = document.createElement('col');
-      col.style.width = th.offsetWidth + 'px';
-      cg.appendChild(col);
-    });
+    if (this.hasAttribute('auto-fit')) {
+      let bodyCg = this._bodyTable.querySelector('colgroup');
+      if (!bodyCg) { bodyCg = document.createElement('colgroup'); this._bodyTable.prepend(bodyCg); }
+      this._headTable.style.tableLayout = 'auto';
+      this._bodyTable.style.tableLayout = 'auto';
+      bodyCg.innerHTML = '';
+      const cells = Array.from(this._bodyTable.querySelectorAll('tbody tr:first-child td'));
+      const ths = Array.from(this._headTable.querySelectorAll('th'));
+      if (!cells.length || !ths.length) return;
+      let headCg = this._headTable.querySelector('colgroup');
+      if (!headCg) { headCg = document.createElement('colgroup'); this._headTable.prepend(headCg); }
+      headCg.innerHTML = '';
+      const fillIdxs = this._cols
+        .map((gridCol, idx) => gridCol.fill ? idx : -1)
+        .filter(idx => idx >= 0);
+      const widths = this._cols.map((gridCol, idx) => {
+        const cssWidth = this._cssLength(gridCol.width);
+        if (cssWidth) return cssWidth;
+        if (fillIdxs.includes(idx)) return '';
+        return this._autoFitColumnWidth(idx, ths) + 'px';
+      });
+      const fixedWidth = widths.reduce((sum, width, idx) => {
+        if (!width || fillIdxs.includes(idx) || !width.endsWith('px')) return sum;
+        return sum + parseFloat(width);
+      }, 0);
+      const fillContentWidth = fillIdxs.reduce((sum, idx) => sum + this._autoFitColumnWidth(idx, ths), 0);
+      const gridWidth = Math.floor(this._bodyWrap.clientWidth || this._wrap.clientWidth || this.clientWidth);
+      const fillAvailable = Math.max(0, gridWidth - fixedWidth);
+      if (fillIdxs.length) {
+        const fillWidth = Math.ceil(Math.max(fillContentWidth, fillAvailable) / fillIdxs.length);
+        fillIdxs.forEach(idx => { widths[idx] = fillWidth + 'px'; });
+      }
+      const tableWidth = widths.reduce((sum, width) => {
+        return width && width.endsWith('px') ? sum + parseFloat(width) : sum;
+      }, 0);
+      this._cols.forEach((gridCol, idx) => {
+        const headCol = document.createElement('col');
+        const bodyCol = document.createElement('col');
+        if (widths[idx]) {
+          headCol.style.width = widths[idx];
+          bodyCol.style.width = widths[idx];
+        }
+        headCg.appendChild(headCol);
+        bodyCg.appendChild(bodyCol);
+      });
+      if (tableWidth > 0) {
+        this._headTable.style.width = tableWidth + 'px';
+        this._bodyTable.style.width = tableWidth + 'px';
+      }
+      this._headTable.style.tableLayout = 'fixed';
+      this._bodyTable.style.tableLayout = 'fixed';
+    } else {
+      this._headTable.style.tableLayout = '';
+      this._bodyTable.style.tableLayout = '';
+      this._headTable.style.width = '';
+      this._bodyTable.style.width = '';
+      const headCg = this._headTable.querySelector('colgroup');
+      if (headCg) headCg.remove();
+      const ths = Array.from(this._headTable.querySelectorAll('th'));
+      if (!ths.length) return;
+      let bodyCg = this._bodyTable.querySelector('colgroup');
+      if (!bodyCg) { bodyCg = document.createElement('colgroup'); this._bodyTable.prepend(bodyCg); }
+      bodyCg.innerHTML = '';
+      ths.forEach(th => {
+        const col = document.createElement('col');
+        col.style.width = th.offsetWidth + 'px';
+        bodyCg.appendChild(col);
+      });
+    }
   }
 
   // ---
