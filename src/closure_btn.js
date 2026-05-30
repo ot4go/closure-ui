@@ -25,6 +25,8 @@ attribute it becomes a dropdown that hosts `<closure-btn-item>` children.
 | `url="x"`               | (with `free`) destination URL of the auto-generated POST form |
 | `event="x"`             | event name to dispatch (default `btn-action`) |
 | `target-id="x"`         | element to receive the dispatched event (default: self) |
+| `target-selector="css"` | selector target for local client actions |
+| `target-selector-all="css"` | selector targets for local client actions |
 | `section="x"`           | section key when packaging `data-*` for the closure |
 | `data-*`                | included in `getBtnData()`'s payload section |
 
@@ -62,6 +64,25 @@ attribute it becomes a dropdown that hosts `<closure-btn-item>` children.
   <closure-btn-item ct-role="archive" icon="🗄️">Archive</closure-btn-item>
 </closure-btn>
 ```
+
+## Local client actions
+
+`client-action="set-value"` writes `value` to the resolved target's
+`.value` property without a server round trip and without dispatching
+the normal `btn-action` event.
+
+```html
+<input id="year" type="text">
+
+<closure-btn client-action="set-value" target-id="year" value="2026" class="small">
+  2026
+</closure-btn>
+```
+
+Targets can be selected with `target-id`, `target-selector`, or
+`target-selector-all`. This mirrors the server-side
+`<response-item type="set-value">` action, but runs entirely in the
+browser.
 
 ## CSS Variables
 
@@ -375,12 +396,46 @@ class ClosureBtn extends HTMLElement {
   }
 
   _dispatch() {
+    if (this._runClientAction()) return;
     const eventName = this.getAttribute('event') || 'btn-action';
     const targetId = this.getAttribute('target-id') || '';
     const dest = targetId ? document.getElementById(targetId) : this;
     if (dest) {
       dest.dispatchEvent(new CustomEvent(eventName, { bubbles: true }));
     }
+  }
+
+  _runClientAction() {
+    const action = this.getAttribute('client-action') || '';
+    if (action !== 'set-value') return false;
+
+    const value = this.getAttribute('value') || '';
+    this._resolveTargets().forEach(el => {
+      el.value = value;
+    });
+    return true;
+  }
+
+  _resolveTargets() {
+    const results = [];
+    const id = this.getAttribute('target-id') || '';
+    if (id) {
+      const el = document.getElementById(id);
+      if (el) results.push(el);
+    }
+
+    const selector = this.getAttribute('target-selector') || '';
+    if (selector) {
+      const el = document.querySelector(selector);
+      if (el) results.push(el);
+    }
+
+    const selectorAll = this.getAttribute('target-selector-all') || '';
+    if (selectorAll) {
+      document.querySelectorAll(selectorAll).forEach(el => results.push(el));
+    }
+
+    return results;
   }
 
   getBtnData() {

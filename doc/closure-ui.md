@@ -54,6 +54,7 @@
   - [Events](#events-2)
   - [Methods](#methods-1)
   - [Example](#example-7)
+  - [Local client actions](#local-client-actions)
   - [CSS Variables](#css-variables-3)
   - [Behaviour](#behaviour-8)
 - [`<closure-btn-item>`](#closure-btn-item)
@@ -109,11 +110,13 @@
   - [Methods](#methods-4)
   - [Events](#events-5)
   - [Example](#example-16)
+  - [Column sizing](#column-sizing)
   - [CSS Variables](#css-variables-10)
   - [Behaviour](#behaviour-16)
 - [`<closure-data-grid>` children](#closure-data-grid-children)
   - [Tags](#tags)
   - [Example](#example-17)
+  - [`<grid-col>` sizing attributes](#grid-col-sizing-attributes)
   - [Behaviour](#behaviour-17)
 - [`<closure-row-viewer>`](#closure-row-viewer)
   - [Attributes](#attributes-14)
@@ -976,6 +979,8 @@ attribute it becomes a dropdown that hosts `<closure-btn-item>` children.
 | `url="x"`               | (with `free`) destination URL of the auto-generated POST form |
 | `event="x"`             | event name to dispatch (default `btn-action`) |
 | `target-id="x"`         | element to receive the dispatched event (default: self) |
+| `target-selector="css"` | selector target for local client actions |
+| `target-selector-all="css"` | selector targets for local client actions |
 | `section="x"`           | section key when packaging `data-*` for the closure |
 | `data-*`                | included in `getBtnData()`'s payload section |
 
@@ -1013,6 +1018,25 @@ attribute it becomes a dropdown that hosts `<closure-btn-item>` children.
   <closure-btn-item ct-role="archive" icon="🗄️">Archive</closure-btn-item>
 </closure-btn>
 ```
+
+## Local client actions
+
+`client-action="set-value"` writes `value` to the resolved target's
+`.value` property without a server round trip and without dispatching
+the normal `btn-action` event.
+
+```html
+<input id="year" type="text">
+
+<closure-btn client-action="set-value" target-id="year" value="2026" class="small">
+  2026
+</closure-btn>
+```
+
+Targets can be selected with `target-id`, `target-selector`, or
+`target-selector-all`. This mirrors the server-side
+`<response-item type="set-value">` action, but runs entirely in the
+browser.
 
 ## CSS Variables
 
@@ -1593,7 +1617,7 @@ controls. Selection and focus are tracked separately so consumers like
 
 | Tag | Purpose |
 |---|---|
-| `<grid-col>`        | column definition (`name`, `label`, `width`, `type`, `map-data-id`) |
+| `<grid-col>`        | column definition (`name`, `label`, `width`, `align`, `fill`, `type`, `map-data-id`) |
 | `<grid-key>`        | per-row identity (composed of one or more `name`s) |
 | `<grid-layout>`     | overrides `page-size`, scrolling mode, etc. |
 | `<query-definition>`| dynamic-mode endpoint and defaults |
@@ -1646,6 +1670,43 @@ the keyboard while the selection drives a side panel.
 <closure-row-viewer target="users">…</closure-row-viewer>
 ```
 
+## Column sizing
+
+`<grid-col width="...">` accepts:
+
+| Value | Meaning |
+|---|---|
+| `width="120"` | `120px` (backwards-compatible numeric shorthand) |
+| `width="12ch"` | any CSS length is passed through |
+| `width="20%"` | percentage width |
+
+If `width` is set and `align` is omitted, the grid keeps the legacy
+behaviour of centering that column. Use `align="left"`,
+`align="center"`, or `align="right"` to opt into a specific alignment.
+
+For content-sized columns, add `auto-fit` to the grid. In this mode,
+columns without `fill` are measured from their header/body text and the
+column marked with `fill` receives the remaining horizontal space.
+
+```html
+<closure-data-grid id="periods" page-size="all" auto-fit>
+  <grid-col name="from" label="From"></grid-col>
+  <grid-col name="to"   label="To"></grid-col>
+  <grid-col name="wd"   label="WD" align="right"></grid-col>
+  <grid-col name="note" label="" fill></grid-col>
+
+  <g-row>
+    <g-col name="from">May 11, 2026</g-col>
+    <g-col name="to">May 24, 2026</g-col>
+    <g-col name="wd">14</g-col>
+    <g-col name="note">Ready</g-col>
+  </g-row>
+</closure-data-grid>
+```
+
+Only `<grid-col>` supports `fill`; putting `fill` on `<g-col>` has no
+effect because sizing is calculated per column, not per cell.
+
 ## CSS Variables
 
 | Variable | Default |
@@ -1682,7 +1743,7 @@ trivial implementation and are always loaded as a set.
 
 | Tag | Purpose |
 |---|---|
-| `<grid-col>`         | column descriptor: `name`, `label`, `width`, `type`, `map-data-id` |
+| `<grid-col>`         | column descriptor: `name`, `label`, `width`, `align`, `fill`, `type`, `map-data-id` |
 | `<grid-key>`         | per-row identity (text content is one or more `name`s, comma-separated) |
 | `<grid-layout>`      | layout overrides: `page-size`, scroll mode, `auto-page-size` |
 | `<g-row>`            | one row of inline data (contains `<g-col>` cells) |
@@ -1710,6 +1771,17 @@ trivial implementation and are always loaded as a set.
   <on-fetch-error><p>Could not load.</p></on-fetch-error>
 </closure-data-grid>
 ```
+
+## `<grid-col>` sizing attributes
+
+| Attribute | Purpose |
+|---|---|
+| `width="N"` | fixed width in pixels |
+| `width="12ch"` / `width="20%"` | CSS length passed through |
+| `align="left\|center\|right"` | explicit text alignment |
+| `fill` | in an `auto-fit` grid, this column absorbs remaining width |
+
+`fill` belongs on `<grid-col>`, not on `<g-col>`.
 
 ## Behaviour
 
