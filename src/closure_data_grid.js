@@ -13,12 +13,16 @@ controls. Selection and focus are tracked separately so consumers like
 | **Inline**  | `<g-row><g-col name="…">value</g-col></g-row>` children supply the rows |
 | **Dynamic** | a `<query-definition url="…">` child (with optional `<query-param>` mappings) declares the request; refresh on demand |
 
+Dynamic requests expect JSON by default. Set `response="g-row"` on
+`<query-definition>` when the server returns `<g-row>` fragments.
+
 ## Children (configuration)
 
 | Tag | Purpose |
 |---|---|
 | `<grid-col>`        | column definition (`name`, `label`, `width`, `align`, `fill`, `type`, `map-data-id`) |
 | `<grid-key>`        | per-row identity (composed of one or more `name`s) |
+| `<grid-footer-buttons>` | extra buttons in the pagination footer (`side="left|center|right"`) |
 | `<grid-layout>`     | overrides `page-size`, scrolling mode, etc. |
 | `<query-definition>`| dynamic-mode endpoint and defaults |
 | `<query-param>`     | maps an external value (filter, etc.) into a query parameter |
@@ -27,6 +31,88 @@ controls. Selection and focus are tracked separately so consumers like
 | `<filter-preset>`   | apply a predefined filter set to the grid |
 
 (See [child elements](#closure-data-grid-children) below for details.)
+
+## Sizing attributes
+
+| Attribute | Description |
+|---|---|
+| `page-size="auto"` | sizes the grid to the available viewport height and derives row count from that height |
+| `fill-reserve="N"` | with `page-size="auto"`, reserve `N` pixels below the grid |
+| `fill-reserve="selector"` | reserve the live height of the matched element and relayout when it resizes |
+| `fill-stop="selector"` | stop the grid at the matched element's top edge and relayout when it resizes |
+
+When `fill-reserve="N"` is used and the next sibling is a
+`<closure-row-viewer>`, `N` is treated as a minimum and the viewer's live
+height is also measured.
+
+## Master/detail
+
+| Attribute | Description |
+|---|---|
+| `detail-of="gridId"` | apply a filter from the selected row of another grid |
+| `detail-event="row-select"` | master event that triggers refresh (`row-select` by default) |
+| `detail-rows="field.path"` | use an array already embedded in the selected master row instead of fetching |
+| `detail-key="field"` | child filter field written from the selected master row |
+| `detail-master-key="field"` | master row field to read; defaults to `detail-key` |
+
+For separated requests, the master selection writes a filter in the
+child. The child fetches exactly like any other `filter="fetch"` grid:
+
+```html
+<closure-data-grid id="shiftsGrid"
+                   detail-of="masterDaysGrid"
+                   detail-key="master_day_id"
+                   filter="fetch">
+  <query-definition url="/schedule/masterdays/sid:{{.Sid}}/" method="POST">
+    <query-param name="action" value="shifts-grid-json"></query-param>
+    <query-param name="master_day_id" bind="filter.master_day_id"></query-param>
+  </query-definition>
+</closure-data-grid>
+```
+
+If the server returns row markup instead of JSON:
+
+```html
+<query-definition url="/schedule/masterdays/sid:{{.Sid}}/" method="POST" response="g-row">
+```
+
+For bundled data, omit the query and point `detail-rows` at the array in
+the selected row:
+
+```html
+<closure-data-grid id="shiftsGrid" detail-of="masterDaysGrid" detail-rows="shifts">
+</closure-data-grid>
+```
+
+With `response="g-row"`, bundled child rows are represented with
+`<g-detail>` inside the master row:
+
+```html
+<g-row>
+  <g-col name="master_day_id">2401</g-col>
+  <g-col name="date_str">Mon, May 11, 2026</g-col>
+  <g-detail name="shifts">
+    <g-row>
+      <g-col name="day_work_shift_id">5001</g-col>
+      <g-col name="workshift_name">Morning</g-col>
+    </g-row>
+  </g-detail>
+</g-row>
+```
+
+For static rows that arrive in one flat list, use the same relation key.
+The child applies the filter locally:
+
+```html
+<closure-data-grid id="shiftsGrid"
+                   detail-of="masterDaysGrid"
+                   detail-key="master_day_id">
+  <g-row>
+    <g-col name="master_day_id">2401</g-col>
+    <g-col name="workshift_name">Morning</g-col>
+  </g-row>
+</closure-data-grid>
+```
 
 ## Selection vs focus
 
@@ -53,6 +139,74 @@ the keyboard while the selection drives a side panel.
 | `row-select` | yes | `{ row, index }` |
 | `row-focus`  | yes | `{ row, index }` |
 | `filter-change` (handled, not fired) | — | accepted from a paired `<closure-filter-bar>` |
+
+## Cell buttons
+
+Columns with `type="btn"` render one or more `<closure-btn>` definitions
+inside each row. The `bind` attribute still provides action payload
+fields. These optional attributes control per-row presentation:
+
+| Attribute | Description |
+|---|---|
+| `show-bind="field"` | render the button only when `row[field]` is truthy and not `0` |
+| `label-bind="field"` | visible button label from `row[field]` |
+| `icon-bind="field"` | icon from `row[field]` |
+| `title-bind="field"` | tooltip from `row[field]` |
+| `width="x"` | fixed generated button width (`28` means `28px`; CSS lengths pass through) |
+| `plain` / `plain-buttons` | render without the compact button frame |
+
+When a `type="btn"` column has no explicit `grid-col width`, any
+`width` declared on its child buttons contributes to the column's
+auto-fit minimum width.
+
+## Tag columns
+
+Columns with `type="tags"` render each value as a tag span. The row
+field can be a CSV string, a JSON string, or an array from a JSON data
+source:
+
+```html
+<grid-col name="problems" label="Problems" type="tags"></grid-col>
+```
+
+Supported values:
+
+```json
+"late,missing break"
+["late", "missing break"]
+[{"label":"late","color":"red"},{"label":"ok","class":"green"}]
+```
+
+Every tag receives `dg-tag` plus a color class. Text values are split
+with `separator`, which defaults to comma. Tag cells wrap automatically,
+so the row grows vertically when there are more tags than horizontal
+space. Tags use a neutral gray style by default. Set `tag-color` on the
+column to color every tag, or provide `color`, `class`, `variant`, or
+`type` in object tag data to override a specific tag.
+
+## Footer buttons
+
+Add `<grid-footer-buttons>` as a direct child of the grid to place
+buttons in the pagination footer. `side="left"` renders before the
+pagination controls, `side="center"` renders between pagination and the
+right-hand record counter, and `side="right"` renders after the counter
+and built-in refresh button. If `side` is omitted, `right` is used.
+
+Footer buttons are declared with `<closure-btn>` and execute against the
+currently selected row:
+
+```html
+<closure-data-grid id="daysGrid" page-size="10">
+  <grid-footer-buttons side="right">
+    <closure-btn label="Issues"
+                 icon="⚠"
+                 mode="event"
+                 event="open-issues"
+                 bind="master_day_id"
+                 data-action="open-issues"></closure-btn>
+  </grid-footer-buttons>
+</closure-data-grid>
+```
 
 ## Example
 
@@ -158,11 +312,27 @@ class ClosureDataGrid extends HTMLElement {
     'closure-data-grid .dg-table thead th:first-child { padding-left: 9px; border-left: none; }',
     'closure-data-grid .dg-col-collapse { max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }',
     'closure-data-grid .dg-pagination { display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-top: 1px solid var(--dg-border, var(--border, #e5e7eb)); background: var(--dg-bg-header, #f0f0f0); font-size: 12px; font-family: var(--dg-font, var(--font, sans-serif)); color: var(--text-muted, #6b7280); }',
+    'closure-data-grid .dg-pagination-group { display: inline-flex; align-items: center; gap: 6px; }',
     'closure-data-grid .dg-pagination-sep { flex: 1; }',
     'closure-data-grid .dg-page-btn { padding: 4px 10px; border: 1px solid var(--dg-border, var(--border, #e5e7eb)); border-radius: 4px; background: var(--dg-bg, #fff); cursor: pointer; font-size: 12px; font-family: var(--dg-font, var(--font, sans-serif)); color: var(--dg-color, var(--text, #111827)); }',
     'closure-data-grid .dg-page-btn:hover { background: var(--dg-bg-selected, #dde4fb); }',
     'closure-data-grid .dg-page-btn:disabled { opacity: 0.4; cursor: not-allowed; }',
     'closure-data-grid .dg-page-info { padding: 4px 10px; background: var(--primary, #4f46e5); color: #fff; border-radius: 4px; font-weight: 600; }',
+    'closure-data-grid .dg-cell-btn { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; min-width: 24px; min-height: 22px; padding: 2px 7px; border: 1px solid var(--dg-border, var(--border, #e5e7eb)); border-radius: 4px; background: var(--dg-bg, #fff); color: var(--dg-color, var(--text, #111827)); font: inherit; font-size: 12px; line-height: 1.2; cursor: pointer; }',
+    'closure-data-grid .dg-cell-btn:hover { background: var(--dg-bg-selected, #dde4fb); border-color: var(--primary, #4f46e5); }',
+    'closure-data-grid .dg-cell-btn.plain { min-width: 0; min-height: 0; padding: 0; border: none; border-radius: 0; background: transparent; font-size: inherit; }',
+    'closure-data-grid .dg-cell-btn.plain:hover { background: transparent; border-color: transparent; color: var(--primary, #4f46e5); }',
+    'closure-data-grid .dg-tags-cell { white-space: normal; vertical-align: top; }',
+    'closure-data-grid .dg-tags { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 4px; width: 100%; min-width: 0; }',
+    'closure-data-grid .dg-tag { display: inline-flex; align-items: center; max-width: 100%; padding: 1px 7px; border: 1px solid #d1d5db; border-radius: 999px; font-size: 11px; line-height: 1.45; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: #f9fafb; color: #374151; }',
+    'closure-data-grid .dg-tag-color-0, closure-data-grid .dg-tag-color-blue { background: #dbeafe; color: #1e3a8a; border-color: #bfdbfe; }',
+    'closure-data-grid .dg-tag-color-1, closure-data-grid .dg-tag-color-green { background: #dcfce7; color: #166534; border-color: #bbf7d0; }',
+    'closure-data-grid .dg-tag-color-2, closure-data-grid .dg-tag-color-yellow { background: #fef9c3; color: #854d0e; border-color: #fde68a; }',
+    'closure-data-grid .dg-tag-color-3, closure-data-grid .dg-tag-color-red { background: #fee2e2; color: #991b1b; border-color: #fecaca; }',
+    'closure-data-grid .dg-tag-color-4, closure-data-grid .dg-tag-color-purple { background: #f3e8ff; color: #6b21a8; border-color: #e9d5ff; }',
+    'closure-data-grid .dg-tag-color-5, closure-data-grid .dg-tag-color-cyan { background: #cffafe; color: #155e75; border-color: #a5f3fc; }',
+    'closure-data-grid .dg-tag-color-6, closure-data-grid .dg-tag-color-gray, closure-data-grid .dg-tag-color-grey { background: #f3f4f6; color: #374151; border-color: #e5e7eb; }',
+    'closure-data-grid .dg-tag-color-7, closure-data-grid .dg-tag-color-pink { background: #fce7f3; color: #9d174d; border-color: #fbcfe8; }',
     'closure-data-grid .dg-no-results { padding: 20px; text-align: center; color: var(--text-muted, #6b7280); }',
   ].join('\n');
 
@@ -198,13 +368,13 @@ class ClosureDataGrid extends HTMLElement {
       this._rows = [];
       this._total = 0;
       this._build();
-      this._fetchDynamic();
+      if (!this._detailOf) this._fetchDynamic();
     } else if (this._isStaticByRequest) {
       this._allRows = [];
       this._rows = [];
       this._total = 0;
       this._build();
-      this._fetchStatic();
+      if (!this._detailOf) this._fetchStatic();
     } else {
       this._readInlineData();
       this._build();
@@ -220,6 +390,7 @@ class ClosureDataGrid extends HTMLElement {
       mapId:    el.getAttribute('map-data-id') || '',
       width:    el.getAttribute('width') || '',
       align:    this._normalizeAlign(el.getAttribute('align') || ''),
+      tagColor: el.getAttribute('tag-color') || el.getAttribute('color') || '',
       fill:     el.hasAttribute('fill'),
       collapse: el.hasAttribute('collapse'),
       key:      el.hasAttribute('key'),
@@ -237,6 +408,12 @@ class ClosureDataGrid extends HTMLElement {
     }));
     this._noResults = this.querySelector('on-no-results');
     this._fetchError = this.querySelector('on-fetch-error');
+    this._footerButtons = Array.from(this.children)
+      .filter(el => el.tagName === 'GRID-FOOTER-BUTTONS')
+      .map(el => ({
+        side: this._normalizeFooterSide(el.getAttribute('side') || ''),
+        el,
+      }));
 
     // Query definition
     const qd = this.querySelector('query-definition');
@@ -246,6 +423,7 @@ class ClosureDataGrid extends HTMLElement {
         url:    qd.getAttribute('url') || '',
         method: (qd.getAttribute('method') || 'POST').toUpperCase(),
         target: qd.getAttribute('target') || '_self',
+        response: qd.getAttribute('response') || 'json',
         params: Array.from(qd.querySelectorAll('query-param')).map(p => ({
           name:  p.getAttribute('name'),
           value: p.getAttribute('value') || null,
@@ -260,19 +438,41 @@ class ClosureDataGrid extends HTMLElement {
     this._isStatic = this.hasAttribute('static');
     this._isDynamic = this._queryDef && !this._isStatic;
     this._isStaticByRequest = this._queryDef && this._isStatic;
+    this._detailOf = this.getAttribute('detail-of') || '';
+    this._detailEvent = this.getAttribute('detail-event') || 'row-select';
+    this._detailRows = this.getAttribute('detail-rows') || '';
+    this._detailKey = this.getAttribute('detail-key') || '';
+    this._detailMasterKey = this.getAttribute('detail-master-key') || this._detailKey;
+    this._detailFilters = {};
+    this._masterRow = null;
   }
 
   // ---
   _readInlineData() {
     this._allRows = Array.from(this.querySelectorAll('g-row')).map(row => {
-      const obj = {};
-      row.querySelectorAll('g-col').forEach(col => {
-        obj[col.getAttribute('name')] = col.innerHTML.trim();
-      });
-      return obj;
+      return this._rowObjectFromElement(row);
     });
     this._filters = {};
-    this._applyFilters();
+    if (this._detailOf && this._detailKey) {
+      this._rows = [];
+      this._total = 0;
+    } else {
+      this._applyFilters();
+    }
+  }
+
+  // ---
+  _rowObjectFromElement(row) {
+    const obj = {};
+    Array.from(row.children).filter(child => child.tagName === 'G-COL').forEach(col => {
+      obj[col.getAttribute('name')] = col.innerHTML.trim();
+    });
+    Array.from(row.children).filter(child => child.tagName === 'G-DETAIL').forEach(detail => {
+      const name = detail.getAttribute('name');
+      if (!name) return;
+      obj[name] = Array.from(detail.querySelectorAll('g-row')).map(childRow => this._rowObjectFromElement(childRow));
+    });
+    return obj;
   }
 
   // ---
@@ -307,7 +507,9 @@ class ClosureDataGrid extends HTMLElement {
       if (p.value !== null) {
         params[p.name] = p.value;
       } else if (p.bind) {
-        const [ns, key] = p.bind.split('.');
+        const parts = p.bind.split('.');
+        const ns = parts[0];
+        const key = parts[1];
         if (ns === 'grid') {
           if (key === 'offset') params[p.name] = (this._currentPage - 1) * ps;
           else if (key === 'limit') params[p.name] = ps;
@@ -318,10 +520,24 @@ class ClosureDataGrid extends HTMLElement {
           const v = (this._filters || {})[key];
           /*<%% if:mockup %%>*/ console.log('[resolveParams] filter.' + key + ' =', JSON.stringify(v), 'filters=', JSON.stringify(this._filters)); /*<%% end %%>*/
           if (v) params[p.name] = v;
+        } else {
+          const v = this._resolveExternalBind(parts);
+          if (v !== undefined && v !== null && v !== '') params[p.name] = v;
         }
       }
     });
     return params;
+  }
+
+  // ---
+  _resolveExternalBind(parts) {
+    if (!parts || parts.length < 3) return undefined;
+    const sourceId = parts[0] === 'master' ? this._detailOf : parts[0];
+    if (!sourceId || parts[1] !== 'row') return undefined;
+    const source = document.getElementById(sourceId);
+    const row = source && source.selectedRow ? source.selectedRow : this._masterRow;
+    if (!row) return undefined;
+    return this._readPath(row, parts.slice(2).join('.'));
   }
 
   // ---
@@ -342,7 +558,7 @@ class ClosureDataGrid extends HTMLElement {
     }
 
     fetch(fetchUrl, fetchOpts)
-      .then(r => r.json())
+      .then(r => this._readQueryResponse(r))
       .then(resp => {
         if (resp.error) { this._showError(resp.error); return; }
         this._allRows = resp.data || [];
@@ -376,7 +592,7 @@ class ClosureDataGrid extends HTMLElement {
     }
 
     fetch(fetchUrl, fetchOpts)
-      .then(r => r.json())
+      .then(r => this._readQueryResponse(r))
       .then(resp => {
         if (resp.error) { this._showError(resp.error); return; }
         const res = resp.result || {};
@@ -397,6 +613,29 @@ class ClosureDataGrid extends HTMLElement {
         console.error('dynamic fetch error:', err);
         this._showError(err.message);
       });
+  }
+
+  // ---
+  _readQueryResponse(response) {
+    if (!this._queryDef || this._queryDef.response !== 'g-row') return response.json();
+    return response.text().then(html => this._parseGRowResponse(html));
+  }
+
+  // ---
+  _parseGRowResponse(html) {
+    const tmp = document.createElement('template');
+    tmp.innerHTML = html || '';
+    const meta = tmp.content.querySelector('query-result');
+    const rows = Array.from(tmp.content.querySelectorAll('g-row')).map(row => this._rowObjectFromElement(row));
+    const result = {};
+    if (meta) {
+      ['total', 'offset'].forEach(name => {
+        if (meta.hasAttribute(name)) result[name] = parseInt(meta.getAttribute(name), 10) || 0;
+      });
+      if (meta.hasAttribute('eof')) result.eof = meta.getAttribute('eof') !== 'false';
+      if (meta.hasAttribute('select-index')) result.select_index = parseInt(meta.getAttribute('select-index'), 10) || 0;
+    }
+    return { result, data: rows };
   }
 
   // ---
@@ -458,6 +697,12 @@ class ClosureDataGrid extends HTMLElement {
   }
 
   // ---
+  _normalizeFooterSide(value) {
+    const side = String(value || '').trim().toLowerCase();
+    return /^(left|center|right)$/.test(side) ? side : 'right';
+  }
+
+  // ---
   _applyColumnPresentation(el, col, isBodyCell) {
     if (col.width) {
       el.style.width = this._cssLength(col.width);
@@ -492,9 +737,70 @@ class ClosureDataGrid extends HTMLElement {
   }
 
   // ---
-  _autoFitColumnWidth(idx, ths) {
+  _horizontalPadding(el) {
+    if (!el) return 0;
+    const cs = getComputedStyle(el);
+    return (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+  }
+
+  // ---
+  _cssLengthPx(value, contextEl) {
+    const css = this._cssLength(value);
+    if (!css) return 0;
+    if (css.endsWith('px')) return parseFloat(css) || 0;
+    const probe = document.createElement('div');
+    const cs = contextEl ? getComputedStyle(contextEl) : null;
+    probe.style.cssText = [
+      'position:fixed',
+      'left:-10000px',
+      'top:-10000px',
+      'visibility:hidden',
+      'box-sizing:border-box',
+      'width:' + css,
+      cs ? ('font:' + cs.font) : '',
+    ].filter(Boolean).join(';');
+    document.body.appendChild(probe);
+    const width = probe.getBoundingClientRect().width;
+    probe.remove();
+    return width || 0;
+  }
+
+  // ---
+  _buttonColumnMinWidth(col, th, columnCells) {
+    if (!col || col.type !== 'btn') return 0;
+    const items = Array.from(col.el.querySelectorAll('closure-btn'));
+    if (!items.length) return 0;
+    const context = columnCells[0] || th;
+    const declaredWidth = items.reduce((sum, item) => {
+      const width = this._cssLengthPx(item.getAttribute('width') || '', context);
+      return sum + width;
+    }, 0);
+    if (declaredWidth <= 0) return 0;
+    return Math.ceil(declaredWidth + this._horizontalPadding(context || th) + 2);
+  }
+
+  // ---
+  _tagColumnMinWidth(col, th, columnCells) {
+    if (!col || col.type !== 'tags' || !columnCells.length) return 0;
+    const tagWidths = columnCells.flatMap(cell => {
+      return Array.from(cell.querySelectorAll('.dg-tag')).map(tag => {
+        return Math.ceil(tag.getBoundingClientRect().width + this._horizontalPadding(cell) + 2);
+      });
+    });
+    return Math.max(this._cellContentWidth(th), ...tagWidths, 0);
+  }
+
+  // ---
+  _autoFitColumnWidth(idx, ths, gridCol) {
     const columnCells = Array.from(this._tbody.querySelectorAll('tr td:nth-child(' + (idx + 1) + ')'));
-    return Math.max(this._cellContentWidth(ths[idx]), ...columnCells.map(cell => this._cellContentWidth(cell)));
+    if (gridCol && gridCol.type === 'tags') {
+      return this._tagColumnMinWidth(gridCol, ths[idx], columnCells);
+    }
+    return Math.max(
+      this._cellContentWidth(ths[idx]),
+      this._buttonColumnMinWidth(gridCol, ths[idx], columnCells),
+      ...columnCells.map(cell => this._cellContentWidth(cell))
+    );
   }
 
   // ---
@@ -548,7 +854,7 @@ class ClosureDataGrid extends HTMLElement {
           th.title = col.label || 'Actions';
           th.style.textAlign = 'right';
         } else if (col.type === 'btn') {
-          th.textContent = '';
+          th.textContent = col.label || '';
           th.title = col.label || col.name;
         } else {
           th.textContent = col.label || '';
@@ -601,22 +907,16 @@ class ClosureDataGrid extends HTMLElement {
 
     // Events
     this._setupEvents();
+    this._setupMasterDetail();
     this._setupAutoFitResizeObserver();
+    this._setupFillObserver();
 
     // Auto-focus
     if (this.hasAttribute('autofocus')) this.focus();
 
     // Auto page-size: observe resize
     if (ps === 'auto') {
-      window.addEventListener('resize', () => {
-        this._setAutoHeight();
-        const oldPage = this._currentPage;
-        const newTp = this.totalPages;
-        if (this._currentPage > newTp) this._currentPage = newTp;
-        this._renderPage();
-        this._syncColWidths();
-        this._updatePagination();
-      });
+      window.addEventListener('resize', () => this._refreshAutoLayout());
     }
   }
 
@@ -637,9 +937,157 @@ class ClosureDataGrid extends HTMLElement {
   }
 
   // ---
+  _setupMasterDetail() {
+    if (!this._detailOf || this._masterDetailBound) return;
+    const master = document.getElementById(this._detailOf);
+    if (!master) {
+      if (!this._masterDetailRetry) {
+        this._masterDetailRetry = requestAnimationFrame(() => {
+          this._masterDetailRetry = 0;
+          this._setupMasterDetail();
+        });
+      }
+      return;
+    }
+    this._masterDetailBound = true;
+    master.addEventListener(this._detailEvent, e => this._refreshFromMaster(e.detail ? e.detail.row : null));
+    this._refreshFromMaster(master.selectedRow || null);
+  }
+
+  // ---
+  _refreshFromMaster(row) {
+    this._masterRow = row || null;
+    this._currentPage = 1;
+    this._selectedIdx = 0;
+
+    if (!this._masterRow) {
+      if (this._detailKey) this._clearDetailFilterRows();
+      else this._setRows([]);
+      return;
+    }
+
+    if (this._detailRows) {
+      const rows = this._readPath(this._masterRow, this._detailRows);
+      this._setRows(Array.isArray(rows) ? rows : []);
+      return;
+    }
+
+    if (this._detailKey) {
+      const masterValue = this._readPath(this._masterRow, this._detailMasterKey);
+      this._detailFilters = {};
+      if (this._filters) delete this._filters[this._detailKey];
+      if (masterValue !== undefined && masterValue !== null && masterValue !== '') {
+        this._detailFilters[this._detailKey] = String(masterValue);
+      }
+      this._filters = { ...(this._filters || {}), ...this._detailFilters };
+      this._applyFilterMode();
+      return;
+    }
+
+    if (this._isDynamic) this._fetchDynamic();
+    else if (this._isStaticByRequest) this._fetchStatic();
+    else this._renderPage();
+  }
+
+  // ---
+  _setRows(rows) {
+    this._allRows = rows || [];
+    this._applyFilters();
+    this._renderPage();
+    this._syncColWidths();
+  }
+
+  // ---
+  _showRows(rows) {
+    const allRows = this._allRows;
+    this._allRows = rows || [];
+    this._applyFilters();
+    this._allRows = allRows;
+    this._renderPage();
+    this._syncColWidths();
+  }
+
+  // ---
+  _clearDetailFilterRows() {
+    if (this._detailKey) delete this._detailFilters[this._detailKey];
+    if (this._detailKey && this._filters) delete this._filters[this._detailKey];
+    if (this._isDynamic || this._isStaticByRequest) {
+      this._rows = [];
+      this._total = 0;
+      this._renderPage(false, this._isDynamic);
+      this._syncColWidths();
+      return;
+    }
+    this._showRows([]);
+  }
+
+  // ---
+  _applyFilterMode() {
+    this._currentPage = 1;
+    this._selectedIdx = 0;
+    const filterMode = this.getAttribute('filter') || 'local';
+    if (filterMode === 'fetch' && this._queryDef) {
+      this._fetchDynamic();
+    } else if (filterMode === 'navigate' && this._queryDef) {
+      this._navigateWithParams();
+    } else {
+      this._applyFilters();
+      this._renderPage();
+      this._syncColWidths();
+    }
+  }
+
+  // ---
+  _readPath(obj, path) {
+    if (!obj || !path) return undefined;
+    return path.split('.').reduce((cur, part) => {
+      if (cur === undefined || cur === null) return undefined;
+      return cur[part];
+    }, obj);
+  }
+
+  // ---
+  _setupFillObserver() {
+    if (this.getAttribute('page-size') !== 'auto' || !window.ResizeObserver || this._fillResizeObserver) return;
+    const fillSelector = this.getAttribute('fill-stop') || this.getAttribute('fill-reserve') || '';
+    const target = this._fillTargetElement();
+    if (!target && (!fillSelector || parseInt(fillSelector, 10) > 0)) return;
+    if (!target) {
+      if (!this._fillObserverRetry) {
+        this._fillObserverRetry = requestAnimationFrame(() => {
+          this._fillObserverRetry = 0;
+          this._setupFillObserver();
+        });
+      }
+      return;
+    }
+    this._fillResizeObserver = new ResizeObserver(() => {
+      if (this._fillResizeRaf) cancelAnimationFrame(this._fillResizeRaf);
+      this._fillResizeRaf = requestAnimationFrame(() => this._refreshAutoLayout());
+    });
+    this._fillResizeObserver.observe(target);
+    this._renderedChildren(target).forEach(child => this._fillResizeObserver.observe(child));
+  }
+
+  // ---
+  _refreshAutoLayout() {
+    if (this.getAttribute('page-size') !== 'auto') return;
+    this._setAutoHeight();
+    const newTp = this.totalPages;
+    if (this._currentPage > newTp) this._currentPage = newTp;
+    this._renderPage();
+    this._syncColWidths();
+    this._updatePagination();
+  }
+
+  // ---
   _buildPagination() {
     const p = this._pagination;
     p.innerHTML = '';
+    this._appendFooterButtons(p, 'left');
+
+    const nav = document.createElement('div');
+    nav.className = 'dg-pagination-group';
     const btns = ['⏮', '◀', '▶', '⏭'];
     const titles = ['First', 'Previous', 'Next', 'Last'];
     this._pageButtons = [];
@@ -651,11 +1099,14 @@ class ClosureDataGrid extends HTMLElement {
       btn.title = titles[i];
       btn.textContent = icon;
       this._pageButtons.push(btn);
-      p.appendChild(btn);
+      nav.appendChild(btn);
     });
     this._pageInfo = document.createElement('span');
     this._pageInfo.className = 'dg-page-info';
-    p.insertBefore(this._pageInfo, this._pageButtons[2]);
+    nav.insertBefore(this._pageInfo, this._pageButtons[2]);
+    p.appendChild(nav);
+
+    this._appendFooterButtons(p, 'center');
 
     const sep = document.createElement('div');
     sep.className = 'dg-pagination-sep';
@@ -685,11 +1136,50 @@ class ClosureDataGrid extends HTMLElement {
       p.appendChild(refreshBtn);
     }
 
+    this._appendFooterButtons(p, 'right');
+
     // Button events
     this._pageButtons[0].addEventListener('click', () => this._goPage('first'));
     this._pageButtons[1].addEventListener('click', () => this._goPage(-1));
     this._pageButtons[2].addEventListener('click', () => this._goPage(+1));
     this._pageButtons[3].addEventListener('click', () => this._goPage('last'));
+  }
+
+  // ---
+  _appendFooterButtons(parent, side) {
+    const groups = (this._footerButtons || []).filter(group => group.side === side);
+    if (!groups.length) return;
+    const wrap = document.createElement('div');
+    wrap.className = 'dg-pagination-group dg-footer-buttons dg-footer-buttons-' + side;
+    groups.forEach(group => {
+      Array.from(group.el.querySelectorAll('closure-btn')).forEach(item => {
+        wrap.appendChild(this._createFooterButton(item));
+      });
+    });
+    if (wrap.childNodes.length) parent.appendChild(wrap);
+  }
+
+  // ---
+  _createFooterButton(item) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'dg-page-btn dg-footer-btn';
+    btn.tabIndex = -1;
+    const icon = item.getAttribute('icon') || '';
+    const label = item.getAttribute('label') || item.textContent.trim();
+    btn.textContent = [icon, label].filter(Boolean).join(icon && label ? ' ' : '') || '•';
+    btn.title = item.getAttribute('title') || label || item.getAttribute('data-action') || '';
+    const width = this._cssLength(item.getAttribute('width') || '');
+    if (width) {
+      btn.style.width = width;
+      btn.style.minWidth = width;
+      btn.style.maxWidth = width;
+    }
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      this._executeAction(this._actionDefFromElement(item));
+    });
+    return btn;
   }
 
   // ---
@@ -739,6 +1229,7 @@ class ClosureDataGrid extends HTMLElement {
     this._tbody.innerHTML = '';
 
     if (pageRows.length === 0) {
+      this._selectedIdx = -1;
       if (this._noResults) {
         const cell = document.createElement('td');
         cell.colSpan = this._cols.length;
@@ -749,6 +1240,7 @@ class ClosureDataGrid extends HTMLElement {
         this._tbody.appendChild(tr);
       }
       this._updatePagination();
+      this._dispatchEmptySelection();
       return;
     }
 
@@ -770,9 +1262,9 @@ class ClosureDataGrid extends HTMLElement {
     const tr = document.createElement('tr');
     this._cols.forEach(col => {
       const td = document.createElement('td');
-      const val = row[col.name] || '';
+      const val = row[col.name] === undefined || row[col.name] === null ? '' : row[col.name];
 
-      if (col.collapse) { td.className = 'dg-col-collapse'; td.title = val; }
+      if (col.collapse) { td.className = 'dg-col-collapse'; td.title = String(val); }
       this._applyColumnPresentation(td, col, true);
 
       if (col.mapId) {
@@ -822,22 +1314,136 @@ class ClosureDataGrid extends HTMLElement {
       } else if (col.type === 'btn') {
         const items = Array.from(col.el.querySelectorAll('closure-btn'));
         items.forEach(item => {
-          const btn = document.createElement('span');
-          btn.textContent = item.getAttribute('icon') || '•';
-          btn.title = item.getAttribute('data-action') || ''; btn.tabIndex = -1;
-          btn.style.cssText = 'cursor:pointer;font-size:16px;';
+          if (!this._buttonVisibleForRow(item, row)) return;
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'dg-cell-btn';
+          if (col.el.hasAttribute('plain-buttons') || item.hasAttribute('plain')) btn.classList.add('plain');
+          const icon = this._buttonRowValue(item, row, 'icon-bind', item.getAttribute('icon') || '');
+          const label = this._buttonRowValue(item, row, 'label-bind', item.textContent.trim());
+          const title = this._buttonRowValue(item, row, 'title-bind', item.getAttribute('title') || item.getAttribute('label') || item.getAttribute('data-action') || '');
+          btn.textContent = [icon, label].filter(Boolean).join(label && icon ? ' ' : '') || '•';
+          btn.title = title;
+          btn.tabIndex = -1;
+          const width = this._cssLength(item.getAttribute('width') || '');
+          if (width) {
+            btn.style.width = width;
+            btn.style.minWidth = width;
+            btn.style.maxWidth = width;
+          }
           btn.addEventListener('click', (e) => {
             e.stopPropagation(); this._selectRow(i);
             this._executeAction(this._actionDefFromElement(item));
           });
           td.appendChild(btn);
         });
+      } else if (col.type === 'tags') {
+        td.classList.add('dg-tags-cell');
+        this._renderTagsCell(td, val, col);
       } else {
         td.textContent = val;
       }
       tr.appendChild(td);
     });
     return tr;
+  }
+
+  // ---
+  _renderTagsCell(td, value, col) {
+    const tags = this._parseTags(value, col);
+    if (!tags.length) return;
+    const wrap = document.createElement('span');
+    wrap.className = 'dg-tags';
+    tags.forEach((tag, idx) => {
+      const span = document.createElement('span');
+      span.className = 'dg-tag' + this._tagColorClass(tag, col);
+      span.textContent = tag.label;
+      if (tag.title) span.title = tag.title;
+      wrap.appendChild(span);
+    });
+    td.appendChild(wrap);
+  }
+
+  // ---
+  _parseTags(value, col) {
+    if (value === undefined || value === null || value === '') return [];
+    if (Array.isArray(value)) return value.map(item => this._normalizeTag(item)).filter(tag => tag.label);
+    if (typeof value === 'object') return [this._normalizeTag(value)].filter(tag => tag.label);
+
+    const text = String(value).trim();
+    if (!text) return [];
+    if ((text.startsWith('[') && text.endsWith(']')) || (text.startsWith('{') && text.endsWith('}'))) {
+      try {
+        const parsed = JSON.parse(text);
+        return this._parseTags(parsed, col);
+      } catch (_) {
+        // Fall through to CSV parsing.
+      }
+    }
+
+    const separator = this._tagSeparator(col);
+    return text.split(separator)
+      .map(part => part.trim())
+      .filter(Boolean)
+      .map(part => {
+        const sep = part.includes('|') ? '|' : (part.includes(':') ? ':' : '');
+        if (!sep) return this._normalizeTag(part);
+        const pieces = part.split(sep);
+        return this._normalizeTag({ label: pieces.shift().trim(), color: pieces.join(sep).trim() });
+      })
+      .filter(tag => tag.label);
+  }
+
+  // ---
+  _tagSeparator(col) {
+    const raw = col && col.el ? (col.el.getAttribute('separator') || ',') : ',';
+    return raw === '' ? ',' : raw;
+  }
+
+  // ---
+  _normalizeTag(item) {
+    if (item === undefined || item === null) return { label: '' };
+    if (typeof item !== 'object') return { label: String(item).trim() };
+    const label = item.label !== undefined ? item.label
+      : item.text !== undefined ? item.text
+      : item.name !== undefined ? item.name
+      : item.value !== undefined ? item.value
+      : '';
+    return {
+      label: String(label).trim(),
+      color: item.color || item.class || item.variant || item.type || '',
+      title: item.title || '',
+    };
+  }
+
+  // ---
+  _tagColorClass(tag, col) {
+    const raw = String(tag.color || (col ? col.tagColor : '') || '').trim();
+    if (!raw) return '';
+    return ' dg-tag-color-' + raw.toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '');
+  }
+
+  // ---
+  _buttonVisibleForRow(item, row) {
+    const field = item.getAttribute('show-bind') || '';
+    if (!field) return true;
+    const value = this._readPath(row, field);
+    return this._isTruthyCellValue(value);
+  }
+
+  // ---
+  _buttonRowValue(item, row, attr, fallback) {
+    const field = item.getAttribute(attr) || '';
+    if (!field) return fallback || '';
+    const value = this._readPath(row, field);
+    return value === undefined || value === null ? '' : String(value);
+  }
+
+  // ---
+  _isTruthyCellValue(value) {
+    if (value === undefined || value === null || value === false) return false;
+    const str = String(value).trim();
+    return !!str && str !== '0' && str.toLowerCase() !== 'false';
   }
 
   // ---
@@ -901,13 +1507,13 @@ class ClosureDataGrid extends HTMLElement {
         const cssWidth = this._cssLength(gridCol.width);
         if (cssWidth) return cssWidth;
         if (fillIdxs.includes(idx)) return '';
-        return this._autoFitColumnWidth(idx, ths) + 'px';
+        return this._autoFitColumnWidth(idx, ths, gridCol) + 'px';
       });
       const fixedWidth = widths.reduce((sum, width, idx) => {
         if (!width || fillIdxs.includes(idx) || !width.endsWith('px')) return sum;
         return sum + parseFloat(width);
       }, 0);
-      const fillContentWidth = fillIdxs.reduce((sum, idx) => sum + this._autoFitColumnWidth(idx, ths), 0);
+      const fillContentWidth = fillIdxs.reduce((sum, idx) => sum + this._autoFitColumnWidth(idx, ths, this._cols[idx]), 0);
       const gridWidth = Math.floor(this._bodyWrap.clientWidth || this._wrap.clientWidth || this.clientWidth);
       const fillAvailable = Math.max(0, gridWidth - fixedWidth);
       if (fillIdxs.length) {
@@ -954,6 +1560,18 @@ class ClosureDataGrid extends HTMLElement {
   }
 
   // ---
+  _dispatchEmptySelection() {
+    this.dispatchEvent(new CustomEvent('row-select', {
+      detail: { row: null, index: -1 },
+      bubbles: true,
+    }));
+    this.dispatchEvent(new CustomEvent('row-focus', {
+      detail: { row: null, index: -1 },
+      bubbles: true,
+    }));
+  }
+
+  // ---
   _applyMaxHeight() {
     const maxRows = parseInt(this.getAttribute('max-rows'), 10) || 0;
     if (maxRows <= 0 || !this._wrap) return;
@@ -974,16 +1592,7 @@ class ClosureDataGrid extends HTMLElement {
     const maxRows = parseInt(this.getAttribute('max-rows'), 10) || 0;
     const minH = theadH + (ROW_H * minRows) + paginH;
 
-    // Calculate bottom margin: fill-stop > fill-reserve > 0
-    let bottomH = 0;
-    const fillStop = this.getAttribute('fill-stop');
-    const fillReserve = parseInt(this.getAttribute('fill-reserve'), 10);
-    if (fillStop) {
-      const stopEl = document.querySelector(fillStop);
-      if (stopEl) bottomH = window.innerHeight - stopEl.getBoundingClientRect().top;
-    } else if (fillReserve > 0) {
-      bottomH = fillReserve;
-    }
+    const bottomH = this._fillBottomHeight();
 
     let available = window.innerHeight - top - bottomH;
 
@@ -994,6 +1603,92 @@ class ClosureDataGrid extends HTMLElement {
     }
 
     wrap.style.height = Math.max(minH, available) + 'px';
+  }
+
+  // ---
+  _fillBottomHeight() {
+    const fillStop = this.getAttribute('fill-stop');
+    if (fillStop) {
+      let stopEl = null;
+      try {
+        stopEl = document.querySelector(fillStop);
+      } catch (_) {
+        stopEl = null;
+      }
+      if (!stopEl) return 0;
+      const top = this._elementTop(stopEl);
+      return top > 0 ? Math.max(0, window.innerHeight - top) : 0;
+    }
+
+    const reserve = this.getAttribute('fill-reserve') || '';
+    const fillReserve = parseInt(reserve, 10);
+    if (fillReserve > 0) {
+      const target = this._implicitFillTargetElement();
+      return target ? Math.max(fillReserve, this._elementHeight(target)) : fillReserve;
+    }
+
+    let reserveEl = null;
+    try {
+      reserveEl = reserve ? document.querySelector(reserve) : null;
+    } catch (_) {
+      reserveEl = null;
+    }
+    return reserveEl ? this._elementHeight(reserveEl) : 0;
+  }
+
+  // ---
+  _fillTargetElement() {
+    const selector = this.getAttribute('fill-stop') || this.getAttribute('fill-reserve') || '';
+    if (!selector) return null;
+    if (parseInt(selector, 10) > 0) return this._implicitFillTargetElement();
+    try {
+      return document.querySelector(selector);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // ---
+  _implicitFillTargetElement() {
+    const next = this.nextElementSibling;
+    return next && next.tagName === 'CLOSURE-ROW-VIEWER' ? next : null;
+  }
+
+  // ---
+  _elementTop(el) {
+    const rect = el.getBoundingClientRect();
+    if (rect.width || rect.height) return rect.top;
+    const first = this._firstRenderedChild(el);
+    return first ? first.getBoundingClientRect().top : rect.top;
+  }
+
+  // ---
+  _elementHeight(el) {
+    const rect = el.getBoundingClientRect();
+    if (rect.height) return Math.ceil(rect.height);
+    const first = this._firstRenderedChild(el);
+    const last = this._lastRenderedChild(el);
+    if (!first || !last) return 0;
+    return Math.ceil(last.getBoundingClientRect().bottom - first.getBoundingClientRect().top);
+  }
+
+  // ---
+  _firstRenderedChild(el) {
+    return this._renderedChildren(el)[0] || null;
+  }
+
+  // ---
+  _lastRenderedChild(el) {
+    const rendered = this._renderedChildren(el);
+    return rendered[rendered.length - 1] || null;
+  }
+
+  // ---
+  _renderedChildren(el) {
+    return Array.from(el.children).filter(child => {
+      const rect = child.getBoundingClientRect();
+      return rect.width || rect.height;
+    });
   }
 
   // ---
@@ -1080,19 +1775,8 @@ class ClosureDataGrid extends HTMLElement {
 
     // Filter change
     this.addEventListener('filter-change', e => {
-      this._filters = e.detail || {};
-      this._currentPage = 1;
-      this._selectedIdx = 0;
-      const filterMode = this.getAttribute('filter') || 'local';
-      if (filterMode === 'fetch' && this._queryDef) {
-        this._fetchDynamic();
-      } else if (filterMode === 'navigate' && this._queryDef) {
-        this._navigateWithParams();
-      } else {
-        this._applyFilters();
-        this._renderPage();
-        this._syncColWidths();
-      }
+      this._filters = { ...(e.detail || {}), ...(this._detailFilters || {}) };
+      this._applyFilterMode();
     });
 
     // Header click

@@ -15,6 +15,7 @@ attribute it becomes a dropdown that hosts `<closure-btn-item>` children.
 | `closure-template="x"`  | name of a specific `<closure-template>` to invoke |
 | `icon="x"`              | icon text rendered above/before the label |
 | `label="x"`             | tooltip text used together with `nolabel` |
+| `width="x"`             | fixed visual button width (`28` means `28px`; CSS lengths pass through) |
 | `nolabel`               | hide the label, show only the icon (tooltip = `label` or `menu`) |
 | `notooltip`             | when `nolabel`, suppress the tooltip |
 | `menu="x"`              | turn the button into a dropdown; `x` is the panel header text |
@@ -240,7 +241,7 @@ class ClosureBtn extends HTMLElement {
     document.removeEventListener('click', this._boundDocClick);
   }
 
-  static get observedAttributes() { return ['icon', 'disabled', 'menu', 'nolabel', 'label']; }
+  static get observedAttributes() { return ['icon', 'disabled', 'menu', 'nolabel', 'label', 'width']; }
 
   attributeChangedCallback() {
     if (this.shadowRoot) this._render();
@@ -267,6 +268,15 @@ class ClosureBtn extends HTMLElement {
     a.href = '#';
     a.tabIndex = -1;
     a.className = (this.getAttribute('class') || '') + (disabled ? ' disabled' : '');
+    const width = this._cssLength(this.getAttribute('width') || '');
+    if (width) {
+      this.style.width = width;
+      a.style.width = width;
+      a.style.minWidth = width;
+      a.style.maxWidth = width;
+    } else {
+      this.style.width = '';
+    }
     if (nolabel && !this.hasAttribute('notooltip')) {
       const tooltip = this.getAttribute('label') || this.getAttribute('menu') || '';
       if (tooltip) a.title = tooltip;
@@ -414,6 +424,13 @@ class ClosureBtn extends HTMLElement {
       el.value = value;
     });
     return true;
+  }
+
+  _cssLength(value) {
+    const v = String(value || '').trim();
+    if (!v) return '';
+    if (/^-?\d+(\.\d+)?$/.test(v)) return v + 'px';
+    return v;
   }
 
   _resolveTargets() {

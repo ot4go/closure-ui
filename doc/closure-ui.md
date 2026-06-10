@@ -106,6 +106,8 @@
 - [`<closure-data-grid>`](#closure-data-grid)
   - [Data sources](#data-sources)
   - [Children (configuration)](#children-configuration)
+  - [Sizing attributes](#sizing-attributes)
+  - [Master/detail](#masterdetail)
   - [Selection vs focus](#selection-vs-focus)
   - [Methods](#methods-4)
   - [Events](#events-5)
@@ -1462,6 +1464,8 @@ The original inner HTML of the host becomes the value content on connect.
 | Attribute | Description |
 |---|---|
 | `key="x"`      | uppercase muted label on the left |
+| `prefix="x"`  | fixed text before the value |
+| `suffix="x"`  | fixed text after the value |
 | `wr="min,max"` | width range (see [Helpers / `applyWidthRange`](#helpers)) |
 
 ## Properties
@@ -1475,6 +1479,7 @@ The original inner HTML of the host becomes the value content on connect.
 ```html
 <status-kv key="user">jdoe</status-kv>
 <status-kv key="run">2026-05-02 17:21</status-kv>
+<status-kv key="D" prefix="range " suffix=" days">14</status-kv>
 
 <script>
   document.querySelector('status-kv[key="user"]').value = 'admin';
@@ -1540,6 +1545,18 @@ can refetch.
 | `data-<field>="v"`  | values to apply when the preset is selected |
 | `clear`             | preset that resets all fields |
 
+### `<filter-set-value-btn>`
+
+Small button rendered below the targeted filter field. It writes a value
+into that input only; it does not apply the filter or close the
+lightbox.
+
+| Attribute | Description |
+|---|---|
+| `target="field"` | filter field name to update |
+| `label="x"`      | button text |
+| `value="v"`      | value written to the field |
+
 ## Events
 
 | Event | Bubbles | Detail |
@@ -1565,6 +1582,7 @@ chip.
   <filter-field name="role"   label="Role"
                 map-data-id="role-map"></filter-field>
   <filter-field name="search" label="Search"  type="text"></filter-field>
+  <filter-set-value-btn target="search" label="Today" value="today"></filter-set-value-btn>
 
   <filter-preset label="Only active" data-status="active"></filter-preset>
   <filter-preset label="Reset" clear></filter-preset>
@@ -1627,6 +1645,62 @@ controls. Selection and focus are tracked separately so consumers like
 | `<filter-preset>`   | apply a predefined filter set to the grid |
 
 (See [child elements](#closure-data-grid-children) below for details.)
+
+## Sizing attributes
+
+| Attribute | Description |
+|---|---|
+| `page-size="auto"` | sizes the grid to the available viewport height and derives row count from that height |
+| `fill-reserve="N"` | with `page-size="auto"`, reserve `N` pixels below the grid |
+| `fill-reserve="selector"` | reserve the live height of the matched element and relayout when it resizes |
+| `fill-stop="selector"` | stop the grid at the matched element's top edge and relayout when it resizes |
+
+When `fill-reserve="N"` is used and the next sibling is a
+`<closure-row-viewer>`, `N` is treated as a minimum and the viewer's live
+height is also measured.
+
+## Master/detail
+
+| Attribute | Description |
+|---|---|
+| `detail-of="gridId"` | refresh this grid from the selected row of another grid |
+| `detail-event="row-select"` | master event that triggers refresh (`row-select` by default) |
+| `detail-rows="field.path"` | use an array already embedded in the selected master row instead of fetching |
+| `detail-key="field"` | for static detail rows, child field matched against the master row |
+| `detail-master-key="field"` | master row field to match; defaults to `detail-key` |
+
+For separated requests, keep a `<query-definition>` and bind params from
+the master row:
+
+```html
+<closure-data-grid id="shiftsGrid" detail-of="masterDaysGrid">
+  <query-definition url="/schedule/masterdays/sid:{{.Sid}}/" method="POST">
+    <query-param name="action" value="shifts-grid-json"></query-param>
+    <query-param name="master_day_id" bind="masterDaysGrid.row.master_day_id"></query-param>
+  </query-definition>
+</closure-data-grid>
+```
+
+For bundled data, omit the query and point `detail-rows` at the array in
+the selected row:
+
+```html
+<closure-data-grid id="shiftsGrid" detail-of="masterDaysGrid" detail-rows="shifts">
+</closure-data-grid>
+```
+
+For static rows that arrive in one flat list, relate them by key:
+
+```html
+<closure-data-grid id="shiftsGrid"
+                   detail-of="masterDaysGrid"
+                   detail-key="master_day_id">
+  <g-row>
+    <g-col name="master_day_id">2401</g-col>
+    <g-col name="workshift_name">Morning</g-col>
+  </g-row>
+</closure-data-grid>
+```
 
 ## Selection vs focus
 
@@ -1753,6 +1827,7 @@ trivial implementation and are always loaded as a set.
 | `<on-no-results>`    | markup rendered when the grid has no rows |
 | `<on-fetch-error>`   | markup rendered on dynamic-mode fetch failure |
 | `<filter-preset>`    | predefined filter set the grid can apply via UI |
+| `<filter-set-value-btn>` | quick value button consumed by `<closure-filter-bar>` |
 
 ## Example
 
@@ -1808,15 +1883,19 @@ row is selected it hides every bound child.
 | Attribute | Description |
 |---|---|
 | `target="id"` | id of the `<closure-data-grid>` to bind to |
+| `keep-space` | hide all descendant `bind-show` / `bind-hide` toggles with `visibility` instead of `display` |
 
 ## Per-child binding attributes
 
 | Attribute on a descendant | Effect |
 |---|---|
-| `bind="field"`        | write `row[field]` into the element (`textContent`, `value` for inputs, `data-field` on `<closure-btn>` / `<closure-btn-item>`) |
+| `bind="field"`        | write `row[field]` into the element (`textContent`, `.value` for value-bearing controls/components, `data-field` on `<closure-btn>` / `<closure-btn-item>`) |
 | `bind="f1,f2"`        | on `<closure-btn>` only — set one `data-*` attribute per field |
 | `bind-show="field"`   | show only when `row[field]` is truthy |
 | `bind-show="field=v"` | show only when `row[field] === v` |
+| `bind-hide="field"`   | hide when `row[field]` is truthy |
+| `bind-hide="field=v"` | hide when `row[field] === v` |
+| `bind-keep-space`     | on `bind-show` / `bind-hide`, hide with `visibility` instead of `display` |
 | `bind-crlf="<br>"`    | when the bound text has line breaks, render via `innerHTML` with the given separator |
 | `map-data-id="id"`    | resolve through a `<data-map>` for icon / label / color substitution |
 | `map-show="icon"`     | with `map-data-id`, render only the icon part |
@@ -1838,6 +1917,7 @@ row is selected it hides every bound child.
   <span bind="role" map-data-id="role-map"></span>
   <span bind-show="active=1">✓ active</span>
   <span bind-show="active=0">✗ inactive</span>
+  <span bind-hide="active">inactive only</span>
   <closure-btn ct-role="edit" bind="id">Edit</closure-btn>
 </closure-row-viewer>
 ```
@@ -1846,12 +1926,14 @@ row is selected it hides every bound child.
 
 > **Note:** elements with `[bind]` are hidden via `visibility: hidden`
 > (so layout is preserved) when no row is selected. Elements with
-> `[bind-show]` are hidden via `display: none`.
+> `[bind-show]` or `[bind-hide]` are hidden via `display: none`, unless
+> the child has `bind-keep-space` or the viewer has `keep-space`.
 
-> **Note:** `<input>`, `<textarea>` and `<select>` receive the value via
-> their `.value` property — useful for binding the selected row into an
-> editable form. Other elements get `textContent` (or `innerHTML` when
-> `bind-crlf` is set).
+> **Note:** `<input>`, `<textarea>`, `<select>` and custom components
+> exposing a `.value` property receive the value via that property. This
+> lets components such as `<status-kv>` update their value span without
+> replacing their internal structure. Other elements get `textContent`
+> (or `innerHTML` when `bind-crlf` is set).
 
 > **Note:** when a `<data-map>` resolution returns a `color` field, that
 > colour is applied to the bound element's `style.color`. Cleared on the

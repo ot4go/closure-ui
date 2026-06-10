@@ -41,6 +41,18 @@ can refetch.
 | `data-<field>="v"`  | values to apply when the preset is selected |
 | `clear`             | preset that resets all fields |
 
+### `<filter-set-value-btn>`
+
+Small button rendered below the targeted filter field. It writes a value
+into that input only; it does not apply the filter or close the
+lightbox.
+
+| Attribute | Description |
+|---|---|
+| `target="field"` | filter field name to update |
+| `label="x"`      | button text |
+| `value="v"`      | value written to the field |
+
 ## Events
 
 | Event | Bubbles | Detail |
@@ -66,6 +78,7 @@ chip.
   <filter-field name="role"   label="Role"
                 map-data-id="role-map"></filter-field>
   <filter-field name="search" label="Search"  type="text"></filter-field>
+  <filter-set-value-btn target="search" label="Today" value="today"></filter-set-value-btn>
 
   <filter-preset label="Only active" data-status="active"></filter-preset>
   <filter-preset label="Reset" clear></filter-preset>
@@ -153,6 +166,11 @@ class ClosureFilterBar extends HTMLElement {
         }
         return preset;
       });
+      this._setValueBtns = Array.from(this.querySelectorAll('filter-set-value-btn')).map(b => ({
+        target: b.getAttribute('target') || '',
+        label:  b.getAttribute('label') || b.getAttribute('value') || '',
+        value:  b.getAttribute('value') || '',
+      }));
       this._build();
     };
     if (document.readyState === 'loading') {
@@ -163,8 +181,9 @@ class ClosureFilterBar extends HTMLElement {
   }
 
   _build() {
-    const icon  = this.getAttribute('icon')  || '🔍';
-    const label = this.getAttribute('label') || 'Filter';
+    const icon  = this.hasAttribute('icon') ? this.getAttribute('icon') : '🔍';
+    const label = this.hasAttribute('label') ? this.getAttribute('label') : 'Filter';
+    const title = (icon ? icon + ' ' : '') + label;
 
     // Bar
     this._bar = document.createElement('div');
@@ -173,7 +192,7 @@ class ClosureFilterBar extends HTMLElement {
     this._btn.type = 'button';
     this._btn.className = 'dg-btn';
     this._btn.style.cssText = 'font-size:12px;padding:3px 10px;flex-shrink:0;';
-    this._btn.textContent = icon + ' ' + label;
+    this._btn.textContent = title;
     var self = this;
     this._btn.addEventListener('click', () => {
       if (self._lb._body) {
@@ -181,7 +200,7 @@ class ClosureFilterBar extends HTMLElement {
         self._lb._body.appendChild(self._filterForm);
       }
       self._lb.open({
-        title: self.getAttribute('dialog-title') || (icon + ' ' + label),
+        title: self.getAttribute('dialog-title') || title,
         buttons: [
           { label: self.getAttribute('cancel-label') || 'Cancel', action: 'cancel' },
           { label: self.getAttribute('apply-label') || 'Apply', action: 'apply', primary: true }
@@ -196,7 +215,7 @@ class ClosureFilterBar extends HTMLElement {
 
     // Lightbox
     this._lb = document.createElement('closure-lightbox');
-    this._lb.setAttribute('title', this.getAttribute('dialog-title') || (icon + ' ' + label));
+    this._lb.setAttribute('title', this.getAttribute('dialog-title') || title);
     this._lb.addEventListener('lb-close', e => {
       if (e.detail.action === 'apply') self._apply();
     });
@@ -206,6 +225,7 @@ class ClosureFilterBar extends HTMLElement {
     body.style.cssText = 'padding:16px;display:flex;flex-direction:column;gap:12px;font-family:var(--font,sans-serif);font-size:13px;';
     this._inputs = {};
     this._fields.forEach(f => {
+      const fieldWrap = document.createElement('div');
       const lbl = document.createElement('label');
       lbl.textContent = f.label;
       lbl.style.cssText = 'display:block;font-weight:600;color:var(--text,#111827);';
@@ -260,7 +280,25 @@ class ClosureFilterBar extends HTMLElement {
         this._inputs[f.name] = input;
         lbl.appendChild(input);
       }
-      body.appendChild(lbl);
+      const setValueBtns = this._setValueBtns.filter(b => b.target === f.name);
+      if (setValueBtns.length > 0) {
+        const quickRow = document.createElement('div');
+        quickRow.style.cssText = 'margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;';
+        setValueBtns.forEach(spec => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'dg-btn';
+          btn.style.cssText = 'font-size:11px;padding:3px 8px;';
+          btn.textContent = spec.label;
+          btn.addEventListener('click', () => {
+            if (this._inputs[f.name]) this._inputs[f.name].value = spec.value;
+          });
+          quickRow.appendChild(btn);
+        });
+        fieldWrap.appendChild(quickRow);
+      }
+      fieldWrap.insertBefore(lbl, fieldWrap.firstChild);
+      body.appendChild(fieldWrap);
     });
     form.appendChild(body);
 

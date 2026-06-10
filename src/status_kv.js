@@ -10,6 +10,8 @@ The original inner HTML of the host becomes the value content on connect.
 | Attribute | Description |
 |---|---|
 | `key="x"`      | uppercase muted label on the left |
+| `prefix="x"`  | fixed text before the value |
+| `suffix="x"`  | fixed text after the value |
 | `wr="min,max"` | width range (see [Helpers / `applyWidthRange`](#helpers)) |
 
 ## Properties
@@ -23,6 +25,7 @@ The original inner HTML of the host becomes the value content on connect.
 ```html
 <status-kv key="user">jdoe</status-kv>
 <status-kv key="run">2026-05-02 17:21</status-kv>
+<status-kv key="D" prefix="range " suffix=" days">14</status-kv>
 
 <script>
   document.querySelector('status-kv[key="user"]').value = 'admin';
@@ -96,15 +99,33 @@ class StatusKv extends HTMLElement {
     }
     var valEl = document.createElement('span');
     valEl.className = 'kv-val';
-    valEl.innerHTML = val;
+    this._prefix = this.getAttribute('prefix') || '';
+    this._suffix = this.getAttribute('suffix') || '';
+    if (this._prefix) {
+      var prefixEl = document.createElement('span');
+      prefixEl.className = 'kv-prefix';
+      prefixEl.textContent = this._prefix;
+      valEl.appendChild(prefixEl);
+    }
+    var valueEl = document.createElement('span');
+    valueEl.className = 'kv-value';
+    valueEl.innerHTML = val;
+    this._valueEl = valueEl;
+    valEl.appendChild(valueEl);
+    if (this._suffix) {
+      var suffixEl = document.createElement('span');
+      suffixEl.className = 'kv-suffix';
+      suffixEl.textContent = this._suffix;
+      valEl.appendChild(suffixEl);
+    }
     this._valEl = valEl;
     this.appendChild(valEl);
 
     applyWidthRange(this);
   }
 
-  get value() { return this._valEl ? this._valEl.textContent : ''; }
-  set value(v) { if (this._valEl) this._valEl.textContent = v; }
+  get value() { return this._valueEl ? this._valueEl.textContent : ''; }
+  set value(v) { if (this._valueEl) this._valueEl.textContent = v; }
 }
 
 customElements.define('status-kv', StatusKv);

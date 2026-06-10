@@ -11,15 +11,18 @@ trivial implementation and are always loaded as a set.
 | Tag | Purpose |
 |---|---|
 | `<grid-col>`         | column descriptor: `name`, `label`, `width`, `align`, `fill`, `type`, `map-data-id` |
+| `<grid-footer-buttons>` | extra pagination footer buttons; `side="left|center|right"` |
 | `<grid-key>`         | per-row identity (text content is one or more `name`s, comma-separated) |
 | `<grid-layout>`      | layout overrides: `page-size`, scroll mode, `auto-page-size` |
 | `<g-row>`            | one row of inline data (contains `<g-col>` cells) |
 | `<g-col>`            | one cell inside `<g-row>`; `name="…"` matches a `<grid-col>` |
+| `<g-detail>`         | nested detail rows inside a `<g-row>`; `name="…"` becomes an array field |
 | `<query-definition>` | dynamic-mode endpoint: `url`, default headers / params |
 | `<query-param>`      | maps an external value (filter, etc.) into a query parameter |
 | `<on-no-results>`    | markup rendered when the grid has no rows |
 | `<on-fetch-error>`   | markup rendered on dynamic-mode fetch failure |
 | `<filter-preset>`    | predefined filter set the grid can apply via UI |
+| `<filter-set-value-btn>` | quick value button consumed by `<closure-filter-bar>` |
 
 ## Example
 
@@ -64,8 +67,9 @@ trivial implementation and are always loaded as a set.
 ---
 %%>*/
 
-['grid-col', 'g-row', 'g-col', 'grid-key', 'query-definition', 'query-param',
- 'on-no-results', 'on-fetch-error', 'grid-layout', 'filter-preset'].forEach(tag => {
+['grid-col', 'grid-footer-buttons', 'g-row', 'g-col', 'g-detail', 'grid-key', 'query-definition', 'query-param',
+ 'on-no-results', 'on-fetch-error', 'grid-layout', 'filter-preset',
+ 'filter-set-value-btn'].forEach(tag => {
   if (!customElements.get(tag)) {
     customElements.define(tag, class extends HTMLElement {
       connectedCallback() { this.style.display = 'none'; }

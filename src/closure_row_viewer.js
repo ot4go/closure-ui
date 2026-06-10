@@ -11,15 +11,19 @@ row is selected it hides every bound child.
 | Attribute | Description |
 |---|---|
 | `target="id"` | id of the `<closure-data-grid>` to bind to |
+| `keep-space` | hide all descendant `bind-show` / `bind-hide` toggles with `visibility` instead of `display` |
 
 ## Per-child binding attributes
 
 | Attribute on a descendant | Effect |
 |---|---|
-| `bind="field"`        | write `row[field]` into the element (`textContent`, `value` for inputs, `data-field` on `<closure-btn>` / `<closure-btn-item>`) |
+| `bind="field"`        | write `row[field]` into the element (`textContent`, `.value` for value-bearing controls/components, `data-field` on `<closure-btn>` / `<closure-btn-item>`) |
 | `bind="f1,f2"`        | on `<closure-btn>` only — set one `data-*` attribute per field |
 | `bind-show="field"`   | show only when `row[field]` is truthy |
 | `bind-show="field=v"` | show only when `row[field] === v` |
+| `bind-hide="field"`   | hide when `row[field]` is truthy |
+| `bind-hide="field=v"` | hide when `row[field] === v` |
+| `bind-keep-space`     | on `bind-show` / `bind-hide`, hide with `visibility` instead of `display` |
 | `bind-crlf="<br>"`    | when the bound text has line breaks, render via `innerHTML` with the given separator |
 | `map-data-id="id"`    | resolve through a `<data-map>` for icon / label / color substitution |
 | `map-show="icon"`     | with `map-data-id`, render only the icon part |
@@ -41,6 +45,7 @@ row is selected it hides every bound child.
   <span bind="role" map-data-id="role-map"></span>
   <span bind-show="active=1">✓ active</span>
   <span bind-show="active=0">✗ inactive</span>
+  <span bind-hide="active">inactive only</span>
   <closure-btn ct-role="edit" bind="id">Edit</closure-btn>
 </closure-row-viewer>
 ```
@@ -49,12 +54,14 @@ row is selected it hides every bound child.
 
 > **Note:** elements with `[bind]` are hidden via `visibility: hidden`
 > (so layout is preserved) when no row is selected. Elements with
-> `[bind-show]` are hidden via `display: none`.
+> `[bind-show]` or `[bind-hide]` are hidden via `display: none`, unless
+> the child has `bind-keep-space` or the viewer has `keep-space`.
 
-> **Note:** `<input>`, `<textarea>` and `<select>` receive the value via
-> their `.value` property — useful for binding the selected row into an
-> editable form. Other elements get `textContent` (or `innerHTML` when
-> `bind-crlf` is set).
+> **Note:** `<input>`, `<textarea>`, `<select>` and custom components
+> exposing a `.value` property receive the value via that property. This
+> lets components such as `<status-kv>` update their value span without
+> replacing their internal structure. Other elements get `textContent`
+> (or `innerHTML` when `bind-crlf` is set).
 
 > **Note:** when a `<data-map>` resolution returns a `color` field, that
 > colour is applied to the bound element's `style.color`. Cleared on the
@@ -66,7 +73,7 @@ row is selected it hides every bound child.
 class ClosureRowViewer extends HTMLElement {
   static _styleId = 'closure-row-viewer-default-style';
   static _style = [
-    'closure-row-viewer { display: contents; }',
+    'closure-row-viewer { display: contents; visibility: hidden; }',
     'closure-row-viewer .rv-content { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }',
     'closure-row-viewer .rv-hidden { display: none; }',
   ].join('\n');
@@ -80,6 +87,7 @@ class ClosureRowViewer extends HTMLElement {
     }
     this._row = null;
     this._originalChildren = null;
+    this._pendingUpdate = false;
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', () => this._init(), { once: true });
     } else {
@@ -91,7 +99,7 @@ class ClosureRowViewer extends HTMLElement {
     // Save original children as template
     this._template = this.innerHTML;
     this._bindTarget();
-    this._update();
+    this._scheduleUpdate();
   }
 
   _bindTarget() {
@@ -101,45 +109,34 @@ class ClosureRowViewer extends HTMLElement {
     if (!grid) return;
     this._grid = grid;
 
-    grid.addEventListener('row-select', e => {
-      this._row = e.detail.row || null;
-      this._update();
-    });
-    grid.addEventListener('row-focus', e => {
-      this._row = e.detail.row || null;
-      this._update();
-    });
+    grid.addEventListener('row-select', e => this._setRow(e.detail.row || null));
+    grid.addEventListener('row-focus', e => this._setRow(e.detail.row || null));
 
     // Sync with current selection if grid already has one
     if (grid.selectedRow) {
-      this._row = grid.selectedRow;
-      this._update();
+      this._setRow(grid.selectedRow);
     }
   }
 
   _update() {
+    this.style.visibility = 'visible';
     this.querySelectorAll('[bind]').forEach(el => {
       el.style.visibility = this._row ? 'visible' : 'hidden';
     });
     this.querySelectorAll('[bind-show]').forEach(el => {
-      if (!this._row) el.style.display = 'none';
+      if (!this._row) this._setConditionalVisibility(el, false);
+    });
+    this.querySelectorAll('[bind-hide]').forEach(el => {
+      if (!this._row) this._setConditionalVisibility(el, false);
     });
     if (!this._row) return;
 
-    // Conditional visibility: bind-show="field=value" or bind-show="field" (truthy)
+    // Conditional visibility: bind-show / bind-hide with "field" or "field=value".
     this.querySelectorAll('[bind-show]').forEach(el => {
-      const cond = el.getAttribute('bind-show') || '';
-      const eq = cond.indexOf('=');
-      if (eq < 0) {
-        // No "=" — show if field has a non-empty value
-        const actual = String(this._row[cond] !== undefined ? this._row[cond] : '');
-        el.style.display = actual ? '' : 'none';
-      } else {
-        const field = cond.substring(0, eq);
-        const expected = cond.substring(eq + 1);
-        const actual = String(this._row[field] !== undefined ? this._row[field] : '');
-        el.style.display = actual === expected ? '' : 'none';
-      }
+      this._setConditionalVisibility(el, this._matchesBindCondition(el.getAttribute('bind-show') || ''));
+    });
+    this.querySelectorAll('[bind-hide]').forEach(el => {
+      this._setConditionalVisibility(el, !this._matchesBindCondition(el.getAttribute('bind-hide') || ''));
     });
 
     // Update spans/labels with bind (skip closure-btn elements — they use bind for data attributes only)
@@ -172,7 +169,7 @@ class ClosureRowViewer extends HTMLElement {
             el.textContent = val;
             el.style.color = '';
           }
-        } else if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') {
+        } else if (this._usesValueProperty(el)) {
           el.value = val;
         } else {
           const crlf = el.getAttribute('bind-crlf');
@@ -193,6 +190,57 @@ class ClosureRowViewer extends HTMLElement {
         el.setAttribute('data-' + f, val);
       });
     });
+  }
+
+  // ---
+  _setRow(row) {
+    if (row === this._row) return;
+    this._row = row;
+    this._scheduleUpdate();
+  }
+
+  // ---
+  _scheduleUpdate() {
+    if (this._pendingUpdate) return;
+    this._pendingUpdate = true;
+    requestAnimationFrame(() => {
+      this._pendingUpdate = false;
+      this._update();
+    });
+  }
+
+  // ---
+  _setConditionalVisibility(el, isVisible) {
+    const keepSpace = this.hasAttribute('keep-space') || el.hasAttribute('bind-keep-space');
+    if (isVisible) {
+      el.style.display = '';
+      el.style.visibility = 'visible';
+    } else if (keepSpace) {
+      el.style.display = '';
+      el.style.visibility = 'hidden';
+    } else {
+      el.style.display = 'none';
+      el.style.visibility = '';
+    }
+  }
+
+  // ---
+  _matchesBindCondition(cond) {
+    const eq = cond.indexOf('=');
+    if (eq < 0) {
+      const actual = String(this._row[cond] !== undefined ? this._row[cond] : '');
+      return !!actual;
+    }
+    const field = cond.substring(0, eq);
+    const expected = cond.substring(eq + 1);
+    const actual = String(this._row[field] !== undefined ? this._row[field] : '');
+    return actual === expected;
+  }
+
+  // ---
+  _usesValueProperty(el) {
+    const tag = el.tagName;
+    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || ('value' in el && tag.includes('-'));
   }
 
   // ---
