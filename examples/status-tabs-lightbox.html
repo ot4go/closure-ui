@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>closure-ui — Status, Tabs, Lightbox &amp; misc</title>
+<script>
+  // Without a server there is no /api/time: we disable the sync call so
+  // <clock-display> uses the LOCAL clock directly (the documented
+  // fallback when synchronisation fails).
+  window.mdclock_skip_sync_time = 1;
+</script>
+<script src="closure-ui.js"></script>
+</head>
+<body>
+
+<h1>closure-ui — status, tab and dialog components</h1>
+<p>Self-contained demo (works from <code>file://</code>) of
+  <code>&lt;closure-status-bar&gt;</code>, <code>&lt;closure-tab-bar&gt;</code>,
+  <code>&lt;closure-lightbox&gt;</code>, <code>&lt;clock-display&gt;</code>,
+  <code>&lt;session-keep-alive&gt;</code>, <code>&lt;closure-summary&gt;</code> and
+  <code>&lt;signal-event&gt;</code>.</p>
+<p>This page is deliberately <strong>pure HTML</strong> — it has no stylesheet at
+  all, so everything you see is the components' built-in default styling.
+  For restyling via CSS variables see <a href="theming.html">theming.html</a>.</p>
+
+<!-- ============================================================ -->
+<!-- 1. closure-status-bar -->
+<!-- ============================================================ -->
+<h2>1. &lt;closure-status-bar&gt;</h2>
+<p>Horizontal status bar that lays out its children in a flex
+  layout and acts as a colour preset host: the <code>type</code> attribute
+  paints background and border, and re-themes the inner buttons. It is
+  composed from <code>&lt;label&gt;</code>, <code>&lt;status-msg&gt;</code>,
+  <code>&lt;status-kv&gt;</code>, <code>&lt;status-part&gt;</code> and
+  <code>&lt;status-buttons&gt;</code>.</p>
+
+<h3>Composed bar (type="success")</h3>
+<closure-status-bar type="success">
+  <label>Payroll</label>
+  <status-msg>
+    <p>Run completed:</p>
+    <ul>
+      <li>142 payslips generated</li>
+      <li>0 errors</li>
+    </ul>
+  </status-msg>
+  <status-kv key="run">2026-06-10 17:21</status-kv>
+  <status-kv key="D" prefix="range " suffix=" days">14</status-kv>
+  <status-part layout="flow">
+    <span>tag-1</span>
+    <span>tag-2</span>
+    <span stretch-priority="0">filler tag</span>
+  </status-part>
+  <status-buttons gap="2">
+    <closure-btn free class="small">Undo</closure-btn>
+    <closure-btn free class="small">Export</closure-btn>
+  </status-buttons>
+</closure-status-bar>
+
+<h3>type variants (the real list from the doc: primary, info, success, warning, danger, gray, white, default)</h3>
+<closure-status-bar type="primary"><label>primary</label><status-msg><p>Indigo</p></status-msg></closure-status-bar>
+<closure-status-bar type="info"><label>info</label><status-msg><p>Sky blue</p></status-msg></closure-status-bar>
+<closure-status-bar type="success"><label>success</label><status-msg><p>Green</p></status-msg></closure-status-bar>
+<closure-status-bar type="warning"><label>warning</label><status-msg><p>Amber</p></status-msg></closure-status-bar>
+<closure-status-bar type="danger"><label>danger</label><status-msg><p>Red</p></status-msg></closure-status-bar>
+<closure-status-bar type="gray"><label>gray</label><status-msg><p>Medium grey</p></status-msg></closure-status-bar>
+<closure-status-bar type="white"><label>white</label><status-msg><p>White background</p></status-msg></closure-status-bar>
+<closure-status-bar><label>default</label><status-msg><p>No attribute: light grey</p></status-msg></closure-status-bar>
+
+<pre>&lt;closure-status-bar type="success"&gt;
+  &lt;label&gt;Payroll&lt;/label&gt;
+  &lt;status-msg&gt;
+    &lt;p&gt;Run completed:&lt;/p&gt;
+    &lt;ul&gt;&lt;li&gt;142 payslips generated&lt;/li&gt;&lt;li&gt;0 errors&lt;/li&gt;&lt;/ul&gt;
+  &lt;/status-msg&gt;
+  &lt;status-kv key="run"&gt;2026-06-10 17:21&lt;/status-kv&gt;
+  &lt;status-kv key="D" prefix="range " suffix=" days"&gt;14&lt;/status-kv&gt;
+  &lt;status-part layout="flow"&gt;
+    &lt;span&gt;tag-1&lt;/span&gt;
+    &lt;span&gt;tag-2&lt;/span&gt;
+    &lt;span stretch-priority="0"&gt;filler tag&lt;/span&gt;
+  &lt;/status-part&gt;
+  &lt;status-buttons gap="2"&gt;
+    &lt;closure-btn free class="small"&gt;Undo&lt;/closure-btn&gt;
+    &lt;closure-btn free class="small"&gt;Export&lt;/closure-btn&gt;
+  &lt;/status-buttons&gt;
+&lt;/closure-status-bar&gt;
+
+&lt;!-- Types: primary | info | success | warning | danger | gray | white | default --&gt;
+&lt;closure-status-bar type="warning"&gt;…&lt;/closure-status-bar&gt;</pre>
+
+<!-- ============================================================ -->
+<!-- 2. closure-tab-bar -->
+<!-- ============================================================ -->
+<h2>2. &lt;closure-tab-bar&gt; + &lt;closure-tab&gt;</h2>
+<p>Tab control without Shadow DOM. Each
+  <code>&lt;closure-tab&gt;</code> provides <code>name</code>, <code>label</code>,
+  <code>icon</code> and optionally <code>disabled</code>, <code>toggle</code>
+  (a checkbox on the button that enables/disables the panel and writes 0/1 into
+  the hidden input named by <code>toggle-target</code>) and
+  <code>show-source</code> (an external checkbox that shows/hides the tab).
+  Switching tabs fires the <code>tab-change</code> event with
+  <code>{ name, prev }</code>. The active panel ships with a default frame
+  (padding, border, background) so the tabs look connected with no page CSS.</p>
+
+<p>
+  <label>
+    <input type="checkbox" id="chk-show-extra" checked>
+    Show the &laquo;Extra&raquo; tab (show-source)
+  </label>
+</p>
+
+<closure-tab-bar id="demo-tabs" active="overview">
+  <closure-tab name="overview" label="Overview" icon="📋">
+    <p>Overview panel. This tab is active on load
+    (<code>active="overview"</code> on the bar).</p>
+  </closure-tab>
+  <closure-tab name="detail" label="Detail" icon="🔍">
+    <p>Detail panel.</p>
+  </closure-tab>
+  <closure-tab name="locked" label="Locked" icon="🔒" disabled>
+    <p>This panel is not reachable: the tab has <code>disabled</code>.</p>
+  </closure-tab>
+  <closure-tab name="advanced" label="Advanced" icon="⚙️"
+               toggle="enable" toggle-target="advanced-on">
+    <input type="hidden" id="advanced-on" name="advanced_enabled" value="0">
+    <p>Advanced options. With <code>toggle="enable"</code> the panel starts
+    disabled; tick the checkbox on the button to enable it.</p>
+  </closure-tab>
+  <closure-tab name="extra" label="Extra" icon="✨" show-source="chk-show-extra">
+    <p>Tab controlled by the external checkbox above.</p>
+  </closure-tab>
+</closure-tab-bar>
+
+<h3>Live value of the hidden input (toggle-target)</h3>
+<pre id="out-toggle">advanced_enabled = ?</pre>
+
+<h3>tab-change log</h3>
+<pre id="out-tabs">(switch tabs to see the event)</pre>
+
+<pre>&lt;input type="checkbox" id="chk-show-extra" checked&gt;
+
+&lt;closure-tab-bar active="overview"&gt;
+  &lt;closure-tab name="overview" label="Overview" icon="📋"&gt;…&lt;/closure-tab&gt;
+  &lt;closure-tab name="detail" label="Detail" icon="🔍"&gt;…&lt;/closure-tab&gt;
+  &lt;closure-tab name="locked" label="Locked" icon="🔒" disabled&gt;…&lt;/closure-tab&gt;
+  &lt;closure-tab name="advanced" label="Advanced" icon="⚙️"
+               toggle="enable" toggle-target="advanced-on"&gt;
+    &lt;input type="hidden" id="advanced-on" name="advanced_enabled" value="0"&gt;
+    …
+  &lt;/closure-tab&gt;
+  &lt;closure-tab name="extra" label="Extra" icon="✨"
+               show-source="chk-show-extra"&gt;…&lt;/closure-tab&gt;
+&lt;/closure-tab-bar&gt;
+
+&lt;script&gt;
+  bar.addEventListener('tab-change', e =&gt; {
+    console.log(e.detail.name, e.detail.prev);
+  });
+&lt;/script&gt;</pre>
+
+<!-- ============================================================ -->
+<!-- 3. closure-lightbox -->
+<!-- ============================================================ -->
+<h2>3. &lt;closure-lightbox&gt;</h2>
+<p>Modal based on the native <code>&lt;dialog&gt;</code>. It can
+  be opened programmatically with <code>open({ title, content, buttons })</code>;
+  on close it emits <code>lb-close</code> with the <code>action</code> of the
+  button that was pressed. The static helpers
+  <code>ClosureLightbox.MsgAlert(msg, title?)</code> and
+  <code>ClosureLightbox.MsgConfirm(msg, title?)</code> (the latter returns a
+  <code>Promise&lt;boolean&gt;</code>) spawn throw-away lightboxes.</p>
+
+<closure-lightbox id="demo-lb" title="Initial title"></closure-lightbox>
+
+<p>
+  <button id="btn-lb-open" type="button">Open open(...)</button>
+  <button id="btn-lb-alert" type="button">MsgAlert(...)</button>
+  <button id="btn-lb-confirm" type="button">MsgConfirm(...)</button>
+</p>
+<pre id="out-lb">(the result will appear here)</pre>
+
+<pre>&lt;closure-lightbox id="demo-lb" title="Initial title"&gt;&lt;/closure-lightbox&gt;
+
+&lt;script&gt;
+  // Programmatic open with title, content and footer buttons
+  const lb = document.getElementById('demo-lb');
+  lb.open({
+    title: 'Confirm submission',
+    content: '&lt;p&gt;Send the report?&lt;/p&gt;',
+    buttons: [
+      { label: 'Cancel', action: 'cancel' },
+      { label: 'Send',   action: 'send', primary: true },
+    ],
+  });
+  lb.addEventListener('lb-close', e =&gt; console.log(e.detail.action));
+
+  // Static helpers
+  ClosureLightbox.MsgAlert('Saved successfully', 'Notice');
+  ClosureLightbox.MsgConfirm('Delete user 42?').then(ok =&gt; {
+    if (ok) doDelete();
+  });
+&lt;/script&gt;</pre>
+
+<!-- ============================================================ -->
+<!-- 4. clock-display -->
+<!-- ============================================================ -->
+<h2>4. &lt;clock-display&gt;</h2>
+<p>Live wall clock. It normally syncs with the server via
+  <code>GET /api/time</code>; since this demo has no server, it uses the
+  <strong>browser's LOCAL clock</strong> — the documented fallback when
+  synchronisation fails (here we additionally set
+  <code>window.mdclock_skip_sync_time = 1</code> to skip the network call
+  entirely, as the doc recommends for mockups). That is also why the
+  &laquo;Server Time&raquo; / ● label does not appear: it is only painted after a
+  successful sync.</p>
+
+<p>default:</p>
+<clock-display></clock-display>
+<p><code>small</code>:</p>
+<clock-display small></clock-display>
+<p><code>small dot notime</code>:</p>
+<clock-display small dot notime></clock-display>
+<p><code>nodate</code>:</p>
+<clock-display nodate></clock-display>
+<p><code>notime</code>:</p>
+<clock-display notime></clock-display>
+
+<pre>&lt;script&gt;
+  // Mockups / tests without /api/time: skip the sync (local fallback)
+  window.mdclock_skip_sync_time = 1;
+&lt;/script&gt;
+
+&lt;clock-display&gt;&lt;/clock-display&gt;                 &lt;!-- hero --&gt;
+&lt;clock-display small&gt;&lt;/clock-display&gt;           &lt;!-- compact --&gt;
+&lt;clock-display small dot notime&gt;&lt;/clock-display&gt;&lt;!-- header indicator --&gt;
+&lt;clock-display nodate&gt;&lt;/clock-display&gt;          &lt;!-- time only --&gt;
+&lt;clock-display notime&gt;&lt;/clock-display&gt;          &lt;!-- date only --&gt;</pre>
+
+<!-- ============================================================ -->
+<!-- 5. session-keep-alive -->
+<!-- ============================================================ -->
+<h2>5. &lt;session-keep-alive&gt;</h2>
+<p>Idle countdown. Without <code>extend-url</code>, clicking
+  the button only resets the countdown on the client (and emits
+  <code>session-extended</code>). When it reaches zero it emits
+  <code>session-expired</code>; since there is no <code>expire-url</code>
+  either, no navigation happens. When the remaining time drops below
+  <code>warn-at</code> the button turns red (the <code>warn</code> attribute).
+  The <code>activity-reset</code> variant resets on any mouse, keyboard or
+  touch activity — so in practice it almost never expires while you are on
+  the page.</p>
+
+<p>timeout=90, warn-at=60 (click to extend):</p>
+<session-keep-alive id="ska-basic" timeout="90" warn-at="60"></session-keep-alive>
+<p>+ activity-reset (resets on activity):</p>
+<session-keep-alive id="ska-activity" timeout="90" warn-at="60" activity-reset></session-keep-alive>
+
+<pre id="out-ska">(session-extended / session-expired events will appear here)</pre>
+
+<pre>&lt;session-keep-alive timeout="90" warn-at="60"&gt;&lt;/session-keep-alive&gt;
+&lt;session-keep-alive timeout="90" warn-at="60" activity-reset&gt;&lt;/session-keep-alive&gt;
+
+&lt;script&gt;
+  ska.addEventListener('session-extended', () =&gt; log('extended'));
+  ska.addEventListener('session-expired',  () =&gt; log('expired'));
+&lt;/script&gt;
+
+&lt;!-- In production, with a server: --&gt;
+&lt;session-keep-alive timeout="900" warn-at="120"
+  extend-url="/admin/keep-alive" expire-url="/admin/logoff"
+  data-sid="abc123" activity-reset&gt;&lt;/session-keep-alive&gt;</pre>
+
+<!-- ============================================================ -->
+<!-- 6. closure-summary -->
+<!-- ============================================================ -->
+<h2>6. &lt;closure-summary&gt;</h2>
+<p>Read-only renderer. It is normally paired with a
+  &laquo;source&raquo; element (<code>source="id"</code> attribute) that implements
+  <code>getSummaryHTML()</code>; here we use it standalone by calling its
+  <code>refresh(html)</code> method from a button.</p>
+
+<p><button id="btn-summary" type="button">Update summary with refresh(html)</button></p>
+<closure-summary id="demo-summary"></closure-summary>
+
+<pre>&lt;closure-summary id="demo-summary"&gt;&lt;/closure-summary&gt;
+
+&lt;script&gt;
+  document.getElementById('demo-summary').refresh(
+    '&lt;ul&gt;&lt;li&gt;&lt;strong&gt;Users:&lt;/strong&gt; 12&lt;/li&gt;' +
+    '&lt;li&gt;&lt;strong&gt;Active:&lt;/strong&gt; 9&lt;/li&gt;&lt;/ul&gt;'
+  );
+&lt;/script&gt;</pre>
+
+<!-- ============================================================ -->
+<!-- 7. signal-event -->
+<!-- ============================================================ -->
+<h2>7. &lt;signal-event&gt;</h2>
+<p>One-shot event dispatcher for declarative
+  &laquo;server-push&raquo;: when parsed (in <code>connectedCallback</code>) it reads
+  its <code>name</code> and its <code>data-*</code> attributes, dispatches a
+  <code>CustomEvent</code> on <code>document</code> (each <code>data-*</code>
+  becomes a key of <code>event.detail</code>, with the <code>data-</code>
+  prefix stripped) and removes itself from the DOM. The listener must be
+  registered <em>before</em> the element is parsed. Here we simulate it by
+  injecting the element via JS, just like a streamed server HTML response
+  would.</p>
+
+<p><button id="btn-signal" type="button">Inject &lt;signal-event name="demo-notice"&gt;</button></p>
+<pre id="out-signal">(the event detail will appear here)</pre>
+
+<pre>&lt;script&gt;
+  // 1) Subscribe BEFORE the signal arrives
+  document.addEventListener('demo-notice', (e) =&gt; {
+    console.log(e.detail['token'], e.detail['employee-id']);
+  });
+&lt;/script&gt;
+
+&lt;!-- 2) The server emits this in its HTML response;
+        it fires when parsed and removes itself --&gt;
+&lt;signal-event name="demo-notice"
+              data-token="abc123"
+              data-employee-id="42"&gt;&lt;/signal-event&gt;</pre>
+
+<p><a href="index.html">&larr; Back to index</a></p>
+
+<script>
+  // --- logging helpers ---------------------------------------------------
+  function logTo(id, msg) {
+    var out = document.getElementById(id);
+    var time = new Date().toLocaleTimeString();
+    out.textContent = '[' + time + '] ' + msg + '\n' + out.textContent;
+    // Keep at most 6 lines
+    out.textContent = out.textContent.split('\n').slice(0, 6).join('\n');
+  }
+
+  // --- 2. Tabs: tab-change event and live toggle-target value ------------
+  var tabs = document.getElementById('demo-tabs');
+  tabs.addEventListener('tab-change', function(e) {
+    logTo('out-tabs', 'tab-change → name="' + e.detail.name + '", prev="' + e.detail.prev + '"');
+  });
+
+  // The hidden input changes via .value assignment (no events fire):
+  // we mirror it with a light poll, for demo purposes only.
+  setInterval(function() {
+    var hidden = document.getElementById('advanced-on');
+    var out = document.getElementById('out-toggle');
+    if (hidden && out) out.textContent = 'advanced_enabled = ' + hidden.value;
+  }, 300);
+
+  // --- 3. Lightbox --------------------------------------------------------
+  var lb = document.getElementById('demo-lb');
+  lb.addEventListener('lb-close', function(e) {
+    logTo('out-lb', 'lb-close → action="' + e.detail.action + '"');
+  });
+
+  document.getElementById('btn-lb-open').addEventListener('click', function() {
+    lb.open({
+      title: 'Confirm submission',
+      content: '<p>Do you want to send the monthly report?</p><p>This action is just an example: the button only closes the dialog.</p>',
+      buttons: [
+        { label: 'Cancel', action: 'cancel' },
+        { label: 'Send', action: 'send', primary: true },
+      ],
+    });
+  });
+
+  document.getElementById('btn-lb-alert').addEventListener('click', function() {
+    ClosureLightbox.MsgAlert('Operation completed successfully.', 'Notice');
+    logTo('out-lb', 'MsgAlert opened (removes itself on close)');
+  });
+
+  document.getElementById('btn-lb-confirm').addEventListener('click', function() {
+    ClosureLightbox.MsgConfirm('Delete user 42?', 'Confirm').then(function(ok) {
+      logTo('out-lb', 'MsgConfirm resolved → ' + (ok ? 'true (OK)' : 'false (Cancel/close)'));
+    });
+  });
+
+  // --- 5. session-keep-alive ----------------------------------------------
+  ['ska-basic', 'ska-activity'].forEach(function(id) {
+    var ska = document.getElementById(id);
+    ska.addEventListener('session-extended', function() {
+      logTo('out-ska', id + ': session-extended (countdown reset)');
+    });
+    ska.addEventListener('session-expired', function() {
+      logTo('out-ska', id + ': session-expired (no expire-url: no navigation)');
+    });
+  });
+
+  // --- 6. closure-summary ---------------------------------------------------
+  var nRefresh = 0;
+  document.getElementById('btn-summary').addEventListener('click', function() {
+    nRefresh++;
+    document.getElementById('demo-summary').refresh(
+      '<ul>' +
+      '<li><strong>Update no.:</strong> ' + nRefresh + '</li>' +
+      '<li><strong>Time:</strong> ' + new Date().toLocaleTimeString() + '</li>' +
+      '<li><strong>Active users:</strong> ' + (5 + nRefresh) + '</li>' +
+      '</ul>'
+    );
+  });
+
+  // --- 7. signal-event -------------------------------------------------------
+  // 1) The listener is registered first…
+  document.addEventListener('demo-notice', function(e) {
+    logTo('out-signal', 'demo-notice received → detail=' + JSON.stringify(e.detail));
+  });
+  // 2) …and the button simulates the tag arriving in a server response.
+  var nSignal = 0;
+  document.getElementById('btn-signal').addEventListener('click', function() {
+    nSignal++;
+    var se = document.createElement('signal-event');
+    se.setAttribute('name', 'demo-notice');
+    se.setAttribute('data-token', 'abc' + nSignal);
+    se.setAttribute('data-employee-id', String(40 + nSignal));
+    document.body.appendChild(se); // fires and removes itself on connect
+  });
+</script>
+</body>
+</html>

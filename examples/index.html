@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>closure-ui — examples</title>
+</head>
+<body>
+<h1>closure-ui — examples</h1>
+<p>Self-contained demo pages that load the compiled bundle
+  (<code>examples/closure-ui.js</code>, refreshed by each build).
+  They work when opened directly in a browser, no server needed;
+  the few demos that require an endpoint say so in their section.</p>
+<p>The demo pages are <strong>pure HTML</strong> — no stylesheets — so what you
+  see is the components' built-in default styling. The only page with CSS is
+  the theming demo, whose subject is CSS.</p>
+
+<ul>
+  <li>
+    <p><a href="buttons-actions.html"><strong>Buttons &amp; actions</strong></a><br>
+    &lt;closure-btn&gt; (variants, dropdown menu, client-action, free),
+    &lt;closure-btn-item&gt;, &lt;btn-grid&gt;, &lt;status-buttons&gt; and the full
+    &lt;target-closure&gt; + &lt;closure-template&gt; wiring with dirty tracking.</p>
+  </li>
+  <li>
+    <p><a href="grid-data.html"><strong>Grid &amp; data</strong></a><br>
+    &lt;closure-data-grid&gt; (pagination, mapped columns, master–detail),
+    &lt;closure-filter-bar&gt;, &lt;closure-row-viewer&gt;, &lt;closure-data-source&gt;
+    and &lt;data-map&gt;.</p>
+  </li>
+  <li>
+    <p><a href="forms.html"><strong>Forms</strong></a><br>
+    &lt;closure-form-row&gt;/&lt;closure-form-field&gt;, &lt;credential-pwd&gt;
+    (including enter-btn-id), &lt;closure-checkbox-tree&gt;/&lt;closure-checkbox-group&gt;
+    with &lt;closure-summary&gt;, and &lt;fingerprint-hands&gt;.</p>
+  </li>
+  <li>
+    <p><a href="status-tabs-lightbox.html"><strong>Status, tabs &amp; lightbox</strong></a><br>
+    &lt;closure-status-bar&gt; with its parts (&lt;status-msg&gt;, &lt;status-kv&gt;,
+    &lt;status-part&gt;, &lt;status-buttons&gt;), &lt;closure-tab-bar&gt;,
+    &lt;closure-lightbox&gt; (MsgAlert/MsgConfirm), &lt;clock-display&gt;,
+    &lt;session-keep-alive&gt;, &lt;closure-summary&gt; and &lt;signal-event&gt;.</p>
+  </li>
+  <li>
+    <p><a href="theming.html"><strong>Theming with CSS variables</strong></a><br>
+    The one page that does use CSS: restyling components through their
+    public CSS variables (shared tokens, --form-btn-*, tab palette).</p>
+  </li>
+</ul>
+
+<p>Full per-component documentation lives in <code>doc/closure-ui.md</code>.</p>
+</body>
+</html>

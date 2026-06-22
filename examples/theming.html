@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>closure-ui — Theming with CSS variables</title>
+<script src="closure-ui.js"></script>
+<style>
+  /* ==================================================================
+     This is the ONLY example page with a stylesheet, on purpose: its
+     subject is restyling the components through their public CSS
+     variables. Every other demo page is pure HTML and shows the
+     built-in defaults.
+     ================================================================== */
+
+  /* --- 1. Shared design tokens, scoped to a wrapper --------------- */
+  /* Most components consume these tokens with built-in fallbacks:
+     --primary, --primary-light, --border, --font, --text,
+     --text-muted, --red. Declaring them on :root themes the whole
+     app; here they are scoped to .corporate so the default rendering
+     above stays untouched. */
+  .corporate {
+    --primary: #0f766e;        /* teal instead of the indigo fallback */
+    --primary-light: #ccfbf1;
+    --border: #99f6e4;
+    --font: Georgia, serif;
+    --text: #134e4a;
+    --red: #b91c1c;
+  }
+
+  /* --- 2. btn-grid card look ---------------------------------------- */
+  /* btn-grid declares --form-btn-* defaults that slotted closure-btn
+     children consume; override them on the host (or any ancestor). */
+  .flat-cards btn-grid {
+    --form-btn-bg: #0f766e;
+    --form-btn-color: #fff;
+    --form-btn-radius: 0;
+    --form-btn-shadow: none;
+    --form-btn-shadow-hover: none;
+    --form-btn-min-height: 70px;
+  }
+
+  /* --- 3. closure-tab-bar palette ------------------------------------ */
+  .dark-tabs closure-tab-bar {
+    --border: #334155;
+    --tab-bg: #1e293b;
+    --tab-bg-hover: #334155;
+    --tab-bg-active: #0f172a;
+    --text: #f1f5f9;
+    --text-muted: #94a3b8;
+  }
+  /* The active panel ships with a default frame (padding, border,
+     --tab-bg-active background); restyle it by targeting
+     closure-tab[active] directly. */
+  .dark-tabs closure-tab[active] {
+    color: #f1f5f9;
+  }
+</style>
+</head>
+<body>
+
+<h1>closure-ui — Theming with CSS variables</h1>
+<p>The components style themselves; pages never need CSS to make them look
+  right. When you <em>want</em> a different look, every component exposes CSS
+  variables (listed per component in <code>doc/closure-ui.md</code>) that can be
+  set on <code>:root</code>, on a wrapper, or on the element itself. This page
+  demonstrates the technique — it is the only example page with a
+  <code>&lt;style&gt;</code> block.</p>
+
+<!-- ============ 1. Shared tokens ============ -->
+<h2>1. Shared design tokens</h2>
+<p>Default rendering (no CSS at all):</p>
+
+<closure-form-row cols="*,*">
+  <closure-form-field label="Password" required>
+    <credential-pwd name="p1"></credential-pwd>
+  </closure-form-field>
+  <closure-form-field label="Confirm">
+    <credential-pwd name="p2"></credential-pwd>
+  </closure-form-field>
+</closure-form-row>
+
+<p>Inside a <code>.corporate</code> wrapper that redefines
+  <code>--primary</code>, <code>--border</code>, <code>--font</code>… (focus a
+  field to see the teal ring):</p>
+
+<div class="corporate">
+  <closure-form-row cols="*,*">
+    <closure-form-field label="Password" required>
+      <credential-pwd name="p3"></credential-pwd>
+    </closure-form-field>
+    <closure-form-field label="Confirm">
+      <credential-pwd name="p4"></credential-pwd>
+    </closure-form-field>
+  </closure-form-row>
+</div>
+
+<pre>.corporate {
+  --primary: #0f766e;
+  --primary-light: #ccfbf1;
+  --border: #99f6e4;
+  --font: Georgia, serif;
+  --text: #134e4a;
+}
+
+&lt;div class="corporate"&gt;
+  &lt;credential-pwd name="p3"&gt;&lt;/credential-pwd&gt;
+&lt;/div&gt;</pre>
+
+<!-- ============ 2. btn-grid ============ -->
+<h2>2. <code>&lt;btn-grid&gt;</code> button cards</h2>
+<p>Default cards, then the same grid with the <code>--form-btn-*</code>
+  variables overridden (flat teal, square corners, no shadow):</p>
+
+<btn-grid cols="3">
+  <closure-btn icon="📄" ct-role="new">New</closure-btn>
+  <closure-btn icon="📂" ct-role="open">Open</closure-btn>
+  <closure-btn icon="💾" ct-role="save">Save</closure-btn>
+</btn-grid>
+
+<div class="flat-cards">
+  <btn-grid cols="3">
+    <closure-btn icon="📄" ct-role="new">New</closure-btn>
+    <closure-btn icon="📂" ct-role="open">Open</closure-btn>
+    <closure-btn icon="💾" ct-role="save">Save</closure-btn>
+  </btn-grid>
+</div>
+
+<pre>.flat-cards btn-grid {
+  --form-btn-bg: #0f766e;
+  --form-btn-color: #fff;
+  --form-btn-radius: 0;
+  --form-btn-shadow: none;
+  --form-btn-shadow-hover: none;
+  --form-btn-min-height: 70px;
+}</pre>
+
+<!-- ============ 3. Tabs ============ -->
+<h2>3. <code>&lt;closure-tab-bar&gt;</code> palette</h2>
+<p>Default tabs, then a dark variant via <code>--tab-bg</code>,
+  <code>--tab-bg-hover</code>, <code>--tab-bg-active</code> and the shared
+  text/border tokens. The active panel's built-in frame follows
+  <code>--border</code>/<code>--tab-bg-active</code> automatically; anything
+  else is a plain <code>closure-tab[active]</code> rule:</p>
+
+<closure-tab-bar active="one">
+  <closure-tab name="one" label="First"><p>Default palette.</p></closure-tab>
+  <closure-tab name="two" label="Second"><p>Second panel.</p></closure-tab>
+</closure-tab-bar>
+
+<div class="dark-tabs">
+  <closure-tab-bar active="one">
+    <closure-tab name="one" label="First"><p>Dark palette via CSS variables.</p></closure-tab>
+    <closure-tab name="two" label="Second"><p>Second panel.</p></closure-tab>
+  </closure-tab-bar>
+</div>
+
+<pre>.dark-tabs closure-tab-bar {
+  --border: #334155;
+  --tab-bg: #1e293b;
+  --tab-bg-hover: #334155;
+  --tab-bg-active: #0f172a;
+  --text: #f1f5f9;
+  --text-muted: #94a3b8;
+}
+.dark-tabs closure-tab[active] { color: #f1f5f9; }</pre>
+
+<p><a href="index.html">← Back to index</a></p>
+</body>
+</html>
