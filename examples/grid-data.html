@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>closure-ui — Data components</title>
+<script src="closure-ui.js"></script>
+</head>
+<body>
+
+<h1>closure-ui — Data components</h1>
+<p>Self-contained demos (inline static data, no server) of
+  <code>&lt;closure-data-grid&gt;</code>, <code>&lt;closure-filter-bar&gt;</code>,
+  <code>&lt;closure-row-viewer&gt;</code>, <code>&lt;closure-data-source&gt;</code> and
+  <code>&lt;data-map&gt;</code>.</p>
+<p>This page is deliberately <strong>pure HTML</strong> — it has no stylesheet at
+  all, so everything you see is the components' built-in default styling.
+  For restyling via CSS variables see <a href="theming.html">theming.html</a>.</p>
+
+<!-- ============================================================ -->
+<!-- 1. Basic grid                                                 -->
+<!-- ============================================================ -->
+<h2>1. Basic grid with inline data</h2>
+<p>Rows are declared with <code>&lt;g-row&gt;</code>/<code>&lt;g-col&gt;</code>
+  inside the grid itself. Columns are defined with <code>&lt;grid-col&gt;</code>
+  (<code>name</code>, <code>label</code>, <code>width</code>) and <code>&lt;grid-key&gt;</code>
+  declares each row's identity. With <code>page-size="5"</code> and 12 rows, the pagination
+  controls show up in the footer.</p>
+
+<blockquote><p>⌨ <strong>Keyboard navigation:</strong> click the grid to focus it;
+  the ↑/↓ arrow keys move the <em>focused</em> row (<code>row-focus</code> event),
+  <kbd>Enter</kbd> promotes it to <em>selected</em> (<code>row-select</code> event),
+  <kbd>PageUp</kbd>/<kbd>PageDown</kbd> change page, and the mouse wheel also moves
+  through the pages.</p></blockquote>
+
+<closure-data-grid id="gridBasico" page-size="5">
+  <grid-col name="id"     label="ID"      width="60"></grid-col>
+  <grid-col name="nombre" label="Name"    width="30%"></grid-col>
+  <grid-col name="ciudad" label="City"    width="25%"></grid-col>
+  <grid-col name="puesto" label="Role"></grid-col>
+  <grid-key>id</grid-key>
+
+  <g-row><g-col name="id">1</g-col><g-col name="nombre">Ana Torres</g-col><g-col name="ciudad">Madrid</g-col><g-col name="puesto">Analyst</g-col></g-row>
+  <g-row><g-col name="id">2</g-col><g-col name="nombre">Luis Pérez</g-col><g-col name="ciudad">Sevilla</g-col><g-col name="puesto">Developer</g-col></g-row>
+  <g-row><g-col name="id">3</g-col><g-col name="nombre">Marta Gil</g-col><g-col name="ciudad">Valencia</g-col><g-col name="puesto">Designer</g-col></g-row>
+  <g-row><g-col name="id">4</g-col><g-col name="nombre">Jorge Ruiz</g-col><g-col name="ciudad">Bilbao</g-col><g-col name="puesto">Manager</g-col></g-row>
+  <g-row><g-col name="id">5</g-col><g-col name="nombre">Lucía Mora</g-col><g-col name="ciudad">Madrid</g-col><g-col name="puesto">Analyst</g-col></g-row>
+  <g-row><g-col name="id">6</g-col><g-col name="nombre">Pablo Sanz</g-col><g-col name="ciudad">Zaragoza</g-col><g-col name="puesto">Support</g-col></g-row>
+  <g-row><g-col name="id">7</g-col><g-col name="nombre">Elena Díaz</g-col><g-col name="ciudad">Sevilla</g-col><g-col name="puesto">Developer</g-col></g-row>
+  <g-row><g-col name="id">8</g-col><g-col name="nombre">Raúl Vega</g-col><g-col name="ciudad">Valencia</g-col><g-col name="puesto">Sales rep</g-col></g-row>
+  <g-row><g-col name="id">9</g-col><g-col name="nombre">Sara León</g-col><g-col name="ciudad">Madrid</g-col><g-col name="puesto">Designer</g-col></g-row>
+  <g-row><g-col name="id">10</g-col><g-col name="nombre">Iván Cano</g-col><g-col name="ciudad">Bilbao</g-col><g-col name="puesto">Support</g-col></g-row>
+  <g-row><g-col name="id">11</g-col><g-col name="nombre">Nuria Paz</g-col><g-col name="ciudad">Zaragoza</g-col><g-col name="puesto">Analyst</g-col></g-row>
+  <g-row><g-col name="id">12</g-col><g-col name="nombre">Óscar Rey</g-col><g-col name="ciudad">Madrid</g-col><g-col name="puesto">Manager</g-col></g-row>
+</closure-data-grid>
+
+<pre>&lt;closure-data-grid id="gridBasico" page-size="5"&gt;
+  &lt;grid-col name="id"     label="ID"   width="60"&gt;&lt;/grid-col&gt;
+  &lt;grid-col name="nombre" label="Name" width="30%"&gt;&lt;/grid-col&gt;
+  &lt;grid-col name="ciudad" label="City" width="25%"&gt;&lt;/grid-col&gt;
+  &lt;grid-col name="puesto" label="Role"&gt;&lt;/grid-col&gt;
+  &lt;grid-key&gt;id&lt;/grid-key&gt;
+
+  &lt;g-row&gt;
+    &lt;g-col name="id"&gt;1&lt;/g-col&gt;
+    &lt;g-col name="nombre"&gt;Ana Torres&lt;/g-col&gt;
+    &lt;g-col name="ciudad"&gt;Madrid&lt;/g-col&gt;
+    &lt;g-col name="puesto"&gt;Analyst&lt;/g-col&gt;
+  &lt;/g-row&gt;
+  &lt;!-- … 11 more rows … --&gt;
+&lt;/closure-data-grid&gt;</pre>
+
+<!-- ============================================================ -->
+<!-- 2. Mapped column with data-map + on-no-results                -->
+<!-- ============================================================ -->
+<h2>2. Mapped column with <code>&lt;data-map&gt;</code> and <code>&lt;on-no-results&gt;</code></h2>
+<p>The <code>estado</code> column uses <code>map-data-id</code> to translate the
+  raw value into icon + color through a <code>&lt;data-map&gt;</code> with
+  <code>&lt;map-item&gt;</code> entries (the <code>label</code> shows as a tooltip on hover).
+  The <code>&lt;map-item default&gt;</code> catches any value with no match. Below it, a second
+  grid with no rows shows the <code>&lt;on-no-results&gt;</code> content live.</p>
+
+<data-map id="map-estado">
+  <map-item value="ok"   label="Operational" icon="●" color="#16a34a"></map-item>
+  <map-item value="warn" label="Degraded"    icon="●" color="#d97706"></map-item>
+  <map-item value="ko"   label="Down"        icon="●" color="#dc2626"></map-item>
+  <map-item default      label="Unknown"     icon="○" color="#9ca3af"></map-item>
+</data-map>
+
+<closure-data-grid id="gridServidores" page-size="6">
+  <grid-col name="servidor" label="Server"  width="30%"></grid-col>
+  <grid-col name="region"   label="Region"  width="30%"></grid-col>
+  <grid-col name="estado"   label="Status"  width="80" map-data-id="map-estado"></grid-col>
+  <grid-key>servidor</grid-key>
+
+  <g-row><g-col name="servidor">web-01</g-col><g-col name="region">eu-west</g-col><g-col name="estado">ok</g-col></g-row>
+  <g-row><g-col name="servidor">web-02</g-col><g-col name="region">eu-west</g-col><g-col name="estado">warn</g-col></g-row>
+  <g-row><g-col name="servidor">db-01</g-col><g-col name="region">eu-central</g-col><g-col name="estado">ok</g-col></g-row>
+  <g-row><g-col name="servidor">db-02</g-col><g-col name="region">eu-central</g-col><g-col name="estado">ko</g-col></g-row>
+  <g-row><g-col name="servidor">cache-01</g-col><g-col name="region">eu-south</g-col><g-col name="estado">maintenance</g-col></g-row>
+
+  <on-no-results><p>No servers to show.</p></on-no-results>
+</closure-data-grid>
+
+<p>Empty grid — the <code>&lt;on-no-results&gt;</code> block is rendered:</p>
+
+<closure-data-grid id="gridVacio" page-size="5">
+  <grid-col name="servidor" label="Server"></grid-col>
+  <grid-col name="estado"   label="Status"></grid-col>
+  <on-no-results><p>🗂 No results. Add <code>&lt;g-row&gt;</code> rows to see them here.</p></on-no-results>
+</closure-data-grid>
+
+<pre>&lt;data-map id="map-estado"&gt;
+  &lt;map-item value="ok"   label="Operational" icon="●" color="#16a34a"&gt;&lt;/map-item&gt;
+  &lt;map-item value="warn" label="Degraded"    icon="●" color="#d97706"&gt;&lt;/map-item&gt;
+  &lt;map-item value="ko"   label="Down"        icon="●" color="#dc2626"&gt;&lt;/map-item&gt;
+  &lt;map-item default      label="Unknown"     icon="○" color="#9ca3af"&gt;&lt;/map-item&gt;
+&lt;/data-map&gt;
+
+&lt;closure-data-grid id="gridServidores" page-size="6"&gt;
+  &lt;grid-col name="servidor" label="Server" width="30%"&gt;&lt;/grid-col&gt;
+  &lt;grid-col name="region"   label="Region" width="30%"&gt;&lt;/grid-col&gt;
+  &lt;grid-col name="estado"   label="Status" width="80"
+            map-data-id="map-estado"&gt;&lt;/grid-col&gt;
+  &lt;grid-key&gt;servidor&lt;/grid-key&gt;
+
+  &lt;g-row&gt;
+    &lt;g-col name="servidor"&gt;web-01&lt;/g-col&gt;
+    &lt;g-col name="region"&gt;eu-west&lt;/g-col&gt;
+    &lt;g-col name="estado"&gt;ok&lt;/g-col&gt;
+  &lt;/g-row&gt;
+  &lt;!-- … --&gt;
+
+  &lt;on-no-results&gt;&lt;p&gt;No servers to show.&lt;/p&gt;&lt;/on-no-results&gt;
+&lt;/closure-data-grid&gt;</pre>
+
+<!-- ============================================================ -->
+<!-- 3. Filter bar + grid                                          -->
+<!-- ============================================================ -->
+<h2>3. <code>&lt;closure-filter-bar&gt;</code> paired with a grid</h2>
+<p>The bar dispatches <code>filter-change</code> on the element named by
+  <code>target</code>. On a grid with static data the default filter mode is
+  <strong>local</strong>: <code>select</code> fields are compared by exact equality against the
+  row, and the special text field <code>q</code> performs a substring search across all fields.
+  Active values show as removable <em>chips</em>, and <code>&lt;filter-preset&gt;</code>
+  entries apply value sets with one click.</p>
+
+<closure-filter-bar target="gridPersonal" dialog-title="Filter staff"
+                    cancel-label="Cancel" apply-label="Apply" label="Filter">
+  <filter-field name="depto" label="Department" options="Ventas,IT,RRHH"></filter-field>
+  <filter-field name="q"     label="Search" type="text"></filter-field>
+  <filter-preset label="IT only" data-depto="IT"></filter-preset>
+  <filter-preset label="Reset" clear></filter-preset>
+</closure-filter-bar>
+
+<closure-data-grid id="gridPersonal" page-size="5">
+  <grid-col name="nombre" label="Name" width="35%"></grid-col>
+  <grid-col name="depto"  label="Department" width="30%"></grid-col>
+  <grid-col name="ext"    label="Extension"></grid-col>
+  <grid-key>nombre</grid-key>
+
+  <g-row><g-col name="nombre">Ana Torres</g-col><g-col name="depto">Ventas</g-col><g-col name="ext">101</g-col></g-row>
+  <g-row><g-col name="nombre">Luis Pérez</g-col><g-col name="depto">IT</g-col><g-col name="ext">102</g-col></g-row>
+  <g-row><g-col name="nombre">Marta Gil</g-col><g-col name="depto">RRHH</g-col><g-col name="ext">103</g-col></g-row>
+  <g-row><g-col name="nombre">Jorge Ruiz</g-col><g-col name="depto">IT</g-col><g-col name="ext">104</g-col></g-row>
+  <g-row><g-col name="nombre">Lucía Mora</g-col><g-col name="depto">Ventas</g-col><g-col name="ext">105</g-col></g-row>
+  <g-row><g-col name="nombre">Pablo Sanz</g-col><g-col name="depto">IT</g-col><g-col name="ext">106</g-col></g-row>
+  <g-row><g-col name="nombre">Elena Díaz</g-col><g-col name="depto">RRHH</g-col><g-col name="ext">107</g-col></g-row>
+  <g-row><g-col name="nombre">Raúl Vega</g-col><g-col name="depto">Ventas</g-col><g-col name="ext">108</g-col></g-row>
+
+  <on-no-results><p>No staff member matches the filter.</p></on-no-results>
+</closure-data-grid>
+
+<pre>&lt;closure-filter-bar target="gridPersonal" dialog-title="Filter staff"
+                    cancel-label="Cancel" apply-label="Apply" label="Filter"&gt;
+  &lt;filter-field name="depto" label="Department" options="Ventas,IT,RRHH"&gt;&lt;/filter-field&gt;
+  &lt;filter-field name="q"     label="Search" type="text"&gt;&lt;/filter-field&gt;
+  &lt;filter-preset label="IT only" data-depto="IT"&gt;&lt;/filter-preset&gt;
+  &lt;filter-preset label="Reset" clear&gt;&lt;/filter-preset&gt;
+&lt;/closure-filter-bar&gt;
+
+&lt;closure-data-grid id="gridPersonal" page-size="5"&gt;
+  &lt;grid-col name="nombre" label="Name" width="35%"&gt;&lt;/grid-col&gt;
+  &lt;grid-col name="depto"  label="Department" width="30%"&gt;&lt;/grid-col&gt;
+  &lt;grid-col name="ext"    label="Extension"&gt;&lt;/grid-col&gt;
+  &lt;!-- static g-row rows: the filter is applied locally --&gt;
+&lt;/closure-data-grid&gt;</pre>
+
+<!-- ============================================================ -->
+<!-- 4. Master-detail                                              -->
+<!-- ============================================================ -->
+<h2>4. Master–detail with <code>&lt;g-detail&gt;</code> and <code>detail-rows</code></h2>
+<p>Each row of the master grid embeds a
+  <code>&lt;g-detail name="turnos"&gt;</code> block holding its child rows; that block becomes
+  an array field of the row and does <strong>not</strong> count as a top-level row (the master's
+  footer counter shows <strong>4 records</strong>, not 4 + shifts). The detail grid declares
+  <code>detail-of="gridDias"</code> and <code>detail-rows="turnos"</code>: when a master row is
+  selected (<code>row-select</code>, the default <code>detail-event</code> trigger), the detail
+  fills in from the embedded array with no request at all.</p>
+
+<closure-data-grid id="gridDias" page-size="4">
+  <grid-col name="dia"   label="Day" width="40%"></grid-col>
+  <grid-col name="notas" label="Notes"></grid-col>
+  <grid-key>dia_id</grid-key>
+
+  <g-row>
+    <g-col name="dia_id">1</g-col>
+    <g-col name="dia">Monday</g-col>
+    <g-col name="notas">Weekly opening</g-col>
+    <g-detail name="turnos">
+      <g-row><g-col name="turno">Morning</g-col><g-col name="horario">06:00–14:00</g-col><g-col name="personas">4</g-col></g-row>
+      <g-row><g-col name="turno">Afternoon</g-col><g-col name="horario">14:00–22:00</g-col><g-col name="personas">3</g-col></g-row>
+    </g-detail>
+  </g-row>
+  <g-row>
+    <g-col name="dia_id">2</g-col>
+    <g-col name="dia">Tuesday</g-col>
+    <g-col name="notas">Inventory</g-col>
+    <g-detail name="turnos">
+      <g-row><g-col name="turno">Morning</g-col><g-col name="horario">06:00–14:00</g-col><g-col name="personas">5</g-col></g-row>
+      <g-row><g-col name="turno">Afternoon</g-col><g-col name="horario">14:00–22:00</g-col><g-col name="personas">2</g-col></g-row>
+      <g-row><g-col name="turno">Night</g-col><g-col name="horario">22:00–06:00</g-col><g-col name="personas">1</g-col></g-row>
+    </g-detail>
+  </g-row>
+  <g-row>
+    <g-col name="dia_id">3</g-col>
+    <g-col name="dia">Wednesday</g-col>
+    <g-col name="notas">—</g-col>
+    <g-detail name="turnos">
+      <g-row><g-col name="turno">Morning</g-col><g-col name="horario">06:00–14:00</g-col><g-col name="personas">4</g-col></g-row>
+    </g-detail>
+  </g-row>
+  <g-row>
+    <g-col name="dia_id">4</g-col>
+    <g-col name="dia">Thursday</g-col>
+    <g-col name="notas">Early close</g-col>
+    <g-detail name="turnos">
+      <g-row><g-col name="turno">Morning</g-col><g-col name="horario">06:00–14:00</g-col><g-col name="personas">3</g-col></g-row>
+      <g-row><g-col name="turno">Afternoon</g-col><g-col name="horario">14:00–20:00</g-col><g-col name="personas">2</g-col></g-row>
+    </g-detail>
+  </g-row>
+</closure-data-grid>
+
+<p>Shifts for the selected day:</p>
+
+<closure-data-grid id="gridTurnos" detail-of="gridDias" detail-rows="turnos" page-size="5">
+  <grid-col name="turno"    label="Shift" width="30%"></grid-col>
+  <grid-col name="horario"  label="Hours" width="40%"></grid-col>
+  <grid-col name="personas" label="People"></grid-col>
+  <on-no-results><p>Select a day in the grid above.</p></on-no-results>
+</closure-data-grid>
+
+<pre>&lt;closure-data-grid id="gridDias" page-size="4"&gt;
+  &lt;grid-col name="dia"   label="Day" width="40%"&gt;&lt;/grid-col&gt;
+  &lt;grid-col name="notas" label="Notes"&gt;&lt;/grid-col&gt;
+  &lt;grid-key&gt;dia_id&lt;/grid-key&gt;
+
+  &lt;g-row&gt;
+    &lt;g-col name="dia_id"&gt;1&lt;/g-col&gt;
+    &lt;g-col name="dia"&gt;Monday&lt;/g-col&gt;
+    &lt;g-col name="notas"&gt;Weekly opening&lt;/g-col&gt;
+    &lt;g-detail name="turnos"&gt;
+      &lt;g-row&gt;
+        &lt;g-col name="turno"&gt;Morning&lt;/g-col&gt;
+        &lt;g-col name="horario"&gt;06:00–14:00&lt;/g-col&gt;
+        &lt;g-col name="personas"&gt;4&lt;/g-col&gt;
+      &lt;/g-row&gt;
+      &lt;!-- … more shifts … --&gt;
+    &lt;/g-detail&gt;
+  &lt;/g-row&gt;
+  &lt;!-- … more days … --&gt;
+&lt;/closure-data-grid&gt;
+
+&lt;closure-data-grid id="gridTurnos"
+                   detail-of="gridDias"
+                   detail-rows="turnos"
+                   page-size="5"&gt;
+  &lt;grid-col name="turno"    label="Shift" width="30%"&gt;&lt;/grid-col&gt;
+  &lt;grid-col name="horario"  label="Hours" width="40%"&gt;&lt;/grid-col&gt;
+  &lt;grid-col name="personas" label="People"&gt;&lt;/grid-col&gt;
+  &lt;on-no-results&gt;&lt;p&gt;Select a day in the grid above.&lt;/p&gt;&lt;/on-no-results&gt;
+&lt;/closure-data-grid&gt;</pre>
+
+<!-- ============================================================ -->
+<!-- 5. Row viewer                                                 -->
+<!-- ============================================================ -->
+<h2>5. <code>&lt;closure-row-viewer&gt;</code> bound to a grid</h2>
+<p>The viewer listens to <code>row-select</code> and <code>row-focus</code> on the
+  grid named by <code>target</code> and projects the row onto its descendants:
+  <code>bind="field"</code> writes the value, <code>bind-show</code>/<code>bind-hide</code>
+  show or hide based on conditions (<code>field</code> or <code>field=value</code>) and
+  <code>bind-crlf="&lt;br&gt;"</code> turns line breaks in the value into HTML. Since cells
+  arrive as text, the value <code>"0"</code> (and <code>"false"</code>) counts as
+  <strong>falsy</strong>: select “Marta Gil” (active&nbsp;=&nbsp;0) to see it.</p>
+
+<data-map id="map-estado-emp">
+  <map-item value="oficina" label="In office"  icon="🏢" color="#16a34a"></map-item>
+  <map-item value="remoto"  label="Remote"     icon="🏠" color="#2563eb"></map-item>
+  <map-item default         label="No status"  icon="❔" color="#9ca3af"></map-item>
+</data-map>
+
+<closure-data-grid id="gridEmpleados" page-size="4">
+  <grid-col name="nombre" label="Name" width="35%"></grid-col>
+  <grid-col name="modo"   label="Mode" width="80" map-data-id="map-estado-emp"></grid-col>
+  <grid-col name="activo" label="Active"></grid-col>
+  <grid-key>nombre</grid-key>
+
+  <g-row>
+    <g-col name="nombre">Ana Torres</g-col>
+    <g-col name="modo">oficina</g-col>
+    <g-col name="activo">1</g-col>
+    <g-col name="notas">Coordinates the analysis team.
+Available in the mornings.</g-col>
+  </g-row>
+  <g-row>
+    <g-col name="nombre">Luis Pérez</g-col>
+    <g-col name="modo">remoto</g-col>
+    <g-col name="activo">1</g-col>
+    <g-col name="notas">Backend and deployments.
+On call on alternate weeks.
+Reach out via chat.</g-col>
+  </g-row>
+  <g-row>
+    <g-col name="nombre">Marta Gil</g-col>
+    <g-col name="modo">excedencia</g-col>
+    <g-col name="activo">0</g-col>
+    <g-col name="notas">Account temporarily suspended.</g-col>
+  </g-row>
+</closure-data-grid>
+
+<closure-row-viewer target="gridEmpleados">
+  <fieldset>
+    <legend>Selected row</legend>
+    <p><strong>Name:</strong> <span bind="nombre"></span></p>
+    <p><strong>Mode:</strong> <span bind="modo" map-data-id="map-estado-emp"></span></p>
+    <p>
+      <span bind-show="activo">✔ Account active</span>
+      <span bind-show="activo=0">✘ Account disabled (activo = "0" is treated as falsy)</span>
+      <span bind-hide="activo">· visible only when "activo" is falsy</span>
+    </p>
+    <p><strong>Notes:</strong><br><span bind="notas" bind-crlf="<br>"></span></p>
+  </fieldset>
+</closure-row-viewer>
+
+<pre>&lt;closure-data-grid id="gridEmpleados" page-size="4"&gt;
+  &lt;!-- columns + rows; each row also carries a multiline
+       "notas" g-col that is not shown in the grid --&gt;
+&lt;/closure-data-grid&gt;
+
+&lt;closure-row-viewer target="gridEmpleados"&gt;
+  &lt;p&gt;&lt;strong&gt;Name:&lt;/strong&gt; &lt;span bind="nombre"&gt;&lt;/span&gt;&lt;/p&gt;
+  &lt;p&gt;&lt;strong&gt;Mode:&lt;/strong&gt;
+     &lt;span bind="modo" map-data-id="map-estado-emp"&gt;&lt;/span&gt;&lt;/p&gt;
+  &lt;span bind-show="activo"&gt;✔ Account active&lt;/span&gt;
+  &lt;span bind-show="activo=0"&gt;✘ Account disabled&lt;/span&gt;
+  &lt;span bind-hide="activo"&gt;visible only when "activo" is falsy&lt;/span&gt;
+  &lt;span bind="notas" bind-crlf="&amp;lt;br&amp;gt;"&gt;&lt;/span&gt;
+&lt;/closure-row-viewer&gt;</pre>
+
+<!-- ============================================================ -->
+<!-- 6. Data source + cascading selects                            -->
+<!-- ============================================================ -->
+<h2>6. <code>&lt;closure-data-source&gt;</code> with cascading selects</h2>
+<p>An invisible container declares the rows (<code>&lt;g-row&gt;</code>/<code>&lt;g-col&gt;</code>)
+  and each <code>&lt;observed-select&gt;</code> describes how to populate a <code>&lt;select&gt;</code>:
+  <code>key-field</code>/<code>label-field</code> feed the options (deduplicated by key),
+  <code>filter-control</code>/<code>filter-field</code> build the country&nbsp;→&nbsp;province
+  cascade, <code>selected-value</code> sets the initial selection and
+  <code>blank-value-key</code> prepends a blank option. Change the country and watch the
+  province list repopulate.</p>
+
+<closure-data-source>
+  <g-row><g-col name="pais">ES</g-col><g-col name="pais_nombre">Spain</g-col><g-col name="prov">M</g-col><g-col name="prov_nombre">Madrid</g-col></g-row>
+  <g-row><g-col name="pais">ES</g-col><g-col name="pais_nombre">Spain</g-col><g-col name="prov">B</g-col><g-col name="prov_nombre">Barcelona</g-col></g-row>
+  <g-row><g-col name="pais">ES</g-col><g-col name="pais_nombre">Spain</g-col><g-col name="prov">V</g-col><g-col name="prov_nombre">Valencia</g-col></g-row>
+  <g-row><g-col name="pais">FR</g-col><g-col name="pais_nombre">France</g-col><g-col name="prov">75</g-col><g-col name="prov_nombre">Paris</g-col></g-row>
+  <g-row><g-col name="pais">FR</g-col><g-col name="pais_nombre">France</g-col><g-col name="prov">69</g-col><g-col name="prov_nombre">Lyon</g-col></g-row>
+  <g-row><g-col name="pais">PT</g-col><g-col name="pais_nombre">Portugal</g-col><g-col name="prov">LIS</g-col><g-col name="prov_nombre">Lisbon</g-col></g-row>
+  <g-row><g-col name="pais">PT</g-col><g-col name="pais_nombre">Portugal</g-col><g-col name="prov">POR</g-col><g-col name="prov_nombre">Porto</g-col></g-row>
+
+  <observed-select list-id="sel-pais"
+                   key-field="pais" label-field="pais_nombre"
+                   selected-value="ES"></observed-select>
+  <observed-select list-id="sel-prov"
+                   key-field="prov" label-field="prov_nombre"
+                   filter-control="sel-pais" filter-field="pais"
+                   blank-value-key="" blank-value-label="(choose a province)"></observed-select>
+</closure-data-source>
+
+<p>
+  <label for="sel-pais">Country:</label> <select id="sel-pais"></select>
+  <label for="sel-prov">Province:</label> <select id="sel-prov"></select>
+</p>
+
+<pre>&lt;closure-data-source&gt;
+  &lt;g-row&gt;
+    &lt;g-col name="pais"&gt;ES&lt;/g-col&gt;&lt;g-col name="pais_nombre"&gt;Spain&lt;/g-col&gt;
+    &lt;g-col name="prov"&gt;M&lt;/g-col&gt;&lt;g-col name="prov_nombre"&gt;Madrid&lt;/g-col&gt;
+  &lt;/g-row&gt;
+  &lt;!-- … more country/province rows … --&gt;
+
+  &lt;observed-select list-id="sel-pais"
+                   key-field="pais" label-field="pais_nombre"
+                   selected-value="ES"&gt;&lt;/observed-select&gt;
+  &lt;observed-select list-id="sel-prov"
+                   key-field="prov" label-field="prov_nombre"
+                   filter-control="sel-pais" filter-field="pais"
+                   blank-value-key="" blank-value-label="(choose a province)"&gt;&lt;/observed-select&gt;
+&lt;/closure-data-source&gt;
+
+&lt;select id="sel-pais"&gt;&lt;/select&gt;
+&lt;select id="sel-prov"&gt;&lt;/select&gt;</pre>
+
+<p><a href="index.html">← Back to index</a></p>
+</body>
+</html>

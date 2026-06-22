@@ -14,6 +14,7 @@ stored-credential autofill on shared admin screens.
 | `required` | mirrors HTML `required` validation |
 | `readonly` | disables interaction (`tabIndex=-1`, `pointer-events: none`) |
 | `has-value` | preload bullet placeholder (an existing password is on file) |
+| `enter-btn-id="x"` | element activated by Enter (e.g. a `<closure-btn>` outside the form, as in dialogs) |
 
 ## Properties
 
@@ -62,8 +63,11 @@ Consumed (with fallbacks):
 > value** (no character-by-character editing). Type-after-paste also wipes
 > the pasted content.
 
-> **Note:** Enter dispatches a synthetic Tab `keydown` so forms advance to
-> the next field. It does **not** submit by itself.
+> **Note:** Enter activates, in priority order: the `enter-btn-id`
+> target (use this in dialogs where the action button sits outside the
+> form), else the enclosing `<form>`'s submit (inside a closure this
+> routes through the template), else it moves focus to the next
+> focusable element.
 
 ---
 %%>*/
@@ -109,6 +113,12 @@ class CredentialPwd extends HTMLElement {
     this._value = '';
     this.pasted = false;
     this.tabIndex = 0;
+    // attributeChangedCallback fires before init for parsed attributes —
+    // apply an initial readonly here
+    if (this.hasAttribute('readonly')) {
+      this.tabIndex = -1;
+      this.style.pointerEvents = 'none';
+    }
 
     this._input = document.createElement('input');
     this._input.type = 'password';
@@ -138,10 +148,12 @@ class CredentialPwd extends HTMLElement {
     });
 
     this.addEventListener('focus', () => {
+      // Only the first focus on a has-value instance wipes the bullet
+      // placeholder — refocusing must not discard what the user typed
       if (this._hasValue) {
         this._hasValue = false;
+        this._clear();
       }
-      this._clear();
     });
     this.addEventListener('keydown', (e) => this._onKeyDown(e));
     this.addEventListener('paste', (e) => this._onPaste(e));
@@ -187,7 +199,30 @@ class CredentialPwd extends HTMLElement {
       if (this.pasted) { this.pasted = false; this._value = ''; }
       this._value = this._value.slice(0, -1);
     } else if (e.key === 'Enter') {
-      this.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+      // Priority: explicit enter-btn-id → enclosing form submit →
+      // advance focus. Covers dialogs where the action button lives
+      // outside the form.
+      const btnId = this.getAttribute('enter-btn-id');
+      if (btnId) {
+        const btn = document.getElementById(btnId);
+        if (btn) {
+          e.preventDefault();
+          // closure-btn handles clicks on its inner shadow anchor (which
+          // enforces disabled/readonly); plain elements take a host click
+          const anchor = btn.shadowRoot && btn.shadowRoot.querySelector('a');
+          if (anchor) anchor.click();
+          else btn.click();
+          return;
+        }
+      }
+      const form = this.closest('form');
+      if (form) {
+        e.preventDefault();
+        if (form.requestSubmit) form.requestSubmit();
+        else form.submit();
+      } else {
+        this._focusNext();
+      }
       return;
     } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
       if (this.pasted) { this.pasted = false; this._value = ''; }
@@ -199,6 +234,16 @@ class CredentialPwd extends HTMLElement {
     this.classList.remove('field-invalid');
     this._render();
     e.preventDefault();
+  }
+
+  _focusNext() {
+    var focusables = Array.from(document.querySelectorAll(
+      'input, select, textarea, button, a[href], [tabindex]'
+    )).filter(function(el) {
+      return el.tabIndex >= 0 && !el.disabled && el.offsetParent !== null;
+    });
+    var idx = focusables.indexOf(this);
+    if (idx >= 0 && idx + 1 < focusables.length) focusables[idx + 1].focus();
   }
 
   // ---

@@ -24,6 +24,8 @@ No attributes, no methods, no events.
 
 class StatusMsg extends HTMLElement {
   connectedCallback() {
+    // attachShadow throws on a second connect (DOM re-parenting)
+    if (this.shadowRoot) return;
     this.attachShadow({ mode: 'open' });
     const style = document.createElement('style');
     style.textContent = [

@@ -177,22 +177,32 @@ class ClosureLightbox extends HTMLElement {
     });
 
     // Defer: move closure into body, build dialog, subscribe
-    var init = function() {
-      var closure = self.querySelector('target-closure');
-      if (closure) {
-        self._body.appendChild(closure);
-        self._closure = closure;
-      }
-      self.innerHTML = '';
-      self.appendChild(self._dlg);
-      // Subscribe after everything is in the DOM
-      requestAnimationFrame(function() { self._subscribeToClosure(); });
-    };
+    var init = function() { self._initDom(); };
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', init, { once: true });
     } else {
       requestAnimationFrame(init);
     }
+  }
+
+  // Moves the closure into the body and attaches the dialog. Deferred on
+  // connect, but open()/showResponse()/showError() force it synchronously
+  // so showModal() never runs on a detached dialog.
+  _initDom() {
+    // _dlg only exists after connectedCallback built it; the flag is set
+    // last so a premature call doesn't poison the later deferred init
+    if (this._domReady || !this._dlg) return;
+    var closure = this.querySelector('target-closure');
+    if (closure) {
+      this._body.appendChild(closure);
+      this._closure = closure;
+    }
+    this.innerHTML = '';
+    this.appendChild(this._dlg);
+    this._domReady = true;
+    // Subscribe after everything is in the DOM
+    var self = this;
+    requestAnimationFrame(function() { self._subscribeToClosure(); });
   }
 
   _subscribeToClosure() {
@@ -218,6 +228,7 @@ class ClosureLightbox extends HTMLElement {
 
     switch (type) {
     case 'open':
+      this._initDom();
       if (!this._dlg.open) this._dlg.showModal();
       break;
     case 'close':
@@ -232,6 +243,7 @@ class ClosureLightbox extends HTMLElement {
 
   open(opts) {
     opts = opts || {};
+    this._initDom();
     this._action = 'close';
     if (opts.title) this._titleEl.textContent = opts.title;
     if (opts.content) {
@@ -262,6 +274,7 @@ class ClosureLightbox extends HTMLElement {
       cancelable: true,
     });
     if (this.dispatchEvent(e)) {
+      this._initDom();
       if (this._closure) this._closure.loadContent(html);
       else this._body.innerHTML = html;
       if (!this._dlg.open) this._dlg.showModal();
@@ -275,6 +288,7 @@ class ClosureLightbox extends HTMLElement {
       cancelable: true,
     });
     if (this.dispatchEvent(e)) {
+      this._initDom();
       if (this._closure) this._closure.loadContent(html);
       else this._body.innerHTML = html;
       if (!this._dlg.open) this._dlg.showModal();
@@ -305,12 +319,19 @@ class ClosureLightbox extends HTMLElement {
     });
   }
 
+  // msg is plain text — escape it so caller data can't inject markup
+  static _escapeMsg(msg) {
+    var d = document.createElement('div');
+    d.textContent = String(msg);
+    return d.innerHTML;
+  }
+
   static MsgAlert(msg, title) {
     var lb = document.createElement('closure-lightbox');
     document.body.appendChild(lb);
     lb.open({
       title: title || 'Alert',
-      content: '<p>' + msg + '</p>',
+      content: '<p>' + ClosureLightbox._escapeMsg(msg) + '</p>',
       buttons: [{ label: 'OK', action: 'ok', primary: true }],
     });
     lb.addEventListener('lb-close', function() { lb.remove(); }, { once: true });
@@ -323,7 +344,7 @@ class ClosureLightbox extends HTMLElement {
       document.body.appendChild(lb);
       lb.open({
         title: title || 'Confirm',
-        content: '<p>' + msg + '</p>',
+        content: '<p>' + ClosureLightbox._escapeMsg(msg) + '</p>',
         buttons: [
           { label: 'Cancel', action: 'cancel' },
           { label: 'OK', action: 'ok', primary: true },

@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>closure-ui — Buttons and actions</title>
+</head>
+<body>
+<h1>closure-ui — Buttons and actions</h1>
+<p>Demo of the button/action components:
+  <code>&lt;closure-btn&gt;</code>, <code>&lt;closure-btn-item&gt;</code>,
+  <code>&lt;btn-grid&gt;</code>, <code>&lt;target-closure&gt;</code>,
+  <code>&lt;closure-template&gt;</code> and <code>&lt;status-buttons&gt;</code>.</p>
+<p>This page is deliberately <strong>pure HTML</strong> — it has no stylesheet at
+  all, so everything you see is the components' built-in default styling.
+  For restyling via CSS variables see <a href="theming.html">theming.html</a>.</p>
+
+<!-- ============ 1. closure-btn variants ============ -->
+<h2>1. <code>&lt;closure-btn&gt;</code> — variants</h2>
+<p>The basic button supports an icon (<code>icon</code>), colour and size variants
+   via class (<code>primary</code>, <code>red</code>, <code>green</code>,
+   <code>gray</code>, <code>small</code>), a fixed width (<code>width</code>) and an
+   icon-only mode (<code>nolabel</code>, with the tooltip taken from
+   <code>label</code>). The host is <code>display: block</code> by default, so
+   standalone buttons stack vertically; use <code>&lt;btn-grid&gt;</code> or
+   <code>&lt;status-buttons&gt;</code> to arrange them.</p>
+
+<closure-btn icon="💾" class="primary" width="140">Save</closure-btn>
+<closure-btn icon="🗑" class="red" width="140">Delete</closure-btn>
+<closure-btn icon="✔" class="green" width="140">Approve</closure-btn>
+<closure-btn icon="↩" class="gray" width="140">Back</closure-btn>
+<closure-btn class="primary small" width="110">Small</closure-btn>
+<closure-btn icon="⚙" nolabel label="Settings" class="gray" width="56"></closure-btn>
+<closure-btn icon="💾" class="primary" width="140" disabled>Disabled</closure-btn>
+<closure-btn icon="💾" class="primary" width="140" readonly>Readonly</closure-btn>
+
+<p>The last button has <code>readonly</code>: it is invisible but
+   <strong>still occupies its space</strong> (visibility: hidden), useful to keep
+   grid alignment. <code>disabled</code>, by contrast, is dimmed but visible. The
+   gear button uses <code>nolabel</code> and shows its <code>label</code> as a
+   tooltip on hover.</p>
+
+<pre>&lt;closure-btn icon="💾" class="primary" width="140"&gt;Save&lt;/closure-btn&gt;
+&lt;closure-btn icon="🗑" class="red"     width="140"&gt;Delete&lt;/closure-btn&gt;
+&lt;closure-btn icon="✔" class="green"   width="140"&gt;Approve&lt;/closure-btn&gt;
+&lt;closure-btn icon="↩" class="gray"    width="140"&gt;Back&lt;/closure-btn&gt;
+
+&lt;closure-btn class="primary small" width="110"&gt;Small&lt;/closure-btn&gt;
+&lt;closure-btn icon="⚙" nolabel label="Settings" class="gray" width="56"&gt;&lt;/closure-btn&gt;
+&lt;closure-btn icon="💾" class="primary" width="140" disabled&gt;Disabled&lt;/closure-btn&gt;
+&lt;closure-btn icon="💾" class="primary" width="140" readonly&gt;Readonly&lt;/closure-btn&gt;</pre>
+
+<!-- ============ 2. Dropdown menu ============ -->
+<h2>2. <code>&lt;closure-btn menu="…"&gt;</code> — dropdown menu</h2>
+<p>With the <code>menu</code> attribute the button becomes a dropdown whose panel
+   hosts several <code>&lt;closure-btn-item&gt;</code>. Each item inherits the parent
+   button's <code>data-*</code> attributes and can override them. Try it with the
+   keyboard too: <kbd>Enter</kbd>/<kbd>Space</kbd> opens the panel,
+   <kbd>↓</kbd>/<kbd>↑</kbd> move the focus, <kbd>Enter</kbd> activates and
+   <kbd>Esc</kbd> closes.</p>
+
+<closure-btn id="menu-demo" menu="Row actions" icon="⋯" width="200" data-id="42">
+  <closure-btn-item ct-role="edit"    icon="✎">Edit</closure-btn-item>
+  <closure-btn-item ct-role="export"  icon="📥" data-format="csv">Export CSV</closure-btn-item>
+  <closure-btn-item ct-role="archive" icon="🗄">Archive</closure-btn-item>
+  <closure-btn-item ct-role="delete"  icon="🗑" disabled>Delete (disabled)</closure-btn-item>
+</closure-btn>
+
+<pre id="log-menu">(activate a menu option to see its payload here)</pre>
+
+<pre>&lt;closure-btn id="menu-demo" menu="Row actions" icon="⋯" width="200" data-id="42"&gt;
+  &lt;closure-btn-item ct-role="edit"    icon="✎"&gt;Edit&lt;/closure-btn-item&gt;
+  &lt;closure-btn-item ct-role="export"  icon="📥" data-format="csv"&gt;Export CSV&lt;/closure-btn-item&gt;
+  &lt;closure-btn-item ct-role="archive" icon="🗄"&gt;Archive&lt;/closure-btn-item&gt;
+  &lt;closure-btn-item ct-role="delete"  icon="🗑" disabled&gt;Delete&lt;/closure-btn-item&gt;
+&lt;/closure-btn&gt;
+
+&lt;script&gt;
+  // Items dispatch `btn-action` on the parent button, carrying the item in e.detail.source
+  document.getElementById('menu-demo').addEventListener('btn-action', function (e) {
+    var data = e.detail &amp;&amp; e.detail.source ? e.detail.source.getBtnData() : null;
+    console.log(data); // { ctRole, closureTemplate, sections: { '': { id: '42', ... } } }
+  });
+&lt;/script&gt;</pre>
+
+<!-- ============ 3. btn-grid ============ -->
+<h2>3. <code>&lt;btn-grid cols="…"&gt;</code> — button grid</h2>
+<p>Lays its children out in a CSS grid with <code>cols</code> columns (3 by
+   default) and applies a "card" style to the inner <code>&lt;closure-btn&gt;</code>
+   elements. With <code>no-icon</code> the icons are hidden and the buttons switch
+   to compact text-only sizing.</p>
+
+<btn-grid cols="4">
+  <closure-btn icon="📄" ct-role="new">New</closure-btn>
+  <closure-btn icon="📂" ct-role="open">Open</closure-btn>
+  <closure-btn icon="💾" ct-role="save">Save</closure-btn>
+  <closure-btn icon="🖨" ct-role="print">Print</closure-btn>
+</btn-grid>
+
+<p>The same grid with <code>no-icon</code> and two columns:</p>
+
+<btn-grid cols="2" no-icon>
+  <closure-btn icon="💾" ct-role="save">Save</closure-btn>
+  <closure-btn icon="✖" ct-role="cancel">Cancel</closure-btn>
+</btn-grid>
+
+<pre>&lt;btn-grid cols="4"&gt;
+  &lt;closure-btn icon="📄" ct-role="new"&gt;New&lt;/closure-btn&gt;
+  &lt;closure-btn icon="📂" ct-role="open"&gt;Open&lt;/closure-btn&gt;
+  &lt;closure-btn icon="💾" ct-role="save"&gt;Save&lt;/closure-btn&gt;
+  &lt;closure-btn icon="🖨" ct-role="print"&gt;Print&lt;/closure-btn&gt;
+&lt;/btn-grid&gt;
+
+&lt;btn-grid cols="2" no-icon&gt;
+  &lt;closure-btn icon="💾" ct-role="save"&gt;Save&lt;/closure-btn&gt;
+  &lt;closure-btn icon="✖" ct-role="cancel"&gt;Cancel&lt;/closure-btn&gt;
+&lt;/btn-grid&gt;</pre>
+
+<!-- ============ 4. client-action ============ -->
+<h2>4. Local action: <code>client-action="set-value"</code></h2>
+<p>The button writes <code>value</code> into the <code>.value</code> property of the
+   target (<code>target-id</code>, <code>target-selector</code> or
+   <code>target-selector-all</code>) <strong>without a server round trip</strong> and
+   without dispatching the <code>btn-action</code> event. Works fully offline.</p>
+
+<p><label for="year">Year:</label> <input id="year" type="text" placeholder="—"></p>
+<closure-btn client-action="set-value" target-id="year" value="2025" class="gray small" width="80">2025</closure-btn>
+<closure-btn client-action="set-value" target-id="year" value="2026" class="primary small" width="80">2026</closure-btn>
+<closure-btn client-action="set-value" target-id="year" value="" class="small" width="90">Clear</closure-btn>
+
+<pre>&lt;input id="year" type="text"&gt;
+
+&lt;closure-btn client-action="set-value" target-id="year" value="2025" class="gray small"&gt;2025&lt;/closure-btn&gt;
+&lt;closure-btn client-action="set-value" target-id="year" value="2026" class="primary small"&gt;2026&lt;/closure-btn&gt;
+&lt;closure-btn client-action="set-value" target-id="year" value=""     class="small"&gt;Clear&lt;/closure-btn&gt;</pre>
+
+<!-- ============ 5. Free mode ============ -->
+<h2>5. <code>&lt;closure-btn free&gt;</code> — direct submit</h2>
+<p>With <code>free</code> the button bypasses the target-closure system: on click it
+   builds a hidden form with all of its <code>data-*</code> attributes and submits it
+   via <code>POST</code> to the given <code>url</code> (navigating to the
+   response).</p>
+
+<closure-btn free url="/logout" icon="🚪" class="red" width="180" data-user="pablo" disabled>Sign out</closure-btn>
+
+<p><strong>Needs a server:</strong> the click performs a real POST and navigates to
+   the URL, so it does not work from <code>file://</code>. In this demo the button is
+   <code>disabled</code> on purpose; the real markup would be:</p>
+
+<pre>&lt;!-- POSTs user=pablo to /logout and navigates to the response --&gt;
+&lt;closure-btn free url="/logout" icon="🚪" class="red" data-user="pablo"&gt;
+  Sign out
+&lt;/closure-btn&gt;</pre>
+
+<!-- ============ 6. Full target-closure ============ -->
+<h2>6. <code>&lt;target-closure&gt;</code> + <code>&lt;closure-template&gt;</code> + <code>&lt;form closure&gt;</code></h2>
+<p>Complete wiring of a workflow: the closure gathers the forms by section
+   (<code>group-behavior="combine-sections"</code>), the template declares the
+   submit URL and how to package each section, and the button with
+   <code>ct-role="save"</code> fires it. The closure also tracks the
+   <em>dirty state</em>: type into any field and the dot appears
+   (<code>dirty-show="show"</code>).</p>
+
+<target-closure name="edit-user" group-behavior="combine-sections">
+  <closure-template name="save">
+    <template-url url="/api/users/save" method="POST"
+                  send-behavior="fetch"
+                  ct-role="save"
+                  response-target-id="save-result"></template-url>
+    <template-section section="profile" mode="prefix"></template-section>
+    <template-section section="prefs"   mode="prefix"></template-section>
+    <template-field name="origin" value="demo"></template-field>
+    <template-dirty-clean result="ok" templates="save"></template-dirty-clean>
+    <template-response-fail type="no-response">
+      <p>⚠ No server available: the POST to /api/users/save failed (expected in this offline demo).</p>
+    </template-response-fail>
+  </closure-template>
+
+  <h3>Profile <span dirty-show="show" title="There are unsaved changes">●</span></h3>
+
+  <form closure section="profile">
+    <p><label>Name <input type="text" name="name" value="Pablo"></label></p>
+    <p><label>Email <input type="text" name="email" value="pablo@pbn.es"></label></p>
+  </form>
+
+  <form closure section="prefs">
+    <p><label>Language <input type="text" name="language" value="en"></label></p>
+  </form>
+
+  <closure-btn ct-role="save" icon="💾" class="primary" width="160">Save</closure-btn>
+
+  <div id="save-result"></div>
+</target-closure>
+
+<p><strong>What works offline:</strong> the change tracking (dirty dot) and the form
+   packaging. The actual POST needs an endpoint at <code>/api/users/save</code>;
+   without a server, pressing "Save" shows the error message declared in
+   <code>&lt;template-response-fail type="no-response"&gt;</code>.</p>
+
+<pre>&lt;target-closure name="edit-user" group-behavior="combine-sections"&gt;
+  &lt;closure-template name="save"&gt;
+    &lt;template-url url="/api/users/save" method="POST"
+                  send-behavior="fetch" ct-role="save"
+                  response-target-id="save-result"&gt;&lt;/template-url&gt;
+    &lt;template-section section="profile" mode="prefix"&gt;&lt;/template-section&gt;
+    &lt;template-section section="prefs"   mode="prefix"&gt;&lt;/template-section&gt;
+    &lt;template-field name="origin" value="demo"&gt;&lt;/template-field&gt;
+    &lt;template-dirty-clean result="ok" templates="save"&gt;&lt;/template-dirty-clean&gt;
+    &lt;template-response-fail type="no-response"&gt;
+      &lt;p&gt;Connection error&lt;/p&gt;
+    &lt;/template-response-fail&gt;
+  &lt;/closure-template&gt;
+
+  &lt;h3&gt;Profile &lt;span dirty-show="show"&gt;●&lt;/span&gt;&lt;/h3&gt;
+
+  &lt;form closure section="profile"&gt;
+    &lt;input type="text" name="name"&gt;
+    &lt;input type="text" name="email"&gt;
+  &lt;/form&gt;
+
+  &lt;form closure section="prefs"&gt;
+    &lt;input type="text" name="language"&gt;
+  &lt;/form&gt;
+
+  &lt;closure-btn ct-role="save" icon="💾" class="primary"&gt;Save&lt;/closure-btn&gt;
+
+  &lt;div id="save-result"&gt;&lt;/div&gt;
+&lt;/target-closure&gt;</pre>
+
+<!-- ============ 7. status-buttons ============ -->
+<h2>7. <code>&lt;status-buttons&gt;</code> — auto-laying group</h2>
+<p>Button group designed to live inside a <code>&lt;closure-status-bar&gt;</code>
+   (a flex container that stretches it to full height and re-themes the inner
+   buttons). It automatically picks the column count that minimises empty cells;
+   a child with <code>stretch-priority="0"</code> is the preferred candidate to
+   stretch and fill the trailing gap. In a wide bar all buttons fit in one row:</p>
+
+<closure-status-bar type="white">
+  <label>Order #1042</label>
+  <status-buttons>
+    <closure-btn ct-role="approve">Approve</closure-btn>
+    <closure-btn ct-role="reject">Reject</closure-btn>
+    <closure-btn ct-role="hold">Hold</closure-btn>
+    <closure-btn ct-role="review">Review</closure-btn>
+    <closure-btn ct-role="defer" stretch-priority="0">Defer</closure-btn>
+  </status-buttons>
+</closure-status-bar>
+
+<p>The same bar with the group constrained through its own
+   <code>wr="*,180px"</code> width-range attribute (no page CSS involved): the
+   group switches to grid mode and the <code>stretch-priority="0"</code> button
+   absorbs the empty cell:</p>
+
+<closure-status-bar type="white">
+  <label>Order #1042</label>
+  <status-buttons wr="*,180px">
+    <closure-btn ct-role="approve">Approve</closure-btn>
+    <closure-btn ct-role="reject">Reject</closure-btn>
+    <closure-btn ct-role="hold">Hold</closure-btn>
+    <closure-btn ct-role="review">Review</closure-btn>
+    <closure-btn ct-role="defer" stretch-priority="0">Defer</closure-btn>
+  </status-buttons>
+</closure-status-bar>
+
+<pre>&lt;closure-status-bar type="white"&gt;
+  &lt;label&gt;Order #1042&lt;/label&gt;
+  &lt;status-buttons&gt;            &lt;!-- add wr="*,180px" to cap its width --&gt;
+    &lt;closure-btn ct-role="approve"&gt;Approve&lt;/closure-btn&gt;
+    &lt;closure-btn ct-role="reject"&gt;Reject&lt;/closure-btn&gt;
+    &lt;closure-btn ct-role="hold"&gt;Hold&lt;/closure-btn&gt;
+    &lt;closure-btn ct-role="review"&gt;Review&lt;/closure-btn&gt;
+    &lt;!-- preferred candidate to absorb the trailing gap --&gt;
+    &lt;closure-btn ct-role="defer" stretch-priority="0"&gt;Defer&lt;/closure-btn&gt;
+  &lt;/status-buttons&gt;
+&lt;/closure-status-bar&gt;</pre>
+
+<p><a href="index.html">← Back to index</a></p>
+
+<script src="closure-ui.js"></script>
+<script>
+  // Section 2: log menu activations (mouse or keyboard).
+  // <closure-btn-item> elements dispatch `btn-action` on their parent
+  // button, carrying the activated item in e.detail.source.
+  (function () {
+    var menuBtn = document.getElementById('menu-demo');
+    var out = document.getElementById('log-menu');
+    menuBtn.addEventListener('btn-action', function (e) {
+      var source = e.detail && e.detail.source;
+      if (source && source.getBtnData) {
+        out.textContent = 'btn-action → ' + JSON.stringify(source.getBtnData(), null, 2);
+      } else {
+        out.textContent = 'btn-action (no detail.source)';
+      }
+    });
+  })();
+</script>
+</body>
+</html>

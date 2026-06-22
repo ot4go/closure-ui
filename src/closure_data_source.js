@@ -73,7 +73,13 @@ class ClosureDataSource extends HTMLElement {
 
   // ---
   connectedCallback() {
-    if (this._initialized) return;
+    if (this._initialized) {
+      // Reconnect: re-attach the control listeners removed on disconnect
+      (this._controlBindings || []).forEach(function(cb) {
+        cb.control.addEventListener('change', cb.fn);
+      });
+      return;
+    }
     this._initialized = true;
     this.style.display = 'none';
     var self = this;
@@ -83,6 +89,12 @@ class ClosureDataSource extends HTMLElement {
     } else {
       requestAnimationFrame(init);
     }
+  }
+
+  disconnectedCallback() {
+    (this._controlBindings || []).forEach(function(cb) {
+      cb.control.removeEventListener('change', cb.fn);
+    });
   }
 
   _build() {
@@ -126,6 +138,11 @@ class ClosureDataSource extends HTMLElement {
 
   _bindAll() {
     var self = this;
+    this._controlBindings = [];
+    // While the initial pass runs, cascaded repopulations (fired by the
+    // synchronous change dispatch below) must still honor selected-value
+    // — otherwise the outcome depends on declaration order
+    this._initialBind = true;
     this._bindings.forEach(function(b) {
       var select = document.getElementById(b.listId);
       if (!select) return;
@@ -133,14 +150,17 @@ class ClosureDataSource extends HTMLElement {
       if (b.filterControl) {
         var control = document.getElementById(b.filterControl);
         if (control) {
-          control.addEventListener('change', function() {
-            self._populateSelect(b, select, false);
-          });
+          var fn = function() {
+            self._populateSelect(b, select, self._initialBind);
+          };
+          control.addEventListener('change', fn);
+          self._controlBindings.push({ control: control, fn: fn });
         }
       }
 
       self._populateSelect(b, select, true);
     });
+    this._initialBind = false;
   }
 
   _populateSelect(binding, select, initial) {
@@ -150,7 +170,7 @@ class ClosureDataSource extends HTMLElement {
       if (control) filterValue = control.value;
     }
 
-    var seen = {};
+    var seen = Object.create(null); // plain {} has inherited keys ("constructor", …)
     var options = [];
     for (var i = 0; i < this._data.length; i++) {
       var row = this._data[i];
@@ -167,7 +187,6 @@ class ClosureDataSource extends HTMLElement {
       options.push({ key: key, label: label });
     }
 
-    var prev = select.value;
     select.innerHTML = '';
 
     if (binding.blankKey !== null) {

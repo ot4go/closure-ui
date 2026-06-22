@@ -229,19 +229,24 @@ class ClosureBtn extends HTMLElement {
   ].join('\n');
 
   connectedCallback() {
-    if (this._initialized) return;
-    this._initialized = true;
-    this._boundDocClick = this._onDocClick.bind(this);
-    this.attachShadow({ mode: 'open' });
-    this._render();
+    if (!this._initialized) {
+      this._initialized = true;
+      this._boundDocClick = this._onDocClick.bind(this);
+      this.attachShadow({ mode: 'open' });
+      this._render();
+    }
+    // (Re-)register document listeners outside the init guard so they
+    // survive a disconnect/reconnect cycle (e.g. DOM re-parenting)
     document.addEventListener('click', this._boundDocClick);
+    if (this._menuKeydown) document.addEventListener('keydown', this._menuKeydown);
   }
 
   disconnectedCallback() {
     document.removeEventListener('click', this._boundDocClick);
+    if (this._menuKeydown) document.removeEventListener('keydown', this._menuKeydown);
   }
 
-  static get observedAttributes() { return ['icon', 'disabled', 'menu', 'nolabel', 'label', 'width']; }
+  static get observedAttributes() { return ['icon', 'disabled', 'menu', 'nolabel', 'label', 'width', 'readonly']; }
 
   attributeChangedCallback() {
     if (this.shadowRoot) this._render();
@@ -255,6 +260,13 @@ class ClosureBtn extends HTMLElement {
     this.tabIndex = (disabled || readonly) ? -1 : 0;
     this.onkeydown = (e) => {
       if (e.key === 'Enter' || (hasMenu && e.key === ' ')) {
+        // With the menu open and an item focused, let the document-level
+        // keydown handler activate the item — clicking the anchor here
+        // would just close the panel without dispatching anything
+        if (hasMenu && e.key === 'Enter' && this._focusedItem &&
+            this._panel && this._panel.classList.contains('open')) {
+          return;
+        }
         e.preventDefault();
         this.shadowRoot.querySelector('a').click();
       }
@@ -334,9 +346,20 @@ class ClosureBtn extends HTMLElement {
       });
 
       backdrop.addEventListener('click', () => toggle(false));
-      document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') { toggle(false); return; }
+      // Close the panel when a menu item is activated by mouse — the
+      // item's own click handler (which dispatches) runs first
+      if (this._menuItemClick) this.removeEventListener('click', this._menuItemClick);
+      this._menuItemClick = (e) => {
+        if (e.target.closest && e.target.closest('closure-btn-item')) toggle(false);
+      };
+      this.addEventListener('click', this._menuItemClick);
+      // Keep a single document keydown listener per instance: remove the
+      // previous one before re-rendering, and let disconnectedCallback
+      // clean it up
+      if (this._menuKeydown) document.removeEventListener('keydown', this._menuKeydown);
+      this._menuKeydown = (e) => {
         if (!panel.classList.contains('open')) return;
+        if (e.key === 'Escape') { toggle(false); return; }
         const items = Array.from(this.querySelectorAll('closure-btn-item:not([disabled])'));
         if (!items.length) return;
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -347,8 +370,12 @@ class ClosureBtn extends HTMLElement {
         } else if (e.key === 'Enter' && this._focusedItem) {
           e.preventDefault();
           this._focusedItem._dispatch();
+          toggle(false);
         }
-      });
+      };
+      // While detached, disconnectedCallback already ran — let the next
+      // connectedCallback re-register instead of leaking a doc listener
+      if (this.isConnected) document.addEventListener('keydown', this._menuKeydown);
 
       this._panel = panel;
       this._backdrop = backdrop;
@@ -358,6 +385,19 @@ class ClosureBtn extends HTMLElement {
       this.shadowRoot.appendChild(a);
       this.shadowRoot.appendChild(panel);
     } else {
+      // Drop any leftover menu state from a previous render
+      if (this._menuKeydown) {
+        document.removeEventListener('keydown', this._menuKeydown);
+        this._menuKeydown = null;
+      }
+      if (this._menuItemClick) {
+        this.removeEventListener('click', this._menuItemClick);
+        this._menuItemClick = null;
+      }
+      this._panel = null;
+      this._backdrop = null;
+      this._focusedItem = null;
+
       a.appendChild(slot);
 
       if (this.hasAttribute('free')) {
@@ -476,6 +516,15 @@ class ClosureBtn extends HTMLElement {
   }
 
   _reposition(panel) {
+    // Narrow viewports use the centered-modal layout from the media
+    // query — inline styles would override it, so clear them instead
+    if (window.matchMedia('(max-width: 600px)').matches) {
+      panel.style.transform = '';
+      panel.style.position = '';
+      panel.style.top = '';
+      panel.style.left = '';
+      return;
+    }
     const hostRect = this.getBoundingClientRect();
     const pw = panel.offsetWidth;
     const ph = panel.offsetHeight;

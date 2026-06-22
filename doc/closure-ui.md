@@ -111,6 +111,9 @@
   - [Selection vs focus](#selection-vs-focus)
   - [Methods](#methods-4)
   - [Events](#events-5)
+  - [Cell buttons](#cell-buttons)
+  - [Tag columns](#tag-columns)
+  - [Footer buttons](#footer-buttons)
   - [Example](#example-16)
   - [Column sizing](#column-sizing)
   - [CSS Variables](#css-variables-10)
@@ -287,7 +290,7 @@ Provides default visual variables (`--form-btn-*`) consumed by `<closure-btn>`.
 | Attribute | Description |
 |---|---|
 | `cols="N"` | number of grid columns (default `3`) |
-| `no-icon`  | hide icons inside slotted buttons (sets `--form-btn-icon-display: none`) |
+| `no-icon`  | hide icons inside slotted buttons and switch to compact text-only sizing (sets `--form-btn-icon-display: none`, `--form-btn-min-height: 0`, `--form-btn-padding: 14px 16px`) |
 
 
 
@@ -421,6 +424,7 @@ stored-credential autofill on shared admin screens.
 | `required` | mirrors HTML `required` validation |
 | `readonly` | disables interaction (`tabIndex=-1`, `pointer-events: none`) |
 | `has-value` | preload bullet placeholder (an existing password is on file) |
+| `enter-btn-id="x"` | element activated by Enter (e.g. a `<closure-btn>` outside the form, as in dialogs) |
 
 ## Properties
 
@@ -469,8 +473,11 @@ Consumed (with fallbacks):
 > value** (no character-by-character editing). Type-after-paste also wipes
 > the pasted content.
 
-> **Note:** Enter dispatches a synthetic Tab `keydown` so forms advance to
-> the next field. It does **not** submit by itself.
+> **Note:** Enter activates, in priority order: the `enter-btn-id`
+> target (use this in dialogs where the action button sits outside the
+> form), else the enclosing `<form>`'s submit (inside a closure this
+> routes through the template), else it moves focus to the next
+> focusable element.
 
 ---
 
@@ -971,6 +978,7 @@ attribute it becomes a dropdown that hosts `<closure-btn-item>` children.
 | `closure-template="x"`  | name of a specific `<closure-template>` to invoke |
 | `icon="x"`              | icon text rendered above/before the label |
 | `label="x"`             | tooltip text used together with `nolabel` |
+| `width="x"`             | fixed visual button width (`28` means `28px`; CSS lengths pass through) |
 | `nolabel`               | hide the label, show only the icon (tooltip = `label` or `menu`) |
 | `notooltip`             | when `nolabel`, suppress the tooltip |
 | `menu="x"`              | turn the button into a dropdown; `x` is the panel header text |
@@ -1319,7 +1327,7 @@ Re-themed automatically by `type=...` attributes (background, border,
 > `closure-status-bar-label-style`) so it can target light-DOM elements
 > outside the shadow root.
 
----78428
+---
 
 # `<status-msg>`
 
@@ -1631,12 +1639,16 @@ controls. Selection and focus are tracked separately so consumers like
 | **Inline**  | `<g-row><g-col name="…">value</g-col></g-row>` children supply the rows |
 | **Dynamic** | a `<query-definition url="…">` child (with optional `<query-param>` mappings) declares the request; refresh on demand |
 
+Dynamic requests expect JSON by default. Set `response="g-row"` on
+`<query-definition>` when the server returns `<g-row>` fragments.
+
 ## Children (configuration)
 
 | Tag | Purpose |
 |---|---|
 | `<grid-col>`        | column definition (`name`, `label`, `width`, `align`, `fill`, `type`, `map-data-id`) |
 | `<grid-key>`        | per-row identity (composed of one or more `name`s) |
+| `<grid-footer-buttons>` | extra buttons in the pagination footer (`side="left|center|right"`) |
 | `<grid-layout>`     | overrides `page-size`, scrolling mode, etc. |
 | `<query-definition>`| dynamic-mode endpoint and defaults |
 | `<query-param>`     | maps an external value (filter, etc.) into a query parameter |
@@ -1663,22 +1675,31 @@ height is also measured.
 
 | Attribute | Description |
 |---|---|
-| `detail-of="gridId"` | refresh this grid from the selected row of another grid |
+| `detail-of="gridId"` | apply a filter from the selected row of another grid |
 | `detail-event="row-select"` | master event that triggers refresh (`row-select` by default) |
 | `detail-rows="field.path"` | use an array already embedded in the selected master row instead of fetching |
-| `detail-key="field"` | for static detail rows, child field matched against the master row |
-| `detail-master-key="field"` | master row field to match; defaults to `detail-key` |
+| `detail-key="field"` | child filter field written from the selected master row |
+| `detail-master-key="field"` | master row field to read; defaults to `detail-key` |
 
-For separated requests, keep a `<query-definition>` and bind params from
-the master row:
+For separated requests, the master selection writes a filter in the
+child. The child fetches exactly like any other `filter="fetch"` grid:
 
 ```html
-<closure-data-grid id="shiftsGrid" detail-of="masterDaysGrid">
+<closure-data-grid id="shiftsGrid"
+                   detail-of="masterDaysGrid"
+                   detail-key="master_day_id"
+                   filter="fetch">
   <query-definition url="/schedule/masterdays/sid:{{.Sid}}/" method="POST">
     <query-param name="action" value="shifts-grid-json"></query-param>
-    <query-param name="master_day_id" bind="masterDaysGrid.row.master_day_id"></query-param>
+    <query-param name="master_day_id" bind="filter.master_day_id"></query-param>
   </query-definition>
 </closure-data-grid>
+```
+
+If the server returns row markup instead of JSON:
+
+```html
+<query-definition url="/schedule/masterdays/sid:{{.Sid}}/" method="POST" response="g-row">
 ```
 
 For bundled data, omit the query and point `detail-rows` at the array in
@@ -1689,7 +1710,24 @@ the selected row:
 </closure-data-grid>
 ```
 
-For static rows that arrive in one flat list, relate them by key:
+With `response="g-row"`, bundled child rows are represented with
+`<g-detail>` inside the master row:
+
+```html
+<g-row>
+  <g-col name="master_day_id">2401</g-col>
+  <g-col name="date_str">Mon, May 11, 2026</g-col>
+  <g-detail name="shifts">
+    <g-row>
+      <g-col name="day_work_shift_id">5001</g-col>
+      <g-col name="workshift_name">Morning</g-col>
+    </g-row>
+  </g-detail>
+</g-row>
+```
+
+For static rows that arrive in one flat list, use the same relation key.
+The child applies the filter locally:
 
 ```html
 <closure-data-grid id="shiftsGrid"
@@ -1727,6 +1765,74 @@ the keyboard while the selection drives a side panel.
 | `row-select` | yes | `{ row, index }` |
 | `row-focus`  | yes | `{ row, index }` |
 | `filter-change` (handled, not fired) | — | accepted from a paired `<closure-filter-bar>` |
+
+## Cell buttons
+
+Columns with `type="btn"` render one or more `<closure-btn>` definitions
+inside each row. The `bind` attribute still provides action payload
+fields. These optional attributes control per-row presentation:
+
+| Attribute | Description |
+|---|---|
+| `show-bind="field"` | render the button only when `row[field]` is truthy and not `0` |
+| `label-bind="field"` | visible button label from `row[field]` |
+| `icon-bind="field"` | icon from `row[field]` |
+| `title-bind="field"` | tooltip from `row[field]` |
+| `width="x"` | fixed generated button width (`28` means `28px`; CSS lengths pass through) |
+| `plain` / `plain-buttons` | render without the compact button frame |
+
+When a `type="btn"` column has no explicit `grid-col width`, any
+`width` declared on its child buttons contributes to the column's
+auto-fit minimum width.
+
+## Tag columns
+
+Columns with `type="tags"` render each value as a tag span. The row
+field can be a CSV string, a JSON string, or an array from a JSON data
+source:
+
+```html
+<grid-col name="problems" label="Problems" type="tags"></grid-col>
+```
+
+Supported values:
+
+```json
+"late,missing break"
+["late", "missing break"]
+[{"label":"late","color":"red"},{"label":"ok","class":"green"}]
+```
+
+Every tag receives `dg-tag` plus a color class. Text values are split
+with `separator`, which defaults to comma. Tag cells wrap automatically,
+so the row grows vertically when there are more tags than horizontal
+space. Tags use a neutral gray style by default. Set `tag-color` on the
+column to color every tag, or provide `color`, `class`, `variant`, or
+`type` in object tag data to override a specific tag.
+
+## Footer buttons
+
+Add `<grid-footer-buttons>` as a direct child of the grid to place
+buttons in the pagination footer. `side="left"` renders before the
+pagination controls, `side="center"` renders between pagination and the
+right-hand record counter, and `side="right"` renders after the counter
+and built-in refresh button. If `side` is omitted, `right` is used.
+
+Footer buttons are declared with `<closure-btn>` and execute against the
+currently selected row:
+
+```html
+<closure-data-grid id="daysGrid" page-size="10">
+  <grid-footer-buttons side="right">
+    <closure-btn label="Issues"
+                 icon="⚠"
+                 mode="event"
+                 event="open-issues"
+                 bind="master_day_id"
+                 data-action="open-issues"></closure-btn>
+  </grid-footer-buttons>
+</closure-data-grid>
+```
 
 ## Example
 
@@ -1818,10 +1924,12 @@ trivial implementation and are always loaded as a set.
 | Tag | Purpose |
 |---|---|
 | `<grid-col>`         | column descriptor: `name`, `label`, `width`, `align`, `fill`, `type`, `map-data-id` |
+| `<grid-footer-buttons>` | extra pagination footer buttons; `side="left|center|right"` |
 | `<grid-key>`         | per-row identity (text content is one or more `name`s, comma-separated) |
 | `<grid-layout>`      | layout overrides: `page-size`, scroll mode, `auto-page-size` |
 | `<g-row>`            | one row of inline data (contains `<g-col>` cells) |
 | `<g-col>`            | one cell inside `<g-row>`; `name="…"` matches a `<grid-col>` |
+| `<g-detail>`         | nested detail rows inside a `<g-row>`; `name="…"` becomes an array field |
 | `<query-definition>` | dynamic-mode endpoint: `url`, default headers / params |
 | `<query-param>`      | maps an external value (filter, etc.) into a query parameter |
 | `<on-no-results>`    | markup rendered when the grid has no rows |
@@ -2238,6 +2346,11 @@ fired when the user re-clicks the already-active tab.
 
 > **Note:** when `show-source` flips the active tab to `hidden`, the bar
 > automatically advances selection to the first still-visible tab.
+
+> **Note:** the active panel ships with a default frame — padding,
+> a border matching the bar (`--border`) and a `--tab-bg-active`
+> background — so the tabs look connected out of the box with no
+> page CSS. Override `closure-tab[active]` to restyle it.
 
 ---
 

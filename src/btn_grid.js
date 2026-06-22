@@ -11,7 +11,7 @@ Provides default visual variables (`--form-btn-*`) consumed by `<closure-btn>`.
 | Attribute | Description |
 |---|---|
 | `cols="N"` | number of grid columns (default `3`) |
-| `no-icon`  | hide icons inside slotted buttons (sets `--form-btn-icon-display: none`) |
+| `no-icon`  | hide icons inside slotted buttons and switch to compact text-only sizing (sets `--form-btn-icon-display: none`, `--form-btn-min-height: 0`, `--form-btn-padding: 14px 16px`) |
 
 
 
@@ -88,7 +88,8 @@ class BtnGrid extends HTMLElement {
     '}',
   ].join('\n');
   connectedCallback() {
-    this.attachShadow({ mode: 'open' });
+    // attachShadow throws on a second connect (DOM re-parenting)
+    if (!this.shadowRoot) this.attachShadow({ mode: 'open' });
     this._render();
   }
 
@@ -100,7 +101,11 @@ class BtnGrid extends HTMLElement {
 
   _render() {
     const cols = this.getAttribute('cols') || '3';
-    const noIcon = this.hasAttribute('no-icon') ? '--form-btn-icon-display: none;' : '';
+    // no-icon implies compact text-only buttons: the card sizing
+    // (110px min-height, 28px padding) is designed around the icon
+    const noIcon = this.hasAttribute('no-icon')
+      ? '--form-btn-icon-display: none; --form-btn-min-height: 0; --form-btn-padding: 14px 16px;'
+      : '';
 
     const style = document.createElement('style');
     style.textContent = BtnGrid._style +

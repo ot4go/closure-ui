@@ -72,6 +72,11 @@ fired when the user re-clicks the already-active tab.
 > **Note:** when `show-source` flips the active tab to `hidden`, the bar
 > automatically advances selection to the first still-visible tab.
 
+> **Note:** the active panel ships with a default frame — padding,
+> a border matching the bar (`--border`) and a `--tab-bg-active`
+> background — so the tabs look connected out of the box with no
+> page CSS. Override `closure-tab[active]` to restyle it.
+
 ---
 %%>*/
 
@@ -80,7 +85,7 @@ class ClosureTabBar extends HTMLElement {
   static _style = [
     'closure-tab-bar { display: block; }',
     'closure-tab { display: none; }',
-    'closure-tab[active] { display: block; }',
+    'closure-tab[active] { display: block; padding: 14px 16px; border: 1px solid var(--border, #ccc); border-top: none; background: var(--tab-bg-active, #fff); border-radius: 0 0 4px 4px; }',
     'closure-tab-bar .ctb-bar { display: flex; gap: 0; border-bottom: 1px solid var(--border, #ccc); margin-bottom: 0; }',
     'closure-tab-bar .ctb-btn { padding: 6px 14px; border: 1px solid var(--border, #ccc); border-bottom: none; background: var(--tab-bg, #f5f5f5); cursor: pointer; font-family: var(--font, sans-serif); font-size: 13px; font-weight: 500; color: var(--text-muted, #6b7280); border-radius: 4px 4px 0 0; margin-right: -1px; position: relative; }',
     'closure-tab-bar .ctb-btn:hover { background: var(--tab-bg-hover, #e8e8e8); }',
@@ -213,8 +218,18 @@ class ClosureTabBar extends HTMLElement {
         chk.type = 'checkbox';
         chk.className = 'ctb-chk';
         chk.dataset.tab = name;
-        var isOn = (toggle === 'disable');
-        chk.checked = isOn;
+        // Preserve the tab's current state across rebuilds — only apply
+        // the default ('disable' starts on, 'enable' starts off) once
+        var isOn;
+        if (tab._toggleInit) {
+          isOn = !tab.hasAttribute('toggled-off');
+        } else {
+          isOn = (toggle === 'disable');
+          tab._toggleInit = true;
+        }
+        // Checkbox semantics: enable → check to enable; disable → check
+        // to disable (so it starts unchecked while the panel is on)
+        chk.checked = (toggle === 'enable') ? isOn : !isOn;
         self._applyToggle(tab, isOn);
         chk.addEventListener('click', function(e) { e.stopPropagation(); });
         chk.addEventListener('change', function() {
@@ -236,18 +251,18 @@ class ClosureTabBar extends HTMLElement {
   select(name) {
     var tabs = this._getTabs();
     var prev = this.getActive();
-    var found = false;
+
+    // No-op when nothing matches — don't deactivate the current tab
+    var found = tabs.some(function(tab) { return tab.getAttribute('name') === name; });
+    if (!found) return;
 
     tabs.forEach(function(tab) {
       if (tab.getAttribute('name') === name) {
         tab.setAttribute('active', '');
-        found = true;
       } else {
         tab.removeAttribute('active');
       }
     });
-
-    if (!found) return;
 
     // Update buttons
     if (this._bar) {

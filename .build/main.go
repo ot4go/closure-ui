@@ -35,6 +35,15 @@ func run() error {
 	if err := copyFile("src/generated/closure-ui.md", "release/closure-ui.md"); err != nil {
 		return err
 	}
+	// doc/ is the git-tracked copy of the generated documentation
+	if err := copyFile("src/generated/closure-ui.md", "doc/closure-ui.md"); err != nil {
+		return err
+	}
+	// examples/ pages load the bundle locally so they work from a fresh
+	// clone (release/ is gitignored)
+	if err := copyFile("src/generated/closure-ui.js", "examples/closure-ui.js"); err != nil {
+		return err
+	}
 	if err := copyFile("src/generated/closure-ui.js", "release/closure-ui.js"); err != nil {
 		return err
 	}

@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>closure-ui &mdash; Form components</title>
+<script src="closure-ui.js"></script>
+</head>
+<body>
+
+<h1>Form components</h1>
+<p>Self-contained demo of the form components in the <strong>closure-ui</strong>
+  library. Everything works without a server (opening the file via
+  <code>file://</code>): the page loads the bundle with a plain
+  <code>&lt;script&gt;</code> tag and makes no network requests.</p>
+<p>This page is deliberately <strong>pure HTML</strong> &mdash; it has no stylesheet
+  at all, so everything you see is the components' built-in default styling.
+  For restyling via CSS variables see <a href="theming.html">theming.html</a>.</p>
+
+<!-- ===================================================================== -->
+<!-- 1. closure-form-row / closure-form-field                              -->
+<!-- ===================================================================== -->
+<h2>1. &lt;closure-form-row&gt; + &lt;closure-form-field&gt;</h2>
+<p><code>&lt;closure-form-row&gt;</code> lays out its child fields
+  (<code>&lt;closure-form-field&gt;</code>) in a CSS grid when <code>cols</code>
+  is given, or with flexbox when it is not. Each field contributes a label, a
+  required indicator and validation messages.</p>
+
+<h3>Grid with <code>cols</code>, <code>gap</code> and a required field</h3>
+<p><code>cols="*,4em,6em"</code>: <code>*</code> becomes <code>1fr</code>,
+  integers become <code>Nfr</code> and anything else passes verbatim to the
+  grid template. <code>required</code> adds the asterisk to the label.</p>
+
+<closure-form-row cols="*,4em,6em" gap="14px">
+  <closure-form-field label="First name" required>
+    <input type="text" name="fname">
+  </closure-form-field>
+  <closure-form-field label="MI">
+    <input type="text" name="mi" maxlength="1">
+  </closure-form-field>
+  <closure-form-field label="Date of birth">
+    <input type="date" name="dob">
+  </closure-form-field>
+</closure-form-row>
+
+<pre>&lt;closure-form-row cols="*,4em,6em" gap="14px"&gt;
+  &lt;closure-form-field label="First name" required&gt;
+    &lt;input type="text" name="fname"&gt;
+  &lt;/closure-form-field&gt;
+  &lt;closure-form-field label="MI"&gt;
+    &lt;input type="text" name="mi" maxlength="1"&gt;
+  &lt;/closure-form-field&gt;
+  &lt;closure-form-field label="Date of birth"&gt;
+    &lt;input type="date" name="dob"&gt;
+  &lt;/closure-form-field&gt;
+&lt;/closure-form-row&gt;</pre>
+
+<h3>Label variants: <code>labels="top | side | right | checkbox-right"</code></h3>
+<p>The row's <code>labels</code> attribute sets the position of every label;
+  each field can override it with its own <code>labels</code> attribute. The
+  <code>checkbox-*</code> variants are meant for checkboxes.</p>
+
+<closure-form-row cols="*,*">
+  <closure-form-field label="Label on top (top, default)">
+    <input type="text" value="field A">
+  </closure-form-field>
+  <closure-form-field label="On the right" labels="right">
+    <input type="text" value="field B">
+  </closure-form-field>
+</closure-form-row>
+<closure-form-row labels="side">
+  <closure-form-field label="Side label" flex="1">
+    <input type="text" value="field C">
+  </closure-form-field>
+</closure-form-row>
+<closure-form-row labels="checkbox-right">
+  <closure-form-field label="I accept the terms">
+    <input type="checkbox" name="terms">
+  </closure-form-field>
+</closure-form-row>
+
+<pre>&lt;closure-form-row cols="*,*"&gt;
+  &lt;closure-form-field label="Label on top (top, default)"&gt;
+    &lt;input type="text"&gt;
+  &lt;/closure-form-field&gt;
+  &lt;closure-form-field label="On the right" labels="right"&gt;
+    &lt;input type="text"&gt;
+  &lt;/closure-form-field&gt;
+&lt;/closure-form-row&gt;
+
+&lt;closure-form-row labels="side"&gt;
+  &lt;closure-form-field label="Side label" flex="1"&gt;
+    &lt;input type="text"&gt;
+  &lt;/closure-form-field&gt;
+&lt;/closure-form-row&gt;
+
+&lt;closure-form-row labels="checkbox-right"&gt;
+  &lt;closure-form-field label="I accept the terms"&gt;
+    &lt;input type="checkbox" name="terms"&gt;
+  &lt;/closure-form-field&gt;
+&lt;/closure-form-row&gt;</pre>
+
+<h3><code>warning</code> and <code>error</code> states (live toggling)</h3>
+<p>Setting or removing the <code>warning="..."</code> / <code>error="..."</code>
+  attributes on the field re-renders only the message. If both are present,
+  <strong>error wins</strong> over warning.</p>
+
+<closure-form-row cols="*">
+  <closure-form-field id="state-field" label="New password">
+    <input type="text" name="pwd-demo" value="abc">
+  </closure-form-field>
+</closure-form-row>
+<p>
+  <button id="btn-warning" type="button">Set warning</button>
+  <button id="btn-error" type="button">Set error</button>
+  <button id="btn-clear" type="button">Clear</button>
+</p>
+
+<pre>&lt;closure-form-field id="state-field" label="New password"&gt;
+  &lt;input type="text"&gt;
+&lt;/closure-form-field&gt;
+
+&lt;script&gt;
+  var f = document.getElementById('state-field');
+  // warning: amber border + message
+  f.setAttribute('warning', 'Must be at least 12 characters');
+  // error: red border + message (takes priority over warning)
+  f.setAttribute('error', 'The password is required');
+  // clearing both hides the message
+  f.removeAttribute('warning'); f.removeAttribute('error');
+&lt;/script&gt;</pre>
+
+<h3>Readonly mode</h3>
+<p>The row defines the <code>--cfr-ro-bg</code>, <code>--cfr-ro-color</code>,
+  <code>--cfr-ro-border</code> and <code>--cfr-ro-label</code> tokens that style
+  fields carrying the <code>cfr-ro</code> class (the class that
+  <code>&lt;closure-template&gt;</code> applies automatically in its
+  <code>readonly</code> edit mode; here we add it by hand together with the
+  input's native <code>readonly</code>).</p>
+
+<closure-form-row cols="*,*">
+  <closure-form-field class="cfr-ro" label="User">
+    <input type="text" value="pbotella" readonly>
+  </closure-form-field>
+  <closure-form-field class="cfr-ro" label="Department">
+    <input type="text" value="Systems" readonly>
+  </closure-form-field>
+</closure-form-row>
+
+<pre>&lt;closure-form-row cols="*,*"&gt;
+  &lt;closure-form-field class="cfr-ro" label="User"&gt;
+    &lt;input type="text" value="pbotella" readonly&gt;
+  &lt;/closure-form-field&gt;
+  &lt;closure-form-field class="cfr-ro" label="Department"&gt;
+    &lt;input type="text" value="Systems" readonly&gt;
+  &lt;/closure-form-field&gt;
+&lt;/closure-form-row&gt;</pre>
+
+<h3>Responsive collapse with <code>min</code> and <code>hide-on-collapse</code></h3>
+<p>With <code>min="600px"</code> the row installs a <code>ResizeObserver</code>:
+  below that width the <code>cfr-collapsed</code> attribute kicks in, the grid
+  collapses to a single column, and fields with <code>hide-on-collapse</code>
+  disappear.</p>
+<blockquote><p>Resize the browser window (below ~600&nbsp;px of row width) to see the
+  collapse. The &ldquo;Internal notes&rdquo; field is hidden in collapsed mode.</p></blockquote>
+
+<closure-form-row cols="*,*,*" min="600px" gap="12px">
+  <closure-form-field label="Street" required>
+    <input type="text" name="street">
+  </closure-form-field>
+  <closure-form-field label="City">
+    <input type="text" name="city">
+  </closure-form-field>
+  <closure-form-field label="Internal notes" hide-on-collapse>
+    <input type="text" name="notes">
+  </closure-form-field>
+</closure-form-row>
+
+<pre>&lt;closure-form-row cols="*,*,*" min="600px" gap="12px"&gt;
+  &lt;closure-form-field label="Street" required&gt;
+    &lt;input type="text" name="street"&gt;
+  &lt;/closure-form-field&gt;
+  &lt;closure-form-field label="City"&gt;
+    &lt;input type="text" name="city"&gt;
+  &lt;/closure-form-field&gt;
+  &lt;closure-form-field label="Internal notes" hide-on-collapse&gt;
+    &lt;input type="text" name="notes"&gt;
+  &lt;/closure-form-field&gt;
+&lt;/closure-form-row&gt;</pre>
+
+<!-- ===================================================================== -->
+<!-- 2. credential-pwd                                                     -->
+<!-- ===================================================================== -->
+<h2>2. &lt;credential-pwd&gt;</h2>
+<p>Masked password field that wraps a hidden
+  <code>&lt;input type="password"&gt;</code> (so the value participates in form
+  submission) while showing bullet glyphs <code>&#9679;</code> to the user.
+  Designed to defeat stored-credential autofill on shared admin screens.</p>
+
+<h3>Plain, required, and existing value (<code>has-value</code>)</h3>
+<p><code>has-value</code> preloads placeholder bullets indicating a password is
+  already on file: <strong>the first focus wipes them</strong> and starts a
+  fresh input (there is no edit-in-place; the whole new password must be
+  typed).</p>
+<blockquote><p><strong>Paste:</strong> on paste, the pasted string replaces the entire value
+  and <code>pasted = true</code> is exposed. A single Backspace clears
+  <em>all</em> of the pasted value at once, and typing after a paste also
+  discards it: there is no character-by-character editing of pasted content.</p></blockquote>
+
+<closure-form-row cols="*,*,*">
+  <closure-form-field label="Password">
+    <credential-pwd name="pwd1"></credential-pwd>
+  </closure-form-field>
+  <closure-form-field label="Required" required>
+    <credential-pwd name="pwd2" required></credential-pwd>
+  </closure-form-field>
+  <closure-form-field label="Already on file (has-value)">
+    <credential-pwd name="pwd3" has-value></credential-pwd>
+  </closure-form-field>
+</closure-form-row>
+<closure-form-row cols="*">
+  <closure-form-field class="cfr-ro" label="Read-only (readonly)">
+    <credential-pwd name="pwd4" readonly has-value></credential-pwd>
+  </closure-form-field>
+</closure-form-row>
+
+<pre>&lt;credential-pwd name="pwd1"&gt;&lt;/credential-pwd&gt;
+&lt;credential-pwd name="pwd2" required&gt;&lt;/credential-pwd&gt;
+&lt;credential-pwd name="pwd3" has-value&gt;&lt;/credential-pwd&gt;
+&lt;credential-pwd name="pwd4" readonly has-value&gt;&lt;/credential-pwd&gt;</pre>
+
+<h3>Enter activates an external button: <code>enter-btn-id</code></h3>
+<p>In dialogs where the action button lives outside the form,
+  <code>enter-btn-id</code> points at the element to activate when Enter is
+  pressed. Type something and press Enter (or the button): the component's
+  <code>.value</code> property is read.</p>
+
+<closure-form-row cols="*">
+  <closure-form-field label="Operator key">
+    <credential-pwd id="dialog-pwd" name="op-pwd" enter-btn-id="btn-accept"></credential-pwd>
+  </closure-form-field>
+</closure-form-row>
+<!-- This button sits OUTSIDE any <form> -->
+<p><button id="btn-accept" type="button">Accept (outside the form)</button></p>
+<pre id="out-enter-btn">(no value yet)</pre>
+
+<pre>&lt;credential-pwd id="dialog-pwd" name="op-pwd"
+                enter-btn-id="btn-accept"&gt;&lt;/credential-pwd&gt;
+
+&lt;!-- button outside the form --&gt;
+&lt;button id="btn-accept" type="button"&gt;Accept&lt;/button&gt;
+
+&lt;script&gt;
+  document.getElementById('btn-accept').addEventListener('click', function() {
+    var pwd = document.getElementById('dialog-pwd');
+    out.textContent = 'Typed value: ' + pwd.value
+                    + '  (pasted: ' + pwd.pasted + ')';
+  });
+&lt;/script&gt;</pre>
+
+<h3>Enter submits the enclosing form</h3>
+<p>Without <code>enter-btn-id</code>, Enter triggers the enclosing
+  <code>&lt;form&gt;</code>'s submit. Here we intercept the
+  <code>submit</code> with <code>preventDefault()</code> and show the value, so
+  the demo works without a server.</p>
+
+<form id="login-form">
+  <closure-form-row cols="*,auto" labels="top">
+    <closure-form-field label="Password" required>
+      <credential-pwd id="form-pwd" name="password" required></credential-pwd>
+    </closure-form-field>
+    <closure-form-field label="&nbsp;">
+      <button type="submit">Sign in</button>
+    </closure-form-field>
+  </closure-form-row>
+</form>
+<pre id="out-form-submit">(the form has not been submitted yet)</pre>
+
+<pre>&lt;form id="login-form"&gt;
+  &lt;credential-pwd id="form-pwd" name="password" required&gt;&lt;/credential-pwd&gt;
+  &lt;button type="submit"&gt;Sign in&lt;/button&gt;
+&lt;/form&gt;
+
+&lt;script&gt;
+  document.getElementById('login-form').addEventListener('submit', function(e) {
+    e.preventDefault(); // offline demo: don't navigate
+    out.textContent = 'submit intercepted &mdash; password = '
+                    + document.getElementById('form-pwd').value;
+  });
+&lt;/script&gt;</pre>
+
+<!-- ===================================================================== -->
+<!-- 3. closure-checkbox-tree                                              -->
+<!-- ===================================================================== -->
+<h2>3. &lt;closure-checkbox-tree&gt;</h2>
+<p>Cascading checkbox tree. The structure is declared in light DOM with
+  <code>&lt;cbt-item&gt;</code> (which never renders itself); the actual
+  checkboxes live in the Shadow DOM. It is <em>form-associated</em>: it submits
+  a single field whose value is JSON <code>[[path, v, vt], &hellip;]</code>
+  where <code>v</code> is the leaf state (0/1, <code>null</code> on parents) and
+  <code>vt</code> the subtree state (0=none, 1=all, 2=custom, <code>null</code>
+  on leaves). Parents have tri-state semantics (indeterminate when mixed).</p>
+
+<h3>Expanded mode (<code>expanded</code>) + initial values via <code>src</code></h3>
+<p>Initial values are seeded from a JSON data island
+  (<code>&lt;script type="application/json"&gt;</code>) referenced by id in the
+  <code>src</code> attribute. <strong>Important:</strong> paths include the
+  tree name and have no trailing slash:
+  <code>["/privileges/users/view", 1, null]</code>. Entries whose path does not
+  exist in the tree are ignored. The output below shows the form
+  value (<code>.value</code>) and updates on every <code>change</code> event
+  (which bubbles).</p>
+
+<script type="application/json" id="privileges-data">
+  [
+    ["/privileges/users/view", 1, null],
+    ["/privileges/users/edit", 1, null],
+    ["/privileges/reports/export", 1, null]
+  ]
+</script>
+<closure-checkbox-tree id="priv-tree" name="privileges" expanded src="privileges-data">
+  <cbt-item name="users" label="Users">
+    <cbt-item name="view"   label="View"></cbt-item>
+    <cbt-item name="edit"   label="Edit"></cbt-item>
+    <cbt-item name="delete" label="Delete" tip="Permanent action"></cbt-item>
+  </cbt-item>
+  <cbt-item name="reports" label="Reports">
+    <cbt-item name="view"   label="View"></cbt-item>
+    <cbt-item name="export" label="Export"></cbt-item>
+  </cbt-item>
+</closure-checkbox-tree>
+<pre id="out-tree">(loading initial value&hellip;)</pre>
+
+<pre>&lt;script type="application/json" id="privileges-data"&gt;
+  [
+    ["/privileges/users/view", 1, null],
+    ["/privileges/users/edit", 1, null],
+    ["/privileges/reports/export", 1, null]
+  ]
+&lt;/script&gt;
+
+&lt;closure-checkbox-tree name="privileges" expanded src="privileges-data"&gt;
+  &lt;cbt-item name="users" label="Users"&gt;
+    &lt;cbt-item name="view"   label="View"&gt;&lt;/cbt-item&gt;
+    &lt;cbt-item name="edit"   label="Edit"&gt;&lt;/cbt-item&gt;
+    &lt;cbt-item name="delete" label="Delete" tip="Permanent action"&gt;&lt;/cbt-item&gt;
+  &lt;/cbt-item&gt;
+  &lt;cbt-item name="reports" label="Reports"&gt;
+    &lt;cbt-item name="view"   label="View"&gt;&lt;/cbt-item&gt;
+    &lt;cbt-item name="export" label="Export"&gt;&lt;/cbt-item&gt;
+  &lt;/cbt-item&gt;
+&lt;/closure-checkbox-tree&gt;
+
+&lt;script&gt;
+  tree.addEventListener('change', function() {
+    out.textContent = tree.value;   // JSON [[path, v, vt], ...]
+  });
+&lt;/script&gt;</pre>
+
+<h3>Collapsed mode (default): All / None / Custom buttons</h3>
+<p>Without <code>expanded</code>, the tree renders as a pill with three buttons,
+  labelled <code>All</code> / <code>None</code> / <code>Custom</code> by default
+  (customisable via <code>label-all</code>, <code>label-none</code> and
+  <code>label-custom</code>). The &ldquo;Custom&rdquo; button opens a
+  <code>&lt;closure-lightbox&gt;</code> with the full tree (works offline; picks
+  commit on close). The value format is identical to expanded mode.</p>
+
+<closure-checkbox-tree id="collapsed-tree" name="permissions"
+                       label-all="All" label-none="None" label-custom="Custom">
+  <cbt-item name="read"  label="Read"></cbt-item>
+  <cbt-item name="write" label="Write"></cbt-item>
+  <cbt-item name="admin" label="Administration">
+    <cbt-item name="users"   label="Users"></cbt-item>
+    <cbt-item name="backups" label="Backups"></cbt-item>
+  </cbt-item>
+</closure-checkbox-tree>
+<pre id="out-collapsed">(no changes yet)</pre>
+
+<pre>&lt;closure-checkbox-tree name="permissions"
+                       label-all="All" label-none="None"
+                       label-custom="Custom"&gt;
+  &lt;cbt-item name="read"  label="Read"&gt;&lt;/cbt-item&gt;
+  &lt;cbt-item name="write" label="Write"&gt;&lt;/cbt-item&gt;
+  &lt;cbt-item name="admin" label="Administration"&gt;
+    &lt;cbt-item name="users"   label="Users"&gt;&lt;/cbt-item&gt;
+    &lt;cbt-item name="backups" label="Backups"&gt;&lt;/cbt-item&gt;
+  &lt;/cbt-item&gt;
+&lt;/closure-checkbox-tree&gt;</pre>
+
+<h3>Read-only (<code>readonly</code>)</h3>
+<p><code>readonly</code> disables every checkbox in the Shadow DOM (and the
+  collapsed-mode buttons).</p>
+
+<script type="application/json" id="ro-data">
+  [
+    ["/audit/access", 1, null]
+  ]
+</script>
+<closure-checkbox-tree name="audit" expanded readonly src="ro-data">
+  <cbt-item name="access"  label="Access log"></cbt-item>
+  <cbt-item name="changes" label="Change log"></cbt-item>
+</closure-checkbox-tree>
+
+<pre>&lt;closure-checkbox-tree name="audit" expanded readonly src="ro-data"&gt;
+  &lt;cbt-item name="access"  label="Access log"&gt;&lt;/cbt-item&gt;
+  &lt;cbt-item name="changes" label="Change log"&gt;&lt;/cbt-item&gt;
+&lt;/closure-checkbox-tree&gt;</pre>
+
+<!-- ===================================================================== -->
+<!-- 4. closure-checkbox-group + closure-summary                           -->
+<!-- ===================================================================== -->
+<h2>4. &lt;closure-checkbox-group&gt; + &lt;closure-summary&gt;</h2>
+<p>The group bundles several trees into a single form field (the child trees no
+  longer submit individually). The <code>output</code> attribute picks the
+  serialisation:</p>
+<ul>
+  <li><code>output="flat"</code> (default): a single array
+    <code>[[path, v, vt], &hellip;]</code> with every tree's entries concatenated
+    in DOM order; each path starts with
+    <code>/&lt;treeName&gt;/&hellip;</code>, so the server can demultiplex.</li>
+  <li><code>output="sections"</code>: an object
+    <code>{ "tree1": [...], "tree2": [...] }</code> with one key per tree.</li>
+</ul>
+<p>Additionally, <code>summary="id"</code> pairs the group with a
+  <code>&lt;closure-summary&gt;</code> (which points back via
+  <code>source="id"</code>): the summary refreshes by itself on every change.</p>
+
+<closure-checkbox-group id="privs-group" name="privileges" output="sections" summary="privs-summary">
+  <closure-checkbox-tree name="users" expanded>
+    <cbt-item name="view" label="View users"></cbt-item>
+    <cbt-item name="edit" label="Edit users"></cbt-item>
+  </closure-checkbox-tree>
+  <closure-checkbox-tree name="reports" expanded>
+    <cbt-item name="view"   label="View reports"></cbt-item>
+    <cbt-item name="export" label="Export reports"></cbt-item>
+  </closure-checkbox-tree>
+</closure-checkbox-group>
+
+<h3>Paired summary (refreshes live)</h3>
+<closure-summary id="privs-summary" source="privs-group"></closure-summary>
+
+<pre id="out-group">(tick a checkbox to see the group value)</pre>
+
+<pre>&lt;closure-checkbox-group id="privs-group" name="privileges"
+                        output="sections" summary="privs-summary"&gt;
+  &lt;closure-checkbox-tree name="users" expanded&gt;
+    &lt;cbt-item name="view" label="View users"&gt;&lt;/cbt-item&gt;
+    &lt;cbt-item name="edit" label="Edit users"&gt;&lt;/cbt-item&gt;
+  &lt;/closure-checkbox-tree&gt;
+  &lt;closure-checkbox-tree name="reports" expanded&gt;
+    &lt;cbt-item name="view"   label="View reports"&gt;&lt;/cbt-item&gt;
+    &lt;cbt-item name="export" label="Export reports"&gt;&lt;/cbt-item&gt;
+  &lt;/closure-checkbox-tree&gt;
+&lt;/closure-checkbox-group&gt;
+
+&lt;closure-summary id="privs-summary" source="privs-group"&gt;&lt;/closure-summary&gt;
+
+&lt;!-- output="flat"     -&gt; [["/users/view",1,null], ["/reports/view",0,null], ...]
+     output="sections" -&gt; { "users": [...], "reports": [...] } --&gt;</pre>
+
+<!-- ===================================================================== -->
+<!-- 5. fingerprint-hands                                                  -->
+<!-- ===================================================================== -->
+<h2>5. &lt;fingerprint-hands&gt;</h2>
+<p>Two-hand SVG diagram for capturing or displaying which fingerprints have been
+  recorded. Form-associated. Fingers: <code>l1</code>&hellip;<code>l5</code>
+  (left hand, <code>l1</code> = thumb) and <code>r1</code>&hellip;<code>r5</code>
+  (right hand). Per-finger states: <code>1</code>/<code>on</code> = captured
+  (green), <code>0</code>/<code>off</code> = empty (grey),
+  <code>-1</code>/<code>disabled</code> = palm-coloured and ignored by the form.</p>
+<blockquote><p><strong>Keyboard:</strong> the component gets <code>tabindex="0"</code>
+  automatically; the arrow keys walk the fingers in anatomical order (left
+  pinky &rarr; left thumb &rarr; right thumb &rarr; right pinky), wrapping at
+  both ends and skipping disabled fingers. Space or Enter act on the focused
+  finger. The focus ring only appears for keyboard navigation
+  (<code>:focus-visible</code>).</p></blockquote>
+
+<h3>Default, preset fingers, disabled finger and <code>toggle</code></h3>
+<p>This example is interactive (<code>toggle</code>): click / Space / Enter flip
+  the finger. Preset: left thumb (<code>l1="1"</code>) and right index finger
+  (<code>r2="on"</code>); the left ring finger is disabled
+  (<code>l4="disabled"</code>). The output shows
+  <code>.value</code> and updates on the <code>finger-click</code> event.</p>
+
+<fingerprint-hands id="hands" name="fingerprints" size="lg" toggle
+                   l1="1" r2="on" l4="disabled"></fingerprint-hands>
+<pre id="out-hands">(loading&hellip;)</pre>
+
+<pre>&lt;fingerprint-hands name="fingerprints" size="lg" toggle
+                   l1="1" r2="on" l4="disabled"&gt;&lt;/fingerprint-hands&gt;
+
+&lt;script&gt;
+  hands.addEventListener('finger-click', function(e) {
+    // e.detail = { finger: 'r2', state: 'on' }  (state after the click)
+    out.textContent = hands.value;
+    // l1:1,l2:0,l3:0,l4:-1,l5:0,r1:0,r2:1,r3:0,r4:0,r5:0
+  });
+&lt;/script&gt;</pre>
+
+<h3>Sizes (<code>size="sm | md | lg | xl | xxl"</code>)</h3>
+<p>Widths of 80 / 120 / 160 / 220 / 300 px. Default is <code>md</code>.</p>
+
+<fingerprint-hands size="sm" l1="1"></fingerprint-hands>
+<fingerprint-hands size="md" l1="1" r1="1"></fingerprint-hands>
+<fingerprint-hands size="lg" l1="1" r1="1" r2="1"></fingerprint-hands>
+
+<pre>&lt;fingerprint-hands size="sm" l1="1"&gt;&lt;/fingerprint-hands&gt;
+&lt;fingerprint-hands size="md" l1="1" r1="1"&gt;&lt;/fingerprint-hands&gt;
+&lt;fingerprint-hands size="lg" l1="1" r1="1" r2="1"&gt;&lt;/fingerprint-hands&gt;</pre>
+
+<h3>Read-only (<code>readonly</code>) and bulk-set via <code>value</code></h3>
+<p>With <code>readonly</code> the fingers render but are not interactive. The
+  <code>value</code> attribute accepts the form-value format to set every
+  finger at once. Without <code>toggle</code>, clicks still fire
+  <code>finger-click</code> but do not change state (useful when the host wants
+  to react to clicks externally).</p>
+
+<fingerprint-hands readonly size="md"
+                   value="l1:1,l2:1,l3:0,l4:0,l5:0,r1:1,r2:0,r3:0,r4:-1,r5:0"></fingerprint-hands>
+
+<pre>&lt;fingerprint-hands readonly size="md"
+    value="l1:1,l2:1,l3:0,l4:0,l5:0,r1:1,r2:0,r3:0,r4:-1,r5:0"&gt;
+&lt;/fingerprint-hands&gt;</pre>
+
+<p><a href="index.html">&larr; Back to index</a></p>
+
+<script>
+(function() {
+  'use strict';
+
+  // --- 1. live warning / error ------------------------------------------
+  var stateField = document.getElementById('state-field');
+  document.getElementById('btn-warning').addEventListener('click', function() {
+    stateField.removeAttribute('error');
+    stateField.setAttribute('warning', 'Must be at least 12 characters');
+  });
+  document.getElementById('btn-error').addEventListener('click', function() {
+    stateField.setAttribute('error', 'The password is required');
+  });
+  document.getElementById('btn-clear').addEventListener('click', function() {
+    stateField.removeAttribute('warning');
+    stateField.removeAttribute('error');
+  });
+
+  // --- 2a. credential-pwd with enter-btn-id -------------------------------
+  var dialogPwd = document.getElementById('dialog-pwd');
+  var outEnterBtn = document.getElementById('out-enter-btn');
+  document.getElementById('btn-accept').addEventListener('click', function() {
+    outEnterBtn.textContent = 'Typed value: "' + dialogPwd.value +
+      '"  (pasted: ' + (dialogPwd.pasted ? 'yes' : 'no') + ')';
+  });
+
+  // --- 2b. Enter submits the enclosing form -------------------------------
+  document.getElementById('login-form').addEventListener('submit', function(e) {
+    e.preventDefault(); // offline demo: intercept the submit
+    document.getElementById('out-form-submit').textContent =
+      'submit intercepted — password = "' +
+      document.getElementById('form-pwd').value + '"';
+  });
+
+  // --- 3. trees: show .value on every change ------------------------------
+  var tree = document.getElementById('priv-tree');
+  var outTree = document.getElementById('out-tree');
+  tree.addEventListener('change', function() {
+    outTree.textContent = tree.value;
+  });
+
+  var collapsedTree = document.getElementById('collapsed-tree');
+  var outCollapsed = document.getElementById('out-collapsed');
+  collapsedTree.addEventListener('change', function() {
+    outCollapsed.textContent = collapsedTree.value;
+  });
+
+  // --- 4. group: show .value on every change ------------------------------
+  var group = document.getElementById('privs-group');
+  var outGroup = document.getElementById('out-group');
+  group.addEventListener('change', function() {
+    outGroup.textContent = group.value;
+  });
+
+  // --- 5. fingerprint-hands: .value on every finger-click -----------------
+  var hands = document.getElementById('hands');
+  var outHands = document.getElementById('out-hands');
+  hands.addEventListener('finger-click', function(e) {
+    outHands.textContent = '[' + e.detail.finger + ' → ' + e.detail.state + ']  ' +
+      hands.value;
+  });
+
+  // Initial values: the components finish building after
+  // DOMContentLoaded + requestAnimationFrame, so wait a little.
+  window.addEventListener('load', function() {
+    setTimeout(function() {
+      outTree.textContent = tree.value || '(empty)';
+      outHands.textContent = hands.value || '(empty)';
+    }, 200);
+  });
+})();
+</script>
+</body>
+</html>

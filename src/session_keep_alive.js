@@ -89,7 +89,16 @@ class SessionKeepAlive extends HTMLElement {
   ].join('\n');
 
   connectedCallback() {
-    if (this._initialized) return;
+    if (this._initialized) {
+      // Reconnect: restart what disconnectedCallback tore down
+      this._startTimer();
+      if (this._onActivity) {
+        ['mousemove', 'keydown', 'touchstart'].forEach((ev) => {
+          document.addEventListener(ev, this._onActivity, { passive: true });
+        });
+      }
+      return;
+    }
     this._initialized = true;
     if (!document.getElementById(SessionKeepAlive._styleId)) {
       const s = document.createElement('style');
@@ -112,7 +121,8 @@ class SessionKeepAlive extends HTMLElement {
     this._render();
 
     this._tick = this._tick.bind(this);
-    this._timer = setInterval(this._tick, 1000);
+    this._timerActive = false;
+    this._startTimer();
 
     if (this.hasAttribute('activity-reset')) {
       this._onActivity = () => this._reset();
@@ -123,7 +133,7 @@ class SessionKeepAlive extends HTMLElement {
   }
 
   disconnectedCallback() {
-    clearInterval(this._timer);
+    this._stopTimer();
     if (this._onActivity) {
       ['mousemove', 'keydown', 'touchstart'].forEach((ev) => {
         document.removeEventListener(ev, this._onActivity);
@@ -147,10 +157,23 @@ class SessionKeepAlive extends HTMLElement {
     }
   }
 
+  _startTimer() {
+    if (this._timerActive || this._remaining <= 0) return;
+    this._timer = setInterval(this._tick, 1000);
+    this._timerActive = true;
+  }
+
+  _stopTimer() {
+    clearInterval(this._timer);
+    this._timerActive = false;
+  }
+
   _tick() {
     this._remaining--;
     if (this._remaining <= 0) {
-      clearInterval(this._timer);
+      this._remaining = 0;
+      this._stopTimer();
+      this._render();
       this.dispatchEvent(new CustomEvent('session-expired', { bubbles: true }));
       this._logoff();
       return;
@@ -180,6 +203,7 @@ class SessionKeepAlive extends HTMLElement {
   _reset() {
     this._remaining = this._timeout;
     this._render();
+    this._startTimer();
   }
 
   async _extend() {
@@ -209,7 +233,18 @@ class SessionKeepAlive extends HTMLElement {
         } else {
           this._remaining = this._timeout;
         }
+        // A grant that is already exhausted (remaining 0 / until in the
+        // past) is an expiry, not an extension
+        if (this._remaining <= 0) {
+          this._remaining = 0;
+          this._stopTimer();
+          this._render();
+          this.dispatchEvent(new CustomEvent('session-expired', { bubbles: true }));
+          this._logoff();
+          return;
+        }
         this._render();
+        this._startTimer(); // the interval is stopped after expiry
         this.dispatchEvent(new CustomEvent('session-extended', { bubbles: true, detail: data }));
         return;
       }

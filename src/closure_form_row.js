@@ -138,6 +138,13 @@ class ClosureFormRow extends HTMLElement {
   ].join('\n');
 
   connectedCallback() {
+    if (this._initialized) {
+      // Reconnect: resume observing instead of rebuilding and stacking
+      // another observer
+      if (this._minObserver) this._minObserver.observe(this);
+      return;
+    }
+    this._initialized = true;
     if (!document.getElementById(ClosureFormRow._styleId)) {
       var s = document.createElement('style');
       s.id = ClosureFormRow._styleId;
@@ -151,6 +158,10 @@ class ClosureFormRow extends HTMLElement {
     } else {
       requestAnimationFrame(init);
     }
+  }
+
+  disconnectedCallback() {
+    if (this._minObserver) this._minObserver.disconnect();
   }
 
   _build() {
@@ -198,10 +209,10 @@ class ClosureFormRow extends HTMLElement {
 
     // Responsive collapse
     var minWidth = this.getAttribute('min');
-    if (minWidth) {
+    if (minWidth && !this._minObserver) {
       var self = this;
       var minPx = parseFloat(minWidth);
-      var observer = new ResizeObserver(function(entries) {
+      this._minObserver = new ResizeObserver(function(entries) {
         var w = entries[0].contentRect.width;
         if (w < minPx) {
           self.setAttribute('cfr-collapsed', '');
@@ -209,7 +220,7 @@ class ClosureFormRow extends HTMLElement {
           self.removeAttribute('cfr-collapsed');
         }
       });
-      observer.observe(this);
+      this._minObserver.observe(this);
     }
   }
 

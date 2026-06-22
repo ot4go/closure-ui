@@ -2,3 +2,4 @@
 /.issues/
 /release/
 /src/generated/
+*.bak

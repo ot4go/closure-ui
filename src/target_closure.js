@@ -176,8 +176,10 @@ class TargetClosure extends HTMLElement {
       if (e.target.closest('target-closure') !== this) return;
       var btn = e.target.closest('closure-btn');
       if (!btn || btn.hasAttribute('free')) return;
-      // Get data from the button (or btn-item that triggered it)
-      var source = e.target.getBtnData ? e.target : btn;
+      // Get data from the button — or from the btn-item that triggered
+      // it, carried in detail.source (items dispatch on their parent)
+      var source = (e.detail && e.detail.source && e.detail.source.getBtnData) ? e.detail.source
+        : (e.target.getBtnData ? e.target : btn);
       var btnData = source.getBtnData();
       var role = btnData.ctRole;
       var templateName = btnData.closureTemplate;
@@ -193,15 +195,21 @@ class TargetClosure extends HTMLElement {
       if (e.target.closest('target-closure') !== this) return;
       var form = e.target;
 
-      // If there's a template, route to it
-      var template = this._findTemplate('');
-      if (template) {
-        e.preventDefault();
-        template.execute('', this._collectForms(), form);
-        return;
+      // Only forms that opt in with the `closure` attribute are routed
+      // to a template; `closure="name"` must match this closure's name
+      var closureName = form.getAttribute('closure');
+      var bound = form.hasAttribute('closure') &&
+        (closureName === '' || closureName === (this.getAttribute('name') || ''));
+      if (bound) {
+        var template = this._findTemplate('');
+        if (template) {
+          e.preventDefault();
+          template.execute('', this._collectForms(), form);
+          return;
+        }
       }
 
-      // No template: check capture-inner-content
+      // Not closure-bound (or no template): check capture-inner-content
       var mode = this.getAttribute('capture-inner-content') || 'none';
       if (mode === 'forms' || mode === 'all' ||
           (mode === 'targeted' && form.hasAttribute('response-lightbox'))) {
@@ -343,16 +351,29 @@ class TargetClosure extends HTMLElement {
       }
     }
     fetch(url, opts).then(function(r) {
-      return r.text().then(function(html) {
-        self.innerHTML = html;
-      });
+      // Error bodies (e.g. validation HTML on 4xx) are still rendered
+      return r.text();
+    }).then(function(html) {
+      // loadContent re-wires templates/forms and runs closure-response
+      // directives — a bare innerHTML would insert them inert
+      self.loadContent(html);
     }).catch(function(err) {
       self.innerHTML = '<p style="color:red;">Connection error: ' + err.message + '</p>';
     });
   }
 
   _markDirty() {
-    this._dirtyTemplates['_default'] = true;
+    // Mark every named template dirty so dirty-template="x" scoping and
+    // <template-dirty-clean templates="x"> have keys to act on; fall
+    // back to _default when the closure has no named templates
+    var self = this;
+    var named = false;
+    this.querySelectorAll('closure-template').forEach(function(t) {
+      if (t.closest('target-closure') !== self) return;
+      var name = t.getAttribute('name');
+      if (name) { self._dirtyTemplates[name] = true; named = true; }
+    });
+    if (!named) this._dirtyTemplates['_default'] = true;
     this._updateDirtyVisibility();
   }
 

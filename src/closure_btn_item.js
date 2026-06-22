@@ -89,6 +89,12 @@ class ClosureBtnItem extends HTMLElement {
     '  outline: 2px solid var(--primary, #4f46e5);',
     '  outline-offset: -2px;',
     '}',
+    ':host([disabled]) { cursor: not-allowed; }',
+    ':host([disabled]) a {',
+    '  opacity: 0.4;',
+    '  cursor: not-allowed;',
+    '}',
+    ':host([disabled]) a:hover { background: none; }',
     '.icon {',
     '  font-size: 1.2em;',
     '  line-height: 1;',
@@ -136,6 +142,7 @@ class ClosureBtnItem extends HTMLElement {
       const self = this;
       a.addEventListener('click', (e) => {
         e.preventDefault();
+        if (self.hasAttribute('disabled')) return;
         const form = document.createElement('form');
         form.method = 'POST';
         form.action = url;
@@ -168,12 +175,15 @@ class ClosureBtnItem extends HTMLElement {
   }
 
   _dispatch() {
+    if (this.hasAttribute('disabled')) return;
     var parent = this.closest('closure-btn');
     var eventName = this.getAttribute('event') || (parent && parent.getAttribute('event')) || 'btn-action';
     var targetId = this.getAttribute('target-id') || (parent && parent.getAttribute('target-id')) || '';
     var dest = targetId ? document.getElementById(targetId) : (parent || this);
     if (dest) {
-      dest.dispatchEvent(new CustomEvent(eventName, { bubbles: true }));
+      // detail.source carries the item so consumers (target-closure) use
+      // the item's merged payload, not the parent button's
+      dest.dispatchEvent(new CustomEvent(eventName, { bubbles: true, detail: { source: this } }));
     }
   }
 

@@ -149,7 +149,8 @@ class ClosureStatusBar extends HTMLElement {
       s.textContent = ClosureStatusBar._labelStyle;
       document.head.appendChild(s);
     }
-    this.attachShadow({ mode: 'open' });
+    // attachShadow throws on a second connect (DOM re-parenting)
+    if (!this.shadowRoot) this.attachShadow({ mode: 'open' });
     this._render();
   }
 

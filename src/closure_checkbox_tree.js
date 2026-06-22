@@ -169,6 +169,10 @@ class CheckboxTree extends HTMLElement {
     // Load from data island
     this._loadFromSrc();
     this._updateFormValue();
+
+    // A readonly attribute parsed before the build ran on an empty
+    // shadow root — re-apply it now that the checkboxes exist
+    if (this.hasAttribute('readonly')) this._applyReadonly();
   }
 
   // ---
@@ -177,8 +181,12 @@ class CheckboxTree extends HTMLElement {
     this._treeRoot.className = 'cbt-root';
     var items = this.querySelectorAll(':scope > cbt-item');
     var self = this;
+    // Paths include the tree's name (`/<treeName>/<item>/…`) — that's
+    // the prefix _loadFromSrc and the group's flat setValues filter by
+    var treeName = this.getAttribute('name') || '';
+    var base = treeName ? '/' + treeName : '';
     items.forEach(function(item) {
-      self._treeRoot.appendChild(self._buildNode(item, '/'));
+      self._treeRoot.appendChild(self._buildNode(item, base));
     });
 
     // Listen for checkbox changes on the tree
@@ -421,7 +429,7 @@ class CheckboxTree extends HTMLElement {
     var name = cbtItem.getAttribute('name') || '';
     var label = cbtItem.getAttribute('label') || name;
     var tip = cbtItem.getAttribute('tip') || '';
-    var path = parentPath + name + '/';
+    var path = parentPath + '/' + name;
     var children = cbtItem.querySelectorAll(':scope > cbt-item');
     var hasChildren = children.length > 0;
 
@@ -595,16 +603,6 @@ class CheckboxTree extends HTMLElement {
       lookup[arr[i][0]] = arr[i];
     }
 
-    // Root shortcut: first checkbox is the root cbt-item
-    var rootCb = this._treeRoot.querySelector('input[type="checkbox"]');
-    if (rootCb) {
-      var rootEntry = lookup[rootCb.dataset.path];
-      if (rootEntry) {
-        if (rootEntry[2] === 1) { this.checkAll(); return; }
-        if (rootEntry[2] === 0) { this.uncheckAll(); return; }
-      }
-    }
-
     // Reset all
     this._treeRoot.querySelectorAll('input[type="checkbox"]').forEach(function(cb) {
       cb.checked = false;
@@ -677,6 +675,8 @@ class CheckboxTree extends HTMLElement {
       // Use the label text from the <label> element
       var lblEl = cb.parentElement;
       if (lblEl) label = lblEl.textContent.trim();
+      // label is data-derived text and ends up in innerHTML — escape it
+      label = String(label || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       var nested = li.querySelector(':scope > ul');
       if (nested) {
         var sub = this._buildSummaryUL(nested);

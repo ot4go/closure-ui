@@ -337,7 +337,19 @@ class ClosureDataGrid extends HTMLElement {
   ].join('\n');
 
   connectedCallback() {
-    if (this._initialized) return;
+    if (this._initialized) {
+      // Reconnect: restore the global listeners/observers dropped on disconnect
+      if (this._onDocClick) document.addEventListener('click', this._onDocClick);
+      if (this._onDocKeydown) document.addEventListener('keydown', this._onDocKeydown);
+      if (this._onWinResize) window.addEventListener('resize', this._onWinResize);
+      // Observers only once the grid is built — _wrap is set in _build
+      if (this._wrap) {
+        this._setupAutoFitResizeObserver();
+        this._setupFillObserver();
+        this._setupMasterDetail();
+      }
+      return;
+    }
     this._initialized = true;
     if (!document.getElementById(ClosureDataGrid._styleId)) {
       const s = document.createElement('style');
@@ -352,6 +364,22 @@ class ClosureDataGrid extends HTMLElement {
     } else {
       this._init();
     }
+  }
+
+  // ---
+  disconnectedCallback() {
+    if (this._onDocClick) document.removeEventListener('click', this._onDocClick);
+    if (this._onDocKeydown) document.removeEventListener('keydown', this._onDocKeydown);
+    if (this._onWinResize) window.removeEventListener('resize', this._onWinResize);
+    if (this._masterEl && this._onMasterEvent) {
+      this._masterEl.removeEventListener(this._detailEvent, this._onMasterEvent);
+      this._masterEl = null;
+      this._masterDetailBound = false;
+    }
+    if (this._masterDetailRetry) { cancelAnimationFrame(this._masterDetailRetry); this._masterDetailRetry = 0; }
+    if (this._fillObserverRetry) { cancelAnimationFrame(this._fillObserverRetry); this._fillObserverRetry = 0; }
+    if (this._autoFitResizeObserver) { this._autoFitResizeObserver.disconnect(); this._autoFitResizeObserver = null; }
+    if (this._fillResizeObserver) { this._fillResizeObserver.disconnect(); this._fillResizeObserver = null; }
   }
 
   // ---
@@ -449,9 +477,11 @@ class ClosureDataGrid extends HTMLElement {
 
   // ---
   _readInlineData() {
-    this._allRows = Array.from(this.querySelectorAll('g-row')).map(row => {
-      return this._rowObjectFromElement(row);
-    });
+    // Skip rows nested inside <g-detail> — those belong to their master
+    // row, not to the top-level row set
+    this._allRows = Array.from(this.querySelectorAll('g-row'))
+      .filter(row => !row.closest('g-detail'))
+      .map(row => this._rowObjectFromElement(row));
     this._filters = {};
     if (this._detailOf && this._detailKey) {
       this._rows = [];
@@ -465,12 +495,16 @@ class ClosureDataGrid extends HTMLElement {
   _rowObjectFromElement(row) {
     const obj = {};
     Array.from(row.children).filter(child => child.tagName === 'G-COL').forEach(col => {
-      obj[col.getAttribute('name')] = col.innerHTML.trim();
+      // textContent, not innerHTML: cells render via textContent, so the
+      // serialized form would show entities literally (AT&amp;T)
+      obj[col.getAttribute('name')] = col.textContent.trim();
     });
     Array.from(row.children).filter(child => child.tagName === 'G-DETAIL').forEach(detail => {
       const name = detail.getAttribute('name');
       if (!name) return;
-      obj[name] = Array.from(detail.querySelectorAll('g-row')).map(childRow => this._rowObjectFromElement(childRow));
+      obj[name] = Array.from(detail.querySelectorAll('g-row'))
+        .filter(childRow => childRow.closest('g-detail') === detail)
+        .map(childRow => this._rowObjectFromElement(childRow));
     });
     return obj;
   }
@@ -557,10 +591,13 @@ class ClosureDataGrid extends HTMLElement {
       var fetchUrl = url;
     }
 
+    const seq = this._fetchSeq = (this._fetchSeq || 0) + 1;
     fetch(fetchUrl, fetchOpts)
       .then(r => this._readQueryResponse(r))
       .then(resp => {
+        if (seq !== this._fetchSeq) return; // a newer request superseded this one
         if (resp.error) { this._showError(resp.error); return; }
+        this._gotoId = null; // one-shot: don't resend on later requests
         this._allRows = resp.data || [];
         this._applyFilters();
         this._currentPage = 1;
@@ -570,7 +607,7 @@ class ClosureDataGrid extends HTMLElement {
       })
       .catch(err => {
         console.error('static fetch error:', err);
-        this._showError(err.message);
+        if (seq === this._fetchSeq) this._showError(err.message);
       });
   }
 
@@ -591,10 +628,13 @@ class ClosureDataGrid extends HTMLElement {
       fetchOpts.body = new URLSearchParams(params).toString();
     }
 
+    const seq = this._fetchSeq = (this._fetchSeq || 0) + 1;
     fetch(fetchUrl, fetchOpts)
       .then(r => this._readQueryResponse(r))
       .then(resp => {
+        if (seq !== this._fetchSeq) return; // a newer request superseded this one
         if (resp.error) { this._showError(resp.error); return; }
+        this._gotoId = null; // one-shot: don't resend on later requests
         const res = resp.result || {};
         this._rows = resp.data || [];
         this._total = res.total || this._rows.length;
@@ -604,14 +644,17 @@ class ClosureDataGrid extends HTMLElement {
           this._currentPage = Math.floor(res.offset / ps) + 1;
         }
         if (res.select_index !== undefined && res.select_index >= 0) {
-          this._selectedIdx = res.select_index;
+          this._pendingFocusIdx = res.select_index;
         }
         this._renderPage(false, true);
         this._syncColWidths();
       })
       .catch(err => {
         console.error('dynamic fetch error:', err);
-        this._showError(err.message);
+        if (seq === this._fetchSeq) {
+          this._pendingFocusIdx = null; // don't let it leak into a later render
+          this._showError(err.message);
+        }
       });
   }
 
@@ -626,7 +669,9 @@ class ClosureDataGrid extends HTMLElement {
     const tmp = document.createElement('template');
     tmp.innerHTML = html || '';
     const meta = tmp.content.querySelector('query-result');
-    const rows = Array.from(tmp.content.querySelectorAll('g-row')).map(row => this._rowObjectFromElement(row));
+    const rows = Array.from(tmp.content.querySelectorAll('g-row'))
+      .filter(row => !row.closest('g-detail'))
+      .map(row => this._rowObjectFromElement(row));
     const result = {};
     if (meta) {
       ['total', 'offset'].forEach(name => {
@@ -915,8 +960,9 @@ class ClosureDataGrid extends HTMLElement {
     if (this.hasAttribute('autofocus')) this.focus();
 
     // Auto page-size: observe resize
-    if (ps === 'auto') {
-      window.addEventListener('resize', () => this._refreshAutoLayout());
+    if (ps === 'auto' && !this._onWinResize) {
+      this._onWinResize = () => this._refreshAutoLayout();
+      window.addEventListener('resize', this._onWinResize);
     }
   }
 
@@ -950,7 +996,11 @@ class ClosureDataGrid extends HTMLElement {
       return;
     }
     this._masterDetailBound = true;
-    master.addEventListener(this._detailEvent, e => this._refreshFromMaster(e.detail ? e.detail.row : null));
+    this._masterEl = master;
+    if (!this._onMasterEvent) {
+      this._onMasterEvent = e => this._refreshFromMaster(e.detail ? e.detail.row : null);
+    }
+    master.addEventListener(this._detailEvent, this._onMasterEvent);
     this._refreshFromMaster(master.selectedRow || null);
   }
 
@@ -1025,7 +1075,9 @@ class ClosureDataGrid extends HTMLElement {
   _applyFilterMode() {
     this._currentPage = 1;
     this._selectedIdx = 0;
-    const filterMode = this.getAttribute('filter') || 'local';
+    // Dynamic grids default to re-fetching with the live filter values —
+    // their _allRows is empty, so local filtering would blank the grid
+    const filterMode = this.getAttribute('filter') || (this._isDynamic ? 'fetch' : 'local');
     if (filterMode === 'fetch' && this._queryDef) {
       this._fetchDynamic();
     } else if (filterMode === 'navigate' && this._queryDef) {
@@ -1207,7 +1259,8 @@ class ClosureDataGrid extends HTMLElement {
     this._currentPage = newPage;
     const focusLast = (dir === -1 || dir === 'last');
     if (this._isDynamic) {
-      this._selectedIdx = focusLast ? this.pageSize - 1 : 0;
+      // Applied after the fetch renders (server select-index wins if set)
+      this._pendingFocusIdx = focusLast ? this.pageSize - 1 : 0;
       this._fetchDynamic();
     } else {
       this._renderPage(focusLast);
@@ -1218,8 +1271,11 @@ class ClosureDataGrid extends HTMLElement {
   // ---
   _renderPage(focusLast, isDynamicData) {
     let pageRows;
-    if (isDynamicData && this._isDynamic) {
-      pageRows = this._rows; // already paginated by server
+    if (this._isDynamic) {
+      // _rows always holds exactly the server's current page — slicing
+      // by absolute offset would blank out pages > 1 (e.g. when the
+      // auto-layout resize path re-renders)
+      pageRows = this._rows;
     } else {
       const ps = this.pageSize;
       const start = (this._currentPage - 1) * ps;
@@ -1230,6 +1286,7 @@ class ClosureDataGrid extends HTMLElement {
 
     if (pageRows.length === 0) {
       this._selectedIdx = -1;
+      this._pendingFocusIdx = null;
       if (this._noResults) {
         const cell = document.createElement('td');
         cell.colSpan = this._cols.length;
@@ -1250,8 +1307,13 @@ class ClosureDataGrid extends HTMLElement {
       this._tbody.appendChild(tr);
     });
 
-    // Focus row
-    const focusIdx = focusLast ? pageRows.length - 1 : 0;
+    // Focus row — a pending index (server select-index, or paging
+    // backwards in dynamic mode) takes precedence
+    let focusIdx = focusLast ? pageRows.length - 1 : 0;
+    if (this._pendingFocusIdx != null) {
+      focusIdx = Math.max(0, Math.min(this._pendingFocusIdx, pageRows.length - 1));
+      this._pendingFocusIdx = null;
+    }
     this._selectRow(focusIdx);
 
     this._updatePagination();
@@ -1701,10 +1763,12 @@ class ClosureDataGrid extends HTMLElement {
       this._selectRow(rows.indexOf(row));
     });
 
-    // Close action menus on click outside
-    document.addEventListener('click', () => {
+    // Close action menus on click outside (kept as a named handler so
+    // disconnectedCallback can remove it)
+    this._onDocClick = () => {
       document.querySelectorAll('.dg-action-panel-open').forEach(p => { p.style.display = 'none'; p.classList.remove('dg-action-panel-open'); });
-    });
+    };
+    document.addEventListener('click', this._onDocClick);
 
     // Mouseover
     this._tbody.addEventListener('mouseover', () => {
@@ -1714,13 +1778,15 @@ class ClosureDataGrid extends HTMLElement {
     // Wheel
     this._bodyWrap.addEventListener('wheel', e => {
       if (!this._pagination) return;
+      // Horizontal scroll (deltaY 0) must keep scrolling, not paginate
+      if (e.deltaY === 0) return;
       e.preventDefault();
       if (e.deltaY > 0) this._goPage(+1);
       else this._goPage(-1);
     }, { passive: false });
 
     // Keyboard
-    document.addEventListener('keydown', e => {
+    this._onDocKeydown = e => {
       if (!this.contains(document.activeElement) && document.activeElement !== this) return;
       const rows = this._tbody.querySelectorAll('tr');
       if (!rows.length) return;
@@ -1771,7 +1837,8 @@ class ClosureDataGrid extends HTMLElement {
           if (e.ctrlKey) { e.preventDefault(); this._goPage('last'); }
           break;
       }
-    });
+    };
+    document.addEventListener('keydown', this._onDocKeydown);
 
     // Filter change
     this.addEventListener('filter-change', e => {
@@ -1904,7 +1971,9 @@ class ClosureDataGrid extends HTMLElement {
 
   // ---
   get selectedRow() {
-    if (this._selectedIdx < 0) return null;
+    // Pre-init (e.g. probed by a row viewer before this grid's deferred
+    // init ran): no rows yet, no selection
+    if (!this._rows || this._selectedIdx < 0) return null;
     if (this._isDynamic) return this._rows[this._selectedIdx] || null;
     const ps = this.pageSize;
     const absIdx = (this._currentPage - 1) * ps + this._selectedIdx;

@@ -79,6 +79,12 @@ class StatusPart extends HTMLElement {
   ].join('\n');
 
   connectedCallback() {
+    if (this._initialized) {
+      // Reconnect: resume observing instead of stacking a new observer
+      if (this._flowObserver) this._flowObserver.observe(this);
+      return;
+    }
+    this._initialized = true;
     if (!document.getElementById(StatusPart._styleId)) {
       var s = document.createElement('style');
       s.id = StatusPart._styleId;
@@ -100,13 +106,18 @@ class StatusPart extends HTMLElement {
     }
   }
 
+  disconnectedCallback() {
+    if (this._flowObserver) this._flowObserver.disconnect();
+  }
+
   // ---
   _setupFlowObserver() {
     var self = this;
     var reflow = function() { self._reflowOrphans(); };
     // Observe resize
     if (window.ResizeObserver) {
-      new ResizeObserver(reflow).observe(this);
+      this._flowObserver = new ResizeObserver(reflow);
+      this._flowObserver.observe(this);
     }
     // Initial reflow after render
     requestAnimationFrame(reflow);

@@ -128,7 +128,13 @@ class CheckboxGroup extends HTMLElement {
     }
     var self = this;
     this.addEventListener('change', function() { self._updateFormValue(); });
-    var init = function() { self._loadFromSrc(); self._updateFormValue(); };
+    var init = function() {
+      self._loadFromSrc();
+      self._updateFormValue();
+      // A readonly attribute parsed before the children existed had
+      // nothing to propagate to — re-apply it now
+      if (self.hasAttribute('readonly')) self._applyReadonly();
+    };
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', init, { once: true });
     } else {

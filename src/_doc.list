@@ -25,7 +25,7 @@
 
 <%% include-notes:closure_lightbox.js %%>
 
-<%% include-notes:closure_status_bar.js %%>78428
+<%% include-notes:closure_status_bar.js %%>
 
 <%% include-notes:status_msg.js %%>
 

@@ -82,6 +82,9 @@ class StatusKv extends HTMLElement {
   ].join('\n');
 
   connectedCallback() {
+    // Already built — a second connect would re-wrap the generated
+    // markup and duplicate the key
+    if (this._valEl) return;
     if (!document.getElementById(StatusKv._styleId)) {
       var s = document.createElement('style');
       s.id = StatusKv._styleId;

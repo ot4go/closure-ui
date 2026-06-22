@@ -71,6 +71,12 @@ class StatusButtons extends HTMLElement {
   ].join('\n');
 
   connectedCallback() {
+    if (this._initialized) {
+      // Reconnect: resume observing instead of stacking a new observer
+      if (this._resizeObserver) this._resizeObserver.observe(this);
+      return;
+    }
+    this._initialized = true;
     if (!document.getElementById(StatusButtons._styleId)) {
       var s = document.createElement('style');
       s.id = StatusButtons._styleId;
@@ -91,12 +97,17 @@ class StatusButtons extends HTMLElement {
     this._lastW = 0;
     requestAnimationFrame(function() { self._reflow(); });
     if (window.ResizeObserver) {
-      new ResizeObserver(function() {
+      this._resizeObserver = new ResizeObserver(function() {
         var w = self.clientWidth;
         if (w === self._lastW || self._reflowing) return;
         self._reflow();
-      }).observe(this);
+      });
+      this._resizeObserver.observe(this);
     }
+  }
+
+  disconnectedCallback() {
+    if (this._resizeObserver) this._resizeObserver.disconnect();
   }
 
   // ---
@@ -166,7 +177,8 @@ class StatusButtons extends HTMLElement {
       var bestPriority = Infinity;
       for (var i = 0; i < n; i++) {
         if (!children[i].hasAttribute('stretch-priority')) continue;
-        var p = parseInt(children[i].getAttribute('stretch-priority'), 10) || 999;
+        var p = parseInt(children[i].getAttribute('stretch-priority'), 10);
+        if (isNaN(p)) p = 999; // `|| 999` would turn priority 0 into 999
         if (p >= bestPriority) continue;
         // Check: can this button stretch without creating extra rows?
         // It stretches by taking `huecos` extra cells in its row.

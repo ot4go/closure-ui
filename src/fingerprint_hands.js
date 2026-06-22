@@ -111,7 +111,13 @@ class FingerprintHands extends HTMLElement {
 
   // ---
   connectedCallback() {
-    if (this._initialized) return;
+    if (this._initialized) {
+      // Reconnect: re-attach the listeners removed on disconnect
+      if (this._onKey) this.addEventListener('keydown', this._onKey);
+      if (this._onFocus) this.addEventListener('focus', this._onFocus);
+      if (this._onBlur) this.addEventListener('blur', this._onBlur);
+      return;
+    }
     this._initialized = true;
     if (!this.hasAttribute('tabindex')) this.setAttribute('tabindex', '0');
     if (this.hasAttribute('value')) this.value = this.getAttribute('value');
@@ -171,7 +177,12 @@ class FingerprintHands extends HTMLElement {
     var pairs = str.split(',');
     for (var i = 0; i < pairs.length; i++) {
       var kv = pairs[i].split(':');
-      if (kv.length === 2) this.setAttribute(kv[0].trim(), kv[1].trim());
+      if (kv.length !== 2) continue;
+      var key = kv[0].trim();
+      // Only accept known finger names — anything else would let a
+      // value string set arbitrary attributes (e.g. onclick handlers)
+      if (FingerprintHands._fingers.indexOf(key) === -1) continue;
+      this.setAttribute(key, kv[1].trim());
     }
   }
 

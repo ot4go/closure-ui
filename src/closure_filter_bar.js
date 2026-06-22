@@ -126,7 +126,11 @@ class ClosureFilterBar extends HTMLElement {
   ].join('\n');
 
   connectedCallback() {
-    if (this._initialized) return;
+    if (this._initialized) {
+      // Reconnect: restore the body-level lightbox removed on disconnect
+      if (this._lb && !this._lb.isConnected) document.body.appendChild(this._lb);
+      return;
+    }
     this._initialized = true;
     if (!document.getElementById(ClosureFilterBar._styleId)) {
       const s = document.createElement('style');
@@ -154,7 +158,7 @@ class ClosureFilterBar extends HTMLElement {
         return {
           name:    f.getAttribute('name'),
           label:   f.getAttribute('label'),
-          type:    f.getAttribute('type') || 'text',
+          type:    f.getAttribute('type') || 'select',
           options: options,
           noAll:   f.hasAttribute('no-all'),
         };
@@ -172,6 +176,12 @@ class ClosureFilterBar extends HTMLElement {
         value:  b.getAttribute('value') || '',
       }));
       this._build();
+      // Values set programmatically before the deferred init ran
+      if (this._pendingValues) {
+        const pv = this._pendingValues;
+        this._pendingValues = null;
+        this.setValues(pv);
+      }
     };
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', init, { once: true });
@@ -336,7 +346,14 @@ class ClosureFilterBar extends HTMLElement {
     this._renderChips();
   }
 
+  disconnectedCallback() {
+    // The lightbox lives in <body>; drop it with the bar so it doesn't
+    // accumulate across mount/unmount cycles
+    if (this._lb) this._lb.remove();
+  }
+
   _apply() {
+    if (!this._fields) return; // deferred init hasn't run yet
     this._fields.forEach(f => {
       this._values[f.name] = this._inputs[f.name].value.trim();
     });
@@ -354,8 +371,12 @@ class ClosureFilterBar extends HTMLElement {
       const chip = document.createElement('span');
       chip.className = 'dg-chip';
       const strong = document.createElement('strong');
-      const optMatch = f.options.find(o => o.value === v);
-      strong.textContent = optMatch ? optMatch.label : v;
+      // Checkbox fields store CSV — map each part to its option label
+      const labels = v.split(',').map(part => {
+        const opt = f.options.find(o => o.value === part);
+        return opt ? opt.label : part;
+      });
+      strong.textContent = labels.join(', ');
       const x = document.createElement('button');
       x.type = 'button'; x.title = 'Remove'; x.textContent = '×';
       x.addEventListener('click', () => {
@@ -384,6 +405,7 @@ class ClosureFilterBar extends HTMLElement {
   get values() { return { ...this._values }; }
 
   setValues(obj) {
+    if (!this._fields) { this._pendingValues = obj; return; } // applied after init
     this._fields.forEach(f => {
       var val = obj[f.name] !== undefined ? String(obj[f.name]) : '';
       this._values[f.name] = val;

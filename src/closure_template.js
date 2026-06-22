@@ -136,6 +136,18 @@ class ClosureTemplate extends HTMLElement {
       data = this._collectData(forms);
     }
 
+    // Merge button sections into data (before the form is packaged,
+    // otherwise the button payload never reaches the server)
+    if (btnData && btnData.sections) {
+      for (var sec in btnData.sections) {
+        if (!data[sec]) data[sec] = {};
+        var secFields = btnData.sections[sec];
+        for (var key in secFields) {
+          data[sec][key] = secFields[key];
+        }
+      }
+    }
+
     // Build the submission form
     var form = document.createElement('form');
     form.method = method;
@@ -151,6 +163,18 @@ class ClosureTemplate extends HTMLElement {
         hidden.value = value;
         form.appendChild(hidden);
       });
+    } else if (sections.length === 0) {
+      // Button-triggered with no template-sections: emit the merged
+      // button data flat (section-prefixed names, like btn-item URLs)
+      for (var dsec in data) {
+        for (var dkey in data[dsec]) {
+          var dHidden = document.createElement('input');
+          dHidden.type = 'hidden';
+          dHidden.name = dsec ? dsec + '_' + dkey : dkey;
+          dHidden.value = data[dsec][dkey];
+          form.appendChild(dHidden);
+        }
+      }
     } else {
       // Package data per template-section
       this._packageSections(form, sections, data);
@@ -164,17 +188,6 @@ class ClosureTemplate extends HTMLElement {
       hidden.value = f.value;
       form.appendChild(hidden);
     });
-
-    // Merge button sections into data
-    if (btnData && btnData.sections) {
-      for (var sec in btnData.sections) {
-        if (!data[sec]) data[sec] = {};
-        var fields = btnData.sections[sec];
-        for (var key in fields) {
-          data[sec][key] = fields[key];
-        }
-      }
-    }
 
     // Send
     var self = this;
@@ -194,10 +207,17 @@ class ClosureTemplate extends HTMLElement {
 
       if (Object.keys(headers).length) fetchOpts.headers = headers;
 
+      // In-flight guard: a double-click must not issue a second request.
+      // The flag is set right before fetch so a throw in _showLoading
+      // can't leave it stuck true.
+      if (this._inFlight) return;
       self._showLoading(responseAttrs);
+      this._inFlight = true;
       fetch(fetchUrl, fetchOpts).then(function(r) {
+        self._inFlight = false;
         self._handleResponse(r, responseAttrs, role);
       }).catch(function(err) {
+        self._inFlight = false;
         self._clearLoading(responseAttrs);
         self._handleFail('no-response', 0, err.message, responseAttrs);
       });

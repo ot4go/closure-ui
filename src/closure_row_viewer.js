@@ -79,6 +79,14 @@ class ClosureRowViewer extends HTMLElement {
   ].join('\n');
 
   connectedCallback() {
+    if (this._initialized) {
+      // Reconnect: re-attach the grid listeners removed on disconnect
+      // and re-sync with whatever was selected while we were detached
+      this._attachGridListeners();
+      if (this._grid) this._setRow(this._grid.selectedRow || null);
+      return;
+    }
+    this._initialized = true;
     if (!document.getElementById(ClosureRowViewer._styleId)) {
       const s = document.createElement('style');
       s.id = ClosureRowViewer._styleId;
@@ -95,6 +103,19 @@ class ClosureRowViewer extends HTMLElement {
     }
   }
 
+  disconnectedCallback() {
+    if (this._grid && this._onRowSelect) {
+      this._grid.removeEventListener('row-select', this._onRowSelect);
+      this._grid.removeEventListener('row-focus', this._onRowFocus);
+    }
+  }
+
+  _attachGridListeners() {
+    if (!this._grid || !this._onRowSelect) return;
+    this._grid.addEventListener('row-select', this._onRowSelect);
+    this._grid.addEventListener('row-focus', this._onRowFocus);
+  }
+
   _init() {
     // Save original children as template
     this._template = this.innerHTML;
@@ -109,8 +130,9 @@ class ClosureRowViewer extends HTMLElement {
     if (!grid) return;
     this._grid = grid;
 
-    grid.addEventListener('row-select', e => this._setRow(e.detail.row || null));
-    grid.addEventListener('row-focus', e => this._setRow(e.detail.row || null));
+    this._onRowSelect = e => this._setRow(e.detail.row || null);
+    this._onRowFocus = e => this._setRow(e.detail.row || null);
+    this._attachGridListeners();
 
     // Sync with current selection if grid already has one
     if (grid.selectedRow) {
@@ -174,7 +196,10 @@ class ClosureRowViewer extends HTMLElement {
         } else {
           const crlf = el.getAttribute('bind-crlf');
           if (crlf && val.includes('\n')) {
-            el.innerHTML = val.replace(/\r?\n/g, crlf);
+            // val is row data — escape it so only the author-provided
+            // crlf separator is interpreted as HTML
+            const esc = val.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            el.innerHTML = esc.replace(/\r?\n/g, crlf);
           } else {
             el.textContent = val;
           }
@@ -228,8 +253,10 @@ class ClosureRowViewer extends HTMLElement {
   _matchesBindCondition(cond) {
     const eq = cond.indexOf('=');
     if (eq < 0) {
-      const actual = String(this._row[cond] !== undefined ? this._row[cond] : '');
-      return !!actual;
+      // Same truthiness as the grid: row values are strings, so "0" and
+      // "false" must count as falsy
+      const actual = String(this._row[cond] !== undefined ? this._row[cond] : '').trim().toLowerCase();
+      return actual !== '' && actual !== '0' && actual !== 'false';
     }
     const field = cond.substring(0, eq);
     const expected = cond.substring(eq + 1);

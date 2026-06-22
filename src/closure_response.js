@@ -131,8 +131,10 @@ var ClosureResponse = {
       return { handled: false, html: tmp.innerHTML };
     }
 
-    // Process all children in order — response-items execute, tags dispatch
-    var allChildren = Array.from(cr.getElementsByTagName('*'));
+    // Process direct children in order — response-items execute, tags
+    // dispatch. Deeper descendants belong to sections (placed later) or
+    // to nested closure-responses (processed recursively), never here.
+    var allChildren = Array.from(cr.children);
     /*<%% if:mockup %%>*/
     console.log('DBG process: cr.innerHTML=', cr.innerHTML);
     console.log('DBG process: found', allChildren.length, 'children in closure-response');
@@ -150,6 +152,10 @@ var ClosureResponse = {
         /*<%% if:mockup %%>*/
         console.log('DBG processNext:', tagName);
         /*<%% end %%>*/
+        if (tagName === 'closure-response-section') {
+          // Sections carry content, not directives — placed below
+          continue;
+        }
         if (tagName === 'response-item') {
           var type = child.getAttribute('type') || '';
           if (type === 'delay') {
@@ -168,11 +174,14 @@ var ClosureResponse = {
     }
     processNext();
 
-    // Check for sections
+    // Check for sections (direct children only — nested ones belong to
+    // their own closure-response and are placed by the recursive pass)
     if (cr.hasAttribute('sections')) {
-      var sections = tmp.querySelectorAll('closure-response-section');
+      var sections = Array.from(cr.children).filter(function(el) {
+        return el.tagName.toLowerCase() === 'closure-response-section';
+      });
       for (var s = 0; s < sections.length; s++) {
-        this._processSection(sections[s]);
+        this._processSection(sections[s], closure);
       }
       return { handled: true };
     }
@@ -182,7 +191,7 @@ var ClosureResponse = {
     return { handled: false, html: tmp.innerHTML };
   },
 
-  _processSection: function(section) {
+  _processSection: function(section, closure) {
     var html = section.innerHTML;
 
     // Raw: pass content as-is, no processing
@@ -195,8 +204,9 @@ var ClosureResponse = {
       return;
     }
 
-    // Recursively process nested closure-response
-    var nested = this.process(html);
+    // Recursively process nested closure-response (keep the closure so
+    // subscribed tags inside nested responses still reach their handlers)
+    var nested = this.process(html, closure);
     if (nested && nested.handled) return;
     var content = nested ? nested.html : html;
 
@@ -205,28 +215,6 @@ var ClosureResponse = {
     for (var i = 0; i < targets.length; i++) {
       targets[i].innerHTML = content;
     }
-  },
-
-  _executeItems: function(container) {
-    var items = Array.from(container.getElementsByTagName('response-item'));
-    var self = this;
-    var i = 0;
-
-    function next() {
-      if (i >= items.length) return;
-      var item = items[i++];
-      var type = item.getAttribute('type') || '';
-      var delay = 0;
-
-      if (type === 'delay') {
-        delay = parseInt(item.getAttribute('ms') || '0', 10);
-        if (delay > 0) { setTimeout(next, delay); return; }
-      }
-
-      self._executeItem(item, type);
-      next();
-    }
-    next();
   },
 
   _executeItem: function(item, type) {

@@ -132,7 +132,8 @@ class ClockDisplay extends HTMLElement {
   static get observedAttributes() { return ['small', 'nodate', 'notime', 'dot']; }
 
   attributeChangedCallback() {
-    if (this._elTime) this._build();
+    // _elSource always exists after a build; _elTime is null with `notime`
+    if (this._elSource) this._build();
   }
 
   disconnectedCallback() {
@@ -168,18 +169,24 @@ class ClockDisplay extends HTMLElement {
     try {
       const t0 = Date.now();
       const res = await fetch('/api/time?ts=' + Math.floor(t0 / 1000));
+      if (!res.ok) throw new Error('HTTP ' + res.status); // error page is not a timestamp
       const t1 = Date.now();
       const txt = await res.text();
       // Parse timezone offset from server response (e.g. "-05:00" or "+01:00")
       const m = txt.match(/([+-]\d{2}):(\d{2})$/);
-      this._tzOffsetMin = m ? (parseInt(m[1]) * 60 + parseInt(m[2]) * Math.sign(parseInt(m[1]))) : 0;
+      // Sign comes from the string — parseInt("-00") is 0, which would
+      // drop the minutes term for ±00:mm offsets
+      this._tzOffsetMin = m
+        ? (m[1].charAt(0) === '-' ? -1 : 1) * (Math.abs(parseInt(m[1], 10)) * 60 + parseInt(m[2], 10))
+        : 0;
       const serverMs = new Date(txt).getTime();
       const roundtrip = (t1 - t0) / 2;
       this._offset = serverMs - t1 + roundtrip;
       this._elSource.textContent = this._dot ? '●' : 'Server Time';
     } catch {
+      // Sync failed: fall back to the local clock, not UTC
       this._offset = 0;
-      this._tzOffsetMin = 0;
+      this._tzOffsetMin = -(new Date().getTimezoneOffset());
     }
   }
 
