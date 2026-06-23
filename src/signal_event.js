@@ -86,6 +86,11 @@ customElements.define('signal-event', class extends HTMLElement {
   connectedCallback() {
     this.style.display = 'none';
     if (!this.getAttribute('name')) { this.remove(); return; }
+    // A `no-cancel` timer survives disconnect (see disconnectedCallback). If the
+    // node is reconnected while that timer is still pending, don't arm a second
+    // one — the original still fires (and self-removes); a duplicate would
+    // dispatch the signal twice from a node that's about to vanish.
+    if (this._timer) return;
     // `delay="N"` (ms) turns this into a declarative timer bound to the node:
     // the event fires N ms after connect. Without it, fires immediately (in
     // document order, like any other directive — a same-response `redirect`

@@ -741,6 +741,14 @@ coexist; results are concatenated.
 > **Note:** the queue executes synchronously **except** for `type="delay"`,
 > which yields via `setTimeout` and resumes the rest of the queue in the
 > callback. Subsequent items therefore run after the delay.
+>
+> When it resumes, the queue is **dropped if the owning closure was detached
+> during the pause** (e.g. its container was replaced by a newer response), so a
+> delayed item can't inject stale content into a torn-down context. Caveats: a
+> dialog that is merely *hidden* (not removed from the DOM) stays connected, so
+> its queue still resumes; and a full-page `redirect` clears the pending timer
+> on unload regardless. Use `delay` for in-page sequencing, not as a guarantee
+> that the tail runs.
 
 > **Note:** elements whose tag is **not** `<response-item>` are forwarded
 > to handlers registered with `closure.subscribeTag(tagName, obj)`. This

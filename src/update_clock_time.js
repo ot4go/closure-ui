@@ -135,13 +135,38 @@ class ClockDisplay extends HTMLElement {
       document.head.appendChild(s);
     }
     this._build();
+    // Sync once per instance, here on connect — NOT from _build(). _build()
+    // re-runs on every observed-attribute change (small/dot/…); firing a fresh
+    // /api/time fetch from there raced overlapping requests whose out-of-order
+    // completion could clobber _offset/_tzOffsetMin. The doc contract is
+    // "sync runs once on connect" — this honours it.
+    var self = this;
+    if (this.hasAttribute('no-local')) {
+      // Hold the --:-- placeholder (size preserved, no layout shift) until the
+      // server time arrives, then start ticking — no flash of local time.
+      // _syncTime resolves even on failure (falls back to local), so the clock
+      // still starts; it just waits for the round-trip first.
+      this._syncTime().then(function() {
+        // Removed while /api/time was in flight? Don't start a ghost interval.
+        if (!self.isConnected) return;
+        self._startTicking();
+      });
+    } else {
+      this._syncTime();
+      this._startTicking();
+    }
   }
 
   static get observedAttributes() { return ['small', 'nodate', 'notime', 'dot', 'no-local']; }
 
   attributeChangedCallback() {
-    // _elSource always exists after a build; _elTime is null with `notime`
-    if (this._elSource) this._build();
+    // _elSource always exists after a build; _elTime is null with `notime`.
+    // Re-lay-out only — never re-sync (see connectedCallback). Resume ticking
+    // on the freshly built nodes if we were already ticking; if no-local is
+    // still waiting for its first sync, leave the placeholder be.
+    if (!this._elSource) return;
+    this._build();
+    if (this._started) this._startTicking();
   }
 
   disconnectedCallback() {
@@ -161,30 +186,24 @@ class ClockDisplay extends HTMLElement {
     this._elTime   = notime ? null : this.querySelector('.clock-time');
     this._elDate   = nodate ? null : this.querySelector('.clock-date');
     this._elSource = this.querySelector('.clock-source');
-    this._offset   = 0;
-    this._tzOffsetMin = -(new Date().getTimezoneOffset());
     this._dot      = dot;
+    // Seed the clock offset only on the first build — a later layout rebuild
+    // (attribute change) must preserve a completed sync, not reset it to 0.
+    if (this._offset === undefined) {
+      this._offset = 0;
+      this._tzOffsetMin = -(new Date().getTimezoneOffset());
+    }
+    // innerHTML wiped the source label — restore it if the sync already landed.
+    if (this._synced) this._elSource.textContent = this._dot ? '●' : 'Server Time';
 
     clearInterval(this._timer);
-    if (this.hasAttribute('no-local')) {
-      // Hold the --:-- placeholder (size preserved, no layout shift) until the
-      // server time arrives, then start ticking — no flash of local time.
-      // _syncTime resolves even on failure (it falls back to local), so the
-      // clock still starts; it just waits for the round-trip first.
-      this._syncTime().then(() => {
-        // If removed from the DOM while /api/time was in flight, don't start a
-        // ghost interval: disconnectedCallback already ran clearInterval on an
-        // unset timer, so without this guard the timer would tick forever on a
-        // detached element.
-        if (!this.isConnected) return;
-        this._updateClock();
-        this._timer = setInterval(() => this._updateClock(), 1000);
-      });
-    } else {
-      this._syncTime();
-      this._updateClock();
-      this._timer = setInterval(() => this._updateClock(), 1000);
-    }
+  }
+
+  _startTicking() {
+    this._started = true;
+    clearInterval(this._timer);
+    this._updateClock();
+    this._timer = setInterval(() => this._updateClock(), 1000);
   }
 
   async _syncTime() {
@@ -206,6 +225,7 @@ class ClockDisplay extends HTMLElement {
       const serverMs = new Date(txt).getTime();
       const roundtrip = (t1 - t0) / 2;
       this._offset = serverMs - t1 + roundtrip;
+      this._synced = true;
       this._elSource.textContent = this._dot ? '●' : 'Server Time';
     } catch {
       // Sync failed: fall back to the local clock, not UTC
