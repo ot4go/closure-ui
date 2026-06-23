@@ -172,6 +172,11 @@ class ClockDisplay extends HTMLElement {
       // _syncTime resolves even on failure (it falls back to local), so the
       // clock still starts; it just waits for the round-trip first.
       this._syncTime().then(() => {
+        // If removed from the DOM while /api/time was in flight, don't start a
+        // ghost interval: disconnectedCallback already ran clearInterval on an
+        // unset timer, so without this guard the timer would tick forever on a
+        // detached element.
+        if (!this.isConnected) return;
         this._updateClock();
         this._timer = setInterval(() => this._updateClock(), 1000);
       });

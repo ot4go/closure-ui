@@ -169,16 +169,25 @@ class ClosureTabBar extends HTMLElement {
   _applyShowSource(tab, visible) {
     if (visible) {
       tab.removeAttribute('hidden');
+      // If nothing is active (e.g. every tab had been hidden), adopt the
+      // reappearing one so it actually selects + fires tab-change.
+      var any = this._getTabs().some(function(t) { return t.hasAttribute('active'); });
+      if (!any) this.select(tab.getAttribute('name'));
     } else {
       tab.setAttribute('hidden', '');
-      // If this tab was active, select the first visible tab
+      // If this tab was active, hand off to the first still-visible tab.
       if (tab.hasAttribute('active')) {
         var tabs = this._getTabs();
+        var next = null;
         for (var i = 0; i < tabs.length; i++) {
-          if (!tabs[i].hasAttribute('hidden')) {
-            this.select(tabs[i].getAttribute('name'));
-            break;
-          }
+          if (!tabs[i].hasAttribute('hidden')) { next = tabs[i]; break; }
+        }
+        if (next) {
+          this.select(next.getAttribute('name'));
+        } else {
+          // All tabs hidden — drop the active flag so it isn't stuck on a
+          // hidden tab (which would zombie the bar once tabs reappear).
+          tab.removeAttribute('active');
         }
       }
     }

@@ -324,7 +324,7 @@ class ClosureFilterBar extends HTMLElement {
         btn.textContent = preset.label;
         btn.addEventListener('click', () => {
           if (preset.clear) {
-            this._fields.forEach(f => { if (this._inputs[f.name]) this._inputs[f.name].value = ''; });
+            this._fields.forEach(f => { if (this._inputs[f.name]) this._clearInput(this._inputs[f.name]); });
           } else {
             this._fields.forEach(f => {
               if (this._inputs[f.name]) {
@@ -381,7 +381,7 @@ class ClosureFilterBar extends HTMLElement {
       x.type = 'button'; x.title = 'Remove'; x.textContent = '×';
       x.addEventListener('click', () => {
         this._values[f.name] = '';
-        if (this._inputs[f.name]) this._inputs[f.name].value = '';
+        if (this._inputs[f.name]) this._clearInput(this._inputs[f.name]);
         this._renderChips();
         this._dispatch();
       });
@@ -418,6 +418,14 @@ class ClosureFilterBar extends HTMLElement {
   }
 
   get values() { return this._normalizedValues(); }
+
+  // Reset an input deterministically. A `<select no-all>` has no empty option,
+  // so `input.value = ''` is silently ignored and leaves a stale (phantom)
+  // selection that _apply() would then re-read. selectedIndex = 0 always works.
+  _clearInput(input) {
+    if (input.tagName === 'SELECT') input.selectedIndex = 0;
+    else input.value = '';
+  }
 
   setValues(obj) {
     if (!this._fields) { this._pendingValues = obj; return; } // applied after init

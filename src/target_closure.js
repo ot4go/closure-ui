@@ -91,12 +91,24 @@ Place on **any** descendant of a closure:
 
 | Event | Bubbles | Cancelable | Detail |
 |---|---|---|---|
-| `closure-template-response` | yes | no | `{ html, status, role }` — emitted by `<closure-template>` after a request |
+| `closure-response-notify` | no | no | `{ html, ok, status, role }` — fired on the closure by `<closure-template>` after **every** settled response (`ok` true/false); the only exception is a closure detached mid-flight (see `closure-ghost-response`) |
 | `closure-fetch-error` | yes | yes | `{ url, error, message }` — a **captured** submit / anchor fetch failed at the network level |
 | `closure-ghost-response` (fired on `document`) | — | yes | `{ html, …, source }` — a response arrived for a closure/template **detached mid-flight**. Discarded by default; **`preventDefault()` to process it anyway**. Also fired by `<closure-template>` |
 
 (Native `beforeunload` is hooked when at least one template inside
 declares `<template-lock-dirty block-unload>` — see below.)
+
+### Captured GET forms
+
+A captured `method="GET"` form follows native HTML semantics: the form data
+**replaces** any query string already on the `action` (it is not appended). So
+`<form method="GET" action="/search?tipo=admin">` submitting `q=juan` requests
+`/search?q=juan`, not `/search?tipo=admin&q=juan` — matching what the browser
+would do natively. (Captured anchors keep their `href` query intact.)
+
+Add **`preserve`** to the form to opt out and **keep** the action's existing
+query, appending the form data instead (`/search?tipo=admin&q=juan`) — for the
+cases where the `action` carries fixed params you want to retain.
 
 ### Network errors on captured fetches
 
@@ -294,7 +306,8 @@ class TargetClosure extends HTMLElement {
         e.preventDefault();
         this._fetchAndReplace(form.action || window.location.href, {
           method: form.method || 'POST',
-          body: new URLSearchParams(new FormData(form))
+          body: new URLSearchParams(new FormData(form)),
+          preserveQuery: form.hasAttribute('preserve')
         });
       }
     });
@@ -356,7 +369,10 @@ class TargetClosure extends HTMLElement {
       /*<%% end %%>*/
       var subs = self._tagSubscribers[tag];
       if (subs) {
-        subs.forEach(function(obj) {
+        // Iterate a COPY: a subscriber's onClosureTag may remove itself (a
+        // lightbox closing → disconnectedCallback → unsubscribeTag → splice),
+        // which would shift indices and silently skip the next subscriber.
+        subs.slice().forEach(function(obj) {
           /*<%% if:mockup %%>*/
           console.log('DBG dispatchTags: calling onClosureTag on', obj.tagName || obj.constructor.name);
           /*<%% end %%>*/
@@ -428,10 +444,17 @@ class TargetClosure extends HTMLElement {
     opts.credentials = opts.credentials || 'same-origin';
     var method = (opts.method || 'GET').toUpperCase();
     if (method === 'GET' || method === 'HEAD') {
-      // Append params to URL, no body
       if (opts.body) {
-        var sep = url.includes('?') ? '&' : '?';
-        url = url + sep + opts.body.toString();
+        if (opts.preserveQuery) {
+          // Opt-out (`preserve` on the form): keep the action's existing query
+          // string and append the form data to it, instead of the W3C replace.
+          var sep = url.includes('?') ? '&' : '?';
+          url = url + sep + opts.body.toString();
+        } else {
+          // W3C: a native GET form submission DISCARDS any query string already
+          // on the action and replaces it with the form data — match that.
+          url = url.split('#')[0].split('?')[0] + '?' + opts.body.toString();
+        }
         delete opts.body;
       }
     }

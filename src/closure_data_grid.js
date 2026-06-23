@@ -1454,6 +1454,7 @@ class ClosureDataGrid extends HTMLElement {
           td.textContent = val;
         }
       } else if (col.type === 'actions') {
+        td.style.textAlign = 'right'; // match the right-aligned header (the ⋮)
         const items = Array.from(col.el.querySelectorAll('closure-btn-item'));
         const wrap = document.createElement('div');
         wrap.style.cssText = 'position:relative;display:inline-block;';
@@ -2189,8 +2190,11 @@ class ClosureDataGrid extends HTMLElement {
     const i = this._selectedIdx; // page-relative index of the visible row
     const absIdx = this._isDynamic ? i : (this._currentPage - 1) * this.pageSize + i;
     if (!this._rows || !this._rows[absIdx]) return;
-    const merged = { ...this._rows[absIdx], ...data };
-    this._rows[absIdx] = merged;
+    // Mutate the row object IN PLACE — in static mode this._rows shares object
+    // references with this._allRows, so replacing it with a spread copy would
+    // leave _allRows untouched and the edit would vanish on the next
+    // _applyFilters() / _renderPage() (page change, search, etc.).
+    const merged = Object.assign(this._rows[absIdx], data);
     const oldTr = this._tbody.querySelectorAll('tr')[i];
     if (!oldTr) return;
     const wasFocused = oldTr.classList.contains('focused');

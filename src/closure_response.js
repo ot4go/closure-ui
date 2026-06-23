@@ -426,12 +426,23 @@ var ClosureResponse = {
     }
     var sel = item.getAttribute('target-selector');
     if (sel) {
-      var el = document.querySelector(sel);
-      if (el) results.push(el);
+      // Selectors arrive from the server — a malformed one (e.g. an unescaped
+      // id like "#123-row") throws a DOMException. Swallow it so one bad
+      // selector can't abort the whole response queue mid-render.
+      try {
+        var el = document.querySelector(sel);
+        if (el) results.push(el);
+      } catch (e) {
+        console.warn('closure-response: invalid target-selector', sel, e);
+      }
     }
     var selAll = item.getAttribute('target-selector-all');
     if (selAll) {
-      document.querySelectorAll(selAll).forEach(function(el) { results.push(el); });
+      try {
+        document.querySelectorAll(selAll).forEach(function(el) { results.push(el); });
+      } catch (e) {
+        console.warn('closure-response: invalid target-selector-all', selAll, e);
+      }
     }
     return results;
   },

@@ -85,6 +85,10 @@ Cleared automatically when the response arrives.
 Inner HTML rendered into the response target on success.
 Supports `{{code}}` and `{{text}}` substitutions for the HTTP status.
 
+Add `target="id"` to render into a specific element. That target **wins**
+over `response-target-id` / `response-target-ok-id`, which act only as the
+**fallback** — the body is never injected into two places at once.
+
 ### `<template-response-fail>` — failure template
 
 Inner HTML rendered on failure. Selected by best-match:
@@ -114,11 +118,20 @@ mark or clean the closure's dirty templates without code.
 > `prefix` packaging and `submit` / `fetch` modes they stay as multiple
 > `name=…` pairs, matching native form encoding.
 
-> **Note:** when `delegate-response` is set, the template does **not**
-> insert the response into a target. It dispatches a
-> `closure-template-response` event up to the enclosing closure (via
-> `_notifyClosure`), letting the lightbox or another container handle
-> the body. Useful for modals that own their own rendering.
+> **Note:** after a request the template dispatches a `closure-response-notify`
+> event on the enclosing `<target-closure>` (via `_notifyClosure`), with detail
+> `{ html, ok, status, role }` — `bubbles: false`. (Named to avoid clashing with
+> the `<closure-response>` **element** the server sends, which is the opposite
+> direction.) With `delegate-response` set it does **not** insert the response
+> into a target at all and relies on this event, letting the lightbox or another
+> container render the body itself.
+
+> **Note:** having **no** destination (no `response-target*`, no
+> `<template-response-ok/fail target>`, no `response-lightbox*`) is legitimate —
+> e.g. a fire-and-forget save, server-driven `<closure-response>` directives that
+> place content themselves, `delegate-response`, or handling everything from the
+> `closure-response-notify` event. Nothing is lost: that event always carries the
+> body (`detail.html`) and outcome (`detail.ok`) for both success and failure.
 
 > **Note:** when no `<template-section>` is declared and a
 > `submittedForm` is passed in (e.g. a native form submit captured by
@@ -515,7 +528,14 @@ class ClosureTemplate extends HTMLElement {
 
       if (!response.ok) {
         var handled = self._handleFail(String(response.status), response.status, html, responseAttrs);
-        if (handled) return;
+        if (handled) {
+          // Still notify: closure-response-notify is a reliable "a response
+          // settled" channel, so it fires even when a <template-response-fail>
+          // rendered the error itself.
+          self._executeDirtyClean(false, role);
+          self._notifyClosure(html, response, role);
+          return;
+        }
       }
 
       // Delegate: skip parsing, let the target handle it
@@ -563,21 +583,18 @@ class ClosureTemplate extends HTMLElement {
         }
       }
 
-      // Target
-      var targetId = responseAttrs['response-target-' + suffix + '-id']
+      // Target — a `<template-response-ok target>` WINS; the response-target-*
+      // attributes are the **fallback** (used only when the ok template has no
+      // target of its own), so the body is injected exactly once instead of
+      // landing in two places. Mirrors how _handleFail resolves
+      // `<template-response-fail target>` vs response-target-fail-id.
+      var okEl = response.ok ? self._findResponseOk() : null;
+      var targetId = (okEl && okEl.hasAttribute('target') && okEl.getAttribute('target'))
+                  || responseAttrs['response-target-' + suffix + '-id']
                   || responseAttrs['response-target-id'];
       if (targetId) {
         var target = document.getElementById(targetId);
         if (target) target.innerHTML = html;
-      }
-
-      // template-response-ok with its own target
-      if (response.ok) {
-        var okEl = self._findResponseOk();
-        if (okEl && okEl.hasAttribute('target')) {
-          var okTarget = document.getElementById(okEl.getAttribute('target'));
-          if (okTarget) okTarget.innerHTML = html;
-        }
       }
 
       // Dirty clean
@@ -591,7 +608,7 @@ class ClosureTemplate extends HTMLElement {
   _notifyClosure(html, response, role) {
     var closure = this.closest('target-closure');
     if (closure) {
-      closure.dispatchEvent(new CustomEvent('closure-response', {
+      closure.dispatchEvent(new CustomEvent('closure-response-notify', {
         detail: { html: html, ok: response.ok, status: response.status, role: role },
         bubbles: false,
       }));

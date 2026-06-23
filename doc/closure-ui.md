@@ -845,12 +845,24 @@ Place on **any** descendant of a closure:
 
 | Event | Bubbles | Cancelable | Detail |
 |---|---|---|---|
-| `closure-template-response` | yes | no | `{ html, status, role }` — emitted by `<closure-template>` after a request |
+| `closure-response-notify` | no | no | `{ html, ok, status, role }` — fired on the closure by `<closure-template>` after **every** settled response (`ok` true/false); the only exception is a closure detached mid-flight (see `closure-ghost-response`) |
 | `closure-fetch-error` | yes | yes | `{ url, error, message }` — a **captured** submit / anchor fetch failed at the network level |
 | `closure-ghost-response` (fired on `document`) | — | yes | `{ html, …, source }` — a response arrived for a closure/template **detached mid-flight**. Discarded by default; **`preventDefault()` to process it anyway**. Also fired by `<closure-template>` |
 
 (Native `beforeunload` is hooked when at least one template inside
 declares `<template-lock-dirty block-unload>` — see below.)
+
+### Captured GET forms
+
+A captured `method="GET"` form follows native HTML semantics: the form data
+**replaces** any query string already on the `action` (it is not appended). So
+`<form method="GET" action="/search?tipo=admin">` submitting `q=juan` requests
+`/search?q=juan`, not `/search?tipo=admin&q=juan` — matching what the browser
+would do natively. (Captured anchors keep their `href` query intact.)
+
+Add **`preserve`** to the form to opt out and **keep** the action's existing
+query, appending the form data instead (`/search?tipo=admin&q=juan`) — for the
+cases where the `action` carries fixed params you want to retain.
 
 ### Network errors on captured fetches
 
@@ -1071,6 +1083,10 @@ Cleared automatically when the response arrives.
 Inner HTML rendered into the response target on success.
 Supports `{{code}}` and `{{text}}` substitutions for the HTTP status.
 
+Add `target="id"` to render into a specific element. That target **wins**
+over `response-target-id` / `response-target-ok-id`, which act only as the
+**fallback** — the body is never injected into two places at once.
+
 ### `<template-response-fail>` — failure template
 
 Inner HTML rendered on failure. Selected by best-match:
@@ -1100,11 +1116,20 @@ mark or clean the closure's dirty templates without code.
 > `prefix` packaging and `submit` / `fetch` modes they stay as multiple
 > `name=…` pairs, matching native form encoding.
 
-> **Note:** when `delegate-response` is set, the template does **not**
-> insert the response into a target. It dispatches a
-> `closure-template-response` event up to the enclosing closure (via
-> `_notifyClosure`), letting the lightbox or another container handle
-> the body. Useful for modals that own their own rendering.
+> **Note:** after a request the template dispatches a `closure-response-notify`
+> event on the enclosing `<target-closure>` (via `_notifyClosure`), with detail
+> `{ html, ok, status, role }` — `bubbles: false`. (Named to avoid clashing with
+> the `<closure-response>` **element** the server sends, which is the opposite
+> direction.) With `delegate-response` set it does **not** insert the response
+> into a target at all and relies on this event, letting the lightbox or another
+> container render the body itself.
+
+> **Note:** having **no** destination (no `response-target*`, no
+> `<template-response-ok/fail target>`, no `response-lightbox*`) is legitimate —
+> e.g. a fire-and-forget save, server-driven `<closure-response>` directives that
+> place content themselves, `delegate-response`, or handling everything from the
+> `closure-response-notify` event. Nothing is lost: that event always carries the
+> body (`detail.html`) and outcome (`detail.ok`) for both success and failure.
 
 > **Note:** when no `<template-section>` is declared and a
 > `submittedForm` is passed in (e.g. a native form submit captured by

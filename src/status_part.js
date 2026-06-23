@@ -113,14 +113,26 @@ class StatusPart extends HTMLElement {
   // ---
   _setupFlowObserver() {
     var self = this;
-    var reflow = function() { self._reflowOrphans(); };
+    // Debounce into the next frame: never write layout (style.flex) inside
+    // the ResizeObserver callback. Doing so synchronously is what triggers
+    // the "ResizeObserver loop completed with undelivered notifications"
+    // warning and can feed the observer back on fractional-DPI / zoomed
+    // displays. One reflow per frame, max.
+    var schedule = function() {
+      if (self._reflowScheduled) return;
+      self._reflowScheduled = true;
+      requestAnimationFrame(function() {
+        self._reflowScheduled = false;
+        if (self.isConnected) self._reflowOrphans();
+      });
+    };
     // Observe resize
     if (window.ResizeObserver) {
-      this._flowObserver = new ResizeObserver(reflow);
+      this._flowObserver = new ResizeObserver(schedule);
       this._flowObserver.observe(this);
     }
     // Initial reflow after render
-    requestAnimationFrame(reflow);
+    schedule();
   }
 
   // ---

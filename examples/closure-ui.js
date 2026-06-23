@@ -177,6 +177,11 @@ class ClockDisplay extends HTMLElement {
       // _syncTime resolves even on failure (it falls back to local), so the
       // clock still starts; it just waits for the round-trip first.
       this._syncTime().then(() => {
+        // If removed from the DOM while /api/time was in flight, don't start a
+        // ghost interval: disconnectedCallback already ran clearInterval on an
+        // unset timer, so without this guard the timer would tick forever on a
+        // detached element.
+        if (!this.isConnected) return;
         this._updateClock();
         this._timer = setInterval(() => this._updateClock(), 1000);
       });
@@ -837,12 +842,23 @@ var ClosureResponse = {
     }
     var sel = item.getAttribute('target-selector');
     if (sel) {
-      var el = document.querySelector(sel);
-      if (el) results.push(el);
+      // Selectors arrive from the server — a malformed one (e.g. an unescaped
+      // id like "#123-row") throws a DOMException. Swallow it so one bad
+      // selector can't abort the whole response queue mid-render.
+      try {
+        var el = document.querySelector(sel);
+        if (el) results.push(el);
+      } catch (e) {
+        console.warn('closure-response: invalid target-selector', sel, e);
+      }
     }
     var selAll = item.getAttribute('target-selector-all');
     if (selAll) {
-      document.querySelectorAll(selAll).forEach(function(el) { results.push(el); });
+      try {
+        document.querySelectorAll(selAll).forEach(function(el) { results.push(el); });
+      } catch (e) {
+        console.warn('closure-response: invalid target-selector-all', selAll, e);
+      }
     }
     return results;
   },
@@ -956,7 +972,8 @@ class TargetClosure extends HTMLElement {
         e.preventDefault();
         this._fetchAndReplace(form.action || window.location.href, {
           method: form.method || 'POST',
-          body: new URLSearchParams(new FormData(form))
+          body: new URLSearchParams(new FormData(form)),
+          preserveQuery: form.hasAttribute('preserve')
         });
       }
     });
@@ -1016,7 +1033,10 @@ class TargetClosure extends HTMLElement {
       
       var subs = self._tagSubscribers[tag];
       if (subs) {
-        subs.forEach(function(obj) {
+        // Iterate a COPY: a subscriber's onClosureTag may remove itself (a
+        // lightbox closing → disconnectedCallback → unsubscribeTag → splice),
+        // which would shift indices and silently skip the next subscriber.
+        subs.slice().forEach(function(obj) {
           
           obj.onClosureTag(tag, el);
         });
@@ -1082,10 +1102,17 @@ class TargetClosure extends HTMLElement {
     opts.credentials = opts.credentials || 'same-origin';
     var method = (opts.method || 'GET').toUpperCase();
     if (method === 'GET' || method === 'HEAD') {
-      // Append params to URL, no body
       if (opts.body) {
-        var sep = url.includes('?') ? '&' : '?';
-        url = url + sep + opts.body.toString();
+        if (opts.preserveQuery) {
+          // Opt-out (`preserve` on the form): keep the action's existing query
+          // string and append the form data to it, instead of the W3C replace.
+          var sep = url.includes('?') ? '&' : '?';
+          url = url + sep + opts.body.toString();
+        } else {
+          // W3C: a native GET form submission DISCARDS any query string already
+          // on the action and replaces it with the form data — match that.
+          url = url.split('#')[0].split('?')[0] + '?' + opts.body.toString();
+        }
         delete opts.body;
       }
     }
@@ -1612,7 +1639,14 @@ class ClosureTemplate extends HTMLElement {
 
       if (!response.ok) {
         var handled = self._handleFail(String(response.status), response.status, html, responseAttrs);
-        if (handled) return;
+        if (handled) {
+          // Still notify: closure-response-notify is a reliable "a response
+          // settled" channel, so it fires even when a <template-response-fail>
+          // rendered the error itself.
+          self._executeDirtyClean(false, role);
+          self._notifyClosure(html, response, role);
+          return;
+        }
       }
 
       // Delegate: skip parsing, let the target handle it
@@ -1656,21 +1690,18 @@ class ClosureTemplate extends HTMLElement {
         }
       }
 
-      // Target
-      var targetId = responseAttrs['response-target-' + suffix + '-id']
+      // Target — a `<template-response-ok target>` WINS; the response-target-*
+      // attributes are the **fallback** (used only when the ok template has no
+      // target of its own), so the body is injected exactly once instead of
+      // landing in two places. Mirrors how _handleFail resolves
+      // `<template-response-fail target>` vs response-target-fail-id.
+      var okEl = response.ok ? self._findResponseOk() : null;
+      var targetId = (okEl && okEl.hasAttribute('target') && okEl.getAttribute('target'))
+                  || responseAttrs['response-target-' + suffix + '-id']
                   || responseAttrs['response-target-id'];
       if (targetId) {
         var target = document.getElementById(targetId);
         if (target) target.innerHTML = html;
-      }
-
-      // template-response-ok with its own target
-      if (response.ok) {
-        var okEl = self._findResponseOk();
-        if (okEl && okEl.hasAttribute('target')) {
-          var okTarget = document.getElementById(okEl.getAttribute('target'));
-          if (okTarget) okTarget.innerHTML = html;
-        }
       }
 
       // Dirty clean
@@ -1684,7 +1715,7 @@ class ClosureTemplate extends HTMLElement {
   _notifyClosure(html, response, role) {
     var closure = this.closest('target-closure');
     if (closure) {
-      closure.dispatchEvent(new CustomEvent('closure-response', {
+      closure.dispatchEvent(new CustomEvent('closure-response-notify', {
         detail: { html: html, ok: response.ok, status: response.status, role: role },
         bubbles: false,
       }));
@@ -1966,7 +1997,10 @@ class ClosureBtn extends HTMLElement {
     const readonly = this.hasAttribute('readonly');
     this.tabIndex = (disabled || readonly) ? -1 : 0;
     this.onkeydown = (e) => {
-      if (e.key === 'Enter' || (hasMenu && e.key === ' ')) {
+      // Space activates too (native <button> behaviour) — the inner <a> only
+      // reacts to Enter, so a keyboard user pressing Space on a plain button
+      // would otherwise get nothing (a11y).
+      if (e.key === 'Enter' || e.key === ' ') {
         // With the menu open and an item focused, let the document-level
         // keydown handler activate the item — clicking the anchor here
         // would just close the panel without dispatching anything
@@ -2119,11 +2153,15 @@ class ClosureBtn extends HTMLElement {
             form.method = 'POST';
             form.action = url;
             form.style.display = 'none';
+            const section = self.getAttribute('section') || '';
             for (const attr of self.attributes) {
               if (attr.name.startsWith('data-')) {
+                const fname = attr.name.slice(5);
                 const hidden = document.createElement('input');
                 hidden.type = 'hidden';
-                hidden.name = attr.name.slice(5);
+                // Honour `section` like <closure-btn-item> does — otherwise the
+                // same free action sends unprefixed names as a main button.
+                hidden.name = section ? section + '_' + fname : fname;
                 hidden.value = attr.value;
                 form.appendChild(hidden);
               }
@@ -2870,14 +2908,26 @@ class StatusPart extends HTMLElement {
   // ---
   _setupFlowObserver() {
     var self = this;
-    var reflow = function() { self._reflowOrphans(); };
+    // Debounce into the next frame: never write layout (style.flex) inside
+    // the ResizeObserver callback. Doing so synchronously is what triggers
+    // the "ResizeObserver loop completed with undelivered notifications"
+    // warning and can feed the observer back on fractional-DPI / zoomed
+    // displays. One reflow per frame, max.
+    var schedule = function() {
+      if (self._reflowScheduled) return;
+      self._reflowScheduled = true;
+      requestAnimationFrame(function() {
+        self._reflowScheduled = false;
+        if (self.isConnected) self._reflowOrphans();
+      });
+    };
     // Observe resize
     if (window.ResizeObserver) {
-      this._flowObserver = new ResizeObserver(reflow);
+      this._flowObserver = new ResizeObserver(schedule);
       this._flowObserver.observe(this);
     }
     // Initial reflow after render
-    requestAnimationFrame(reflow);
+    schedule();
   }
 
   // ---
@@ -3419,7 +3469,7 @@ class ClosureFilterBar extends HTMLElement {
         btn.textContent = preset.label;
         btn.addEventListener('click', () => {
           if (preset.clear) {
-            this._fields.forEach(f => { if (this._inputs[f.name]) this._inputs[f.name].value = ''; });
+            this._fields.forEach(f => { if (this._inputs[f.name]) this._clearInput(this._inputs[f.name]); });
           } else {
             this._fields.forEach(f => {
               if (this._inputs[f.name]) {
@@ -3476,7 +3526,7 @@ class ClosureFilterBar extends HTMLElement {
       x.type = 'button'; x.title = 'Remove'; x.textContent = '×';
       x.addEventListener('click', () => {
         this._values[f.name] = '';
-        if (this._inputs[f.name]) this._inputs[f.name].value = '';
+        if (this._inputs[f.name]) this._clearInput(this._inputs[f.name]);
         this._renderChips();
         this._dispatch();
       });
@@ -3513,6 +3563,14 @@ class ClosureFilterBar extends HTMLElement {
   }
 
   get values() { return this._normalizedValues(); }
+
+  // Reset an input deterministically. A `<select no-all>` has no empty option,
+  // so `input.value = ''` is silently ignored and leaves a stale (phantom)
+  // selection that _apply() would then re-read. selectedIndex = 0 always works.
+  _clearInput(input) {
+    if (input.tagName === 'SELECT') input.selectedIndex = 0;
+    else input.value = '';
+  }
 
   setValues(obj) {
     if (!this._fields) { this._pendingValues = obj; return; } // applied after init
@@ -4656,6 +4714,7 @@ class ClosureDataGrid extends HTMLElement {
           td.textContent = val;
         }
       } else if (col.type === 'actions') {
+        td.style.textAlign = 'right'; // match the right-aligned header (the ⋮)
         const items = Array.from(col.el.querySelectorAll('closure-btn-item'));
         const wrap = document.createElement('div');
         wrap.style.cssText = 'position:relative;display:inline-block;';
@@ -5391,8 +5450,11 @@ class ClosureDataGrid extends HTMLElement {
     const i = this._selectedIdx; // page-relative index of the visible row
     const absIdx = this._isDynamic ? i : (this._currentPage - 1) * this.pageSize + i;
     if (!this._rows || !this._rows[absIdx]) return;
-    const merged = { ...this._rows[absIdx], ...data };
-    this._rows[absIdx] = merged;
+    // Mutate the row object IN PLACE — in static mode this._rows shares object
+    // references with this._allRows, so replacing it with a spread copy would
+    // leave _allRows untouched and the edit would vanish on the next
+    // _applyFilters() / _renderPage() (page change, search, etc.).
+    const merged = Object.assign(this._rows[absIdx], data);
     const oldTr = this._tbody.querySelectorAll('tr')[i];
     if (!oldTr) return;
     const wasFocused = oldTr.classList.contains('focused');
@@ -6545,16 +6607,25 @@ class ClosureTabBar extends HTMLElement {
   _applyShowSource(tab, visible) {
     if (visible) {
       tab.removeAttribute('hidden');
+      // If nothing is active (e.g. every tab had been hidden), adopt the
+      // reappearing one so it actually selects + fires tab-change.
+      var any = this._getTabs().some(function(t) { return t.hasAttribute('active'); });
+      if (!any) this.select(tab.getAttribute('name'));
     } else {
       tab.setAttribute('hidden', '');
-      // If this tab was active, select the first visible tab
+      // If this tab was active, hand off to the first still-visible tab.
       if (tab.hasAttribute('active')) {
         var tabs = this._getTabs();
+        var next = null;
         for (var i = 0; i < tabs.length; i++) {
-          if (!tabs[i].hasAttribute('hidden')) {
-            this.select(tabs[i].getAttribute('name'));
-            break;
-          }
+          if (!tabs[i].hasAttribute('hidden')) { next = tabs[i]; break; }
+        }
+        if (next) {
+          this.select(next.getAttribute('name'));
+        } else {
+          // All tabs hidden — drop the active flag so it isn't stuck on a
+          // hidden tab (which would zombie the bar once tabs reappear).
+          tab.removeAttribute('active');
         }
       }
     }

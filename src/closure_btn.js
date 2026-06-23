@@ -261,7 +261,10 @@ class ClosureBtn extends HTMLElement {
     const readonly = this.hasAttribute('readonly');
     this.tabIndex = (disabled || readonly) ? -1 : 0;
     this.onkeydown = (e) => {
-      if (e.key === 'Enter' || (hasMenu && e.key === ' ')) {
+      // Space activates too (native <button> behaviour) — the inner <a> only
+      // reacts to Enter, so a keyboard user pressing Space on a plain button
+      // would otherwise get nothing (a11y).
+      if (e.key === 'Enter' || e.key === ' ') {
         // With the menu open and an item focused, let the document-level
         // keydown handler activate the item — clicking the anchor here
         // would just close the panel without dispatching anything
@@ -414,11 +417,15 @@ class ClosureBtn extends HTMLElement {
             form.method = 'POST';
             form.action = url;
             form.style.display = 'none';
+            const section = self.getAttribute('section') || '';
             for (const attr of self.attributes) {
               if (attr.name.startsWith('data-')) {
+                const fname = attr.name.slice(5);
                 const hidden = document.createElement('input');
                 hidden.type = 'hidden';
-                hidden.name = attr.name.slice(5);
+                // Honour `section` like <closure-btn-item> does — otherwise the
+                // same free action sends unprefixed names as a main button.
+                hidden.name = section ? section + '_' + fname : fname;
                 hidden.value = attr.value;
                 form.appendChild(hidden);
               }
