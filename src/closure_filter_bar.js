@@ -57,7 +57,7 @@ lightbox.
 
 | Event | Bubbles | Detail |
 |---|---|---|
-| `filter-change` | no | `{ field: value, … }` |
+| `filter-change` | no | `{ field: value, … }` — a `type="checkbox"` (multi-select) field is an **array** of selected values; `select` / `text` fields are strings. (Arrays avoid the "comma = multi-select" ambiguity, so text values may contain commas.) |
 
 Fired on the configured target after Apply or after the user removes a
 chip.
@@ -66,7 +66,7 @@ chip.
 
 | Member | Description |
 |---|---|
-| `.values` (get) | shallow copy of the current filter values |
+| `.values` (get) | current filter values, normalised the same way as the `filter-change` detail (a `type="checkbox"` field is an **array**, others are strings) |
 | `setValues(obj)`| programmatic update; refreshes chips and dispatches `filter-change` |
 
 ## Example
@@ -396,13 +396,28 @@ class ClosureFilterBar extends HTMLElement {
     }
   }
 
+  // Normalised view of the filter values: multi-value (checkbox) fields become
+  // arrays (not a CSV string) so consumers never guess "comma means multi-
+  // select" — which would mangle text values that contain commas. Used by both
+  // the `filter-change` event and the public `values` getter so they agree.
+  _normalizedValues() {
+    const out = { ...this._values };
+    (this._fields || []).forEach(f => {
+      if (f.type === 'checkbox' && typeof out[f.name] === 'string' && out[f.name] !== '') {
+        out[f.name] = out[f.name].split(',');
+      }
+    });
+    return out;
+  }
+
   _dispatch() {
     const targetId = this.getAttribute('target');
     const dest = targetId ? document.getElementById(targetId) : this;
-    if (dest) dest.dispatchEvent(new CustomEvent('filter-change', { detail: { ...this._values }, bubbles: false }));
+    if (!dest) return;
+    dest.dispatchEvent(new CustomEvent('filter-change', { detail: this._normalizedValues(), bubbles: false }));
   }
 
-  get values() { return { ...this._values }; }
+  get values() { return this._normalizedValues(); }
 
   setValues(obj) {
     if (!this._fields) { this._pendingValues = obj; return; } // applied after init

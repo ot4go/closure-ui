@@ -22,8 +22,8 @@ control title and open/close declaratively.
 | `close(action?)`                              | close with the given `action` (default `"close"`) |
 | `setTitle(html)`                              | replace the title (HTML allowed) |
 | `setContent(html)`                            | replace the body (routes through the inner closure when present) |
-| `showResponse(html)`                          | set body + open; fires cancelable `lb-response` first |
-| `showError(html)`                             | set body + open; fires cancelable `lb-error` first |
+| `showResponse(html)`                          | set body + open; fires cancelable `lb-response` first. **Returns `true` if it opened, `false` if a listener cancelled it** (so a caller that created the lightbox can remove it instead of leaking the node) |
+| `showError(html)`                             | set body + open; fires cancelable `lb-error` first. Returns `true`/`false` like `showResponse` |
 | **static** `MsgAlert(msg, title?)`            | spawn a one-OK alert lightbox; auto-removes on close |
 | **static** `MsgConfirm(msg, title?)`          | spawn an OK/Cancel lightbox; resolves a Promise → `true` (OK) / `false` |
 
@@ -210,6 +210,16 @@ class ClosureLightbox extends HTMLElement {
     this._closure.subscribeTag('lightbox-response-item', this);
   }
 
+  disconnectedCallback() {
+    // Defensive lifecycle cleanup: drop our tag subscription on removal. Today
+    // the closure is our own inner one and dies with us (no real leak), but
+    // unsubscribing keeps subscribe/unsubscribe symmetric and is robust if the
+    // lightbox is ever pointed at a longer-lived (e.g. page-level) closure.
+    if (this._closure && this._closure.unsubscribeTag) {
+      this._closure.unsubscribeTag('lightbox-response-item', this);
+    }
+  }
+
   onClosureTag(tag, el) {
     if (tag !== 'lightbox-response-item') return;
     var type = el.getAttribute('type') || '';
@@ -278,7 +288,9 @@ class ClosureLightbox extends HTMLElement {
       if (this._closure) this._closure.loadContent(html);
       else this._body.innerHTML = html;
       if (!this._dlg.open) this._dlg.showModal();
+      return true;
     }
+    return false; // a listener cancelled lb-response — modal not opened
   }
 
   showError(html) {
@@ -292,7 +304,9 @@ class ClosureLightbox extends HTMLElement {
       if (this._closure) this._closure.loadContent(html);
       else this._body.innerHTML = html;
       if (!this._dlg.open) this._dlg.showModal();
+      return true;
     }
+    return false; // a listener cancelled lb-error — modal not opened
   }
 
   setContent(html) {

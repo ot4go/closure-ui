@@ -23,6 +23,15 @@ runs and which `<template-url>` / `<template-section>` set applies.
 `submit-json` is intentionally **not** supported — there is no browser
 enctype that produces a JSON body via form submit.
 
+> **Note:** binary file uploads are **not** transported. The template
+> repackages every field into a hidden-input form (and, in `fetch*` modes,
+> URL-encodes or JSON-stringifies it), so an `<input type="file">` is
+> serialized like any other field: the server receives the literal string
+> `"[object File]"` as its value — never the file contents. That value is
+> a reliable sentinel for "no real file was sent". Use a native
+> `<form enctype="multipart/form-data">` outside the closure flow for
+> actual uploads.
+
 ## Child elements
 
 ### `<template-url>` — destination
@@ -99,6 +108,12 @@ mark or clean the closure's dirty templates without code.
 
 ## Behaviour
 
+> **Note:** repeated field names (a checkbox group, `<select multiple>`)
+> are **preserved**, not collapsed to the last value. In `fetch-json` they
+> become a JSON **array** (`"roles":["admin","editor"]`); in `flat` /
+> `prefix` packaging and `submit` / `fetch` modes they stay as multiple
+> `name=…` pairs, matching native form encoding.
+
 > **Note:** when `delegate-response` is set, the template does **not**
 > insert the response into a target. It dispatches a
 > `closure-template-response` event up to the enclosing closure (via
@@ -109,6 +124,19 @@ mark or clean the closure's dirty templates without code.
 > `submittedForm` is passed in (e.g. a native form submit captured by
 > `<target-closure>`), `execute` packages **its** fields verbatim
 > instead of inventing sections.
+
+> **Note:** `<template-section>` is what declares **how gathered forms are
+> packaged** — `group-behavior` only decides *which* forms are collected.
+> So a button-triggered submit that gathers forms (`combine-sections` /
+> `combine-children`) but declares **no** `<template-section>` sends only the
+> button payload (`data-*`); the gathered forms' fields are **not** packaged.
+> This is by design, but `execute` emits a `console.warn` in that case so the
+> missing declaration doesn't read as silent data loss. To **silence it on
+> purpose without changing behaviour**, declare an **empty** `<template-section>`:
+> it packages into a name-less hidden input (which is never serialized), so
+> nothing extra is sent — it just acknowledges the intent. Give the section a
+> `name="x"` or `standalone-inputs` when you actually want the gathered fields
+> sent.
 
 > **Note:** the `ct-role` resolution always prefers a role-specific
 > child (`<template-url ct-role="approve">`) over the catch-all
@@ -134,6 +162,16 @@ class ClosureTemplate extends HTMLElement {
     var data = {};
     if (sections.length > 0 && forms.length > 0) {
       data = this._collectData(forms);
+    } else if (forms.length > 0 && !submittedForm) {
+      // Footgun guard: forms were gathered (group-behavior="combine-*") but no
+      // <template-section> declares how to package them, so their fields would
+      // be silently dropped (only the button payload / data-* still goes). This
+      // is by design — sections drive packaging — but warn so the missing
+      // declaration is obvious instead of a silent data black hole.
+      console.warn('closure-template: ' + forms.length + ' form(s) were gathered via ' +
+        'group-behavior but no <template-section> is declared — their fields will ' +
+        'NOT be sent. Declare a <template-section> to package them, or an empty ' +
+        '<template-section> to acknowledge this on purpose and silence the warning.');
     }
 
     // Merge button sections into data (before the form is packaged,
@@ -198,7 +236,12 @@ class ClosureTemplate extends HTMLElement {
 
       if (sendBehavior === 'fetch-json') {
         var jsonData = {};
-        new FormData(form).forEach(function(v, k) { jsonData[k] = v; });
+        new FormData(form).forEach(function(v, k) {
+          // Preserve repeated names (checkbox groups, <select multiple>):
+          // collapse to an array instead of keeping only the last value.
+          if (k in jsonData) jsonData[k] = [].concat(jsonData[k], v);
+          else jsonData[k] = v;
+        });
         headers['Content-Type'] = 'application/json';
         fetchOpts.body = JSON.stringify(jsonData);
       } else {
@@ -224,6 +267,9 @@ class ClosureTemplate extends HTMLElement {
     } else {
       document.body.appendChild(form);
       form.submit();
+      form.remove(); // submit is already initiated; drop the node so it
+                     // can't orphan in <body> when the action is a
+                     // download or opens a new tab (no navigation).
     }
   }
 
@@ -362,7 +408,10 @@ class ClosureTemplate extends HTMLElement {
       if (!data[section]) data[section] = {};
       var target = data[section];
       new FormData(form).forEach(function(value, key) {
-        target[key] = value;
+        // Preserve repeated names (checkbox groups, <select multiple>):
+        // collapse to an array rather than overwriting with the last value.
+        if (key in target) target[key] = [].concat(target[key], value);
+        else target[key] = value;
       });
     });
     return data;
@@ -402,11 +451,17 @@ class ClosureTemplate extends HTMLElement {
           var fields = sectionData[section];
           var pfx = self._buildPrefix(section, noPrefix, separator);
           for (var field in fields) {
-            var hidden = document.createElement('input');
-            hidden.type = 'hidden';
-            hidden.name = pfx + field;
-            hidden.value = fields[field];
-            form.appendChild(hidden);
+            // Array values (repeated names) emit one hidden input each, so
+            // the native `name=a&name=b` semantics survive the repackaging.
+            var fval = fields[field];
+            var vals = Array.isArray(fval) ? fval : [fval];
+            for (var vi = 0; vi < vals.length; vi++) {
+              var hidden = document.createElement('input');
+              hidden.type = 'hidden';
+              hidden.name = pfx + field;
+              hidden.value = vals[vi];
+              form.appendChild(hidden);
+            }
           }
         }
       } else {
@@ -438,6 +493,20 @@ class ClosureTemplate extends HTMLElement {
   _handleResponse(response, responseAttrs, role) {
     var self = this;
     response.text().then(function(html) {
+      // Ghost-response: the template (and its closure) was detached while the
+      // request was in flight. ClosureResponse mutates the *live* global DOM
+      // (getElementById/querySelector), so a dead component could pop
+      // lightboxes / redirect out of nowhere. Default is to DISCARD; the app
+      // can listen for `closure-ghost-response` (on document) and
+      // preventDefault() to process it anyway.
+      if (!self.isConnected) {
+        var ghost = new CustomEvent('closure-ghost-response', {
+          cancelable: true,
+          detail: { html: html, status: response.status, ok: response.ok, role: role, source: self },
+        });
+        if (document.dispatchEvent(ghost)) return; // not prevented → discard
+        // preventDefault() called → fall through and process it anyway
+      }
       /*<%% if:mockup %%>*/
       console.log('DBG _handleResponse: delegate=', self._shouldDelegateResponse(), 'parse=', self._shouldParseResponse());
       console.log('DBG _handleResponse: responseAttrs=', responseAttrs);

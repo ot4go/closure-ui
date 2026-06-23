@@ -29,6 +29,16 @@ configured logoff URL.
 
 Anything else → `session-extend-failed` event, **no** countdown reset.
 
+> **Clock skew — prefer `remaining`.** `until` is resolved against the
+> **browser clock** (`new Date(until) − Date.now()`), so a user whose
+> system clock is off will see the session end early or late. Return
+> **`remaining`** (exact seconds, computed server-side) when the client
+> clock can't be trusted — it is immune to skew. `until` stays available
+> for convenience when the client clock is reliable. (This element does
+> **not** reuse `<clock-display>`'s server-time offset: that offset is
+> private per `<clock-display>` instance and may not be present on the
+> page, so `remaining` is the robust path.)
+
 ## Events
 
 | Event | Bubbles | Detail | Fired when |
@@ -198,6 +208,8 @@ class SessionKeepAlive extends HTMLElement {
     }
     document.body.appendChild(form);
     form.submit();
+    form.remove(); // drop the node post-submit so it can't orphan in
+                   // <body> if the POST doesn't navigate the page away
   }
 
   _reset() {
@@ -266,7 +278,10 @@ class SessionKeepAlive extends HTMLElement {
   _navigate(url, method, payload) {
     if (String(method).toUpperCase() === 'GET') {
       const qs = new URLSearchParams(payload || {}).toString();
-      window.location.href = qs ? url + '?' + qs : url;
+      // Respect a query string the server already put on the URL (e.g.
+      // "/login?reason=timeout") instead of appending a second "?".
+      const sep = url.includes('?') ? '&' : '?';
+      window.location.href = qs ? url + sep + qs : url;
       return;
     }
     const form = document.createElement('form');
@@ -282,6 +297,8 @@ class SessionKeepAlive extends HTMLElement {
     }
     document.body.appendChild(form);
     form.submit();
+    form.remove(); // drop the node post-submit so it can't orphan in
+                   // <body> if the POST doesn't navigate the page away
   }
 }
 

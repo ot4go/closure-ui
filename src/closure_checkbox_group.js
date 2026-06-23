@@ -202,6 +202,12 @@ class CheckboxGroup extends HTMLElement {
     return JSON.stringify(this._getData());
   }
 
+  // Setter so a server `set-value` (el.value = JSON) restores the group instead
+  // of silently no-opping on a getter-only property.
+  set value(v) {
+    try { this.setValues(typeof v === 'string' ? JSON.parse(v) : v); } catch (e) {}
+  }
+
   getValues() {
     return this._getData();
   }

@@ -130,6 +130,7 @@ the keyboard while the selection drives a side panel.
 | Method | Description |
 |---|---|
 | `refresh(opts)`        | reload data (`opts.goto = "<id>"` to scroll to a specific row after refresh) |
+| `updateRow(data)`      | re-render the **selected** row in place from `data` (merged onto it) — no reload; no-op if nothing is selected |
 | `.selectedRow` (getter)| the currently selected row object, or `null` |
 
 ## Events
@@ -139,6 +140,31 @@ the keyboard while the selection drives a side panel.
 | `row-select` | yes | `{ row, index }` |
 | `row-focus`  | yes | `{ row, index }` |
 | `filter-change` (handled, not fired) | — | accepted from a paired `<closure-filter-bar>` |
+| `refresh` (handled, not fired) | — | reloads the grid; `detail` is passed to `refresh()` (e.g. `goto`). Fired *at* the grid by id (`dispatch-event` / `signal-event`) |
+| `refresh-row` (handled, not fired) | — | re-renders the **selected** row from `detail` (a `data-row` JSON string, or the `data-*` fields). Ignores events bubbling from children |
+
+## Refreshing after an edit
+
+A common flow: a row is edited in a `<closure-lightbox>`, and on success the
+server response refreshes the grid declaratively — no full page reload. Drive
+it from the closure response: `dispatch-event` fires a `refresh` (whole grid)
+or `refresh-row` (just the edited row) **at the grid by id**, carrying data via
+`data-*` (stripped of `data-`, kept kebab-case — the same convention as button
+payloads; **not** the `dataset` camel-casing).
+
+```html
+<!-- close the dialog, then re-render only the edited row from the new data -->
+<closure-response>
+  <response-item type="close-lightbox" target-id="editBox"></response-item>
+  <response-item type="dispatch-event" event="refresh-row" target-id="usersGrid"
+                 data-row='{"id":42,"name":"Ana","status":"approved"}'></response-item>
+</closure-response>
+```
+
+Use `refresh` (with optional `data-goto`) instead when several rows may have
+changed; `refresh-row` only touches the selected row. The same events also pair
+with a delayed `<signal-event name="refresh" target-id="usersGrid" delay="…">`
+for polling.
 
 ## Cell buttons
 
@@ -158,6 +184,31 @@ fields. These optional attributes control per-row presentation:
 When a `type="btn"` column has no explicit `grid-col width`, any
 `width` declared on its child buttons contributes to the column's
 auto-fit minimum width.
+
+## Action menu columns
+
+Columns with `type="actions"` render a compact menu button (`☰`) per row
+that opens a dropdown of `<closure-btn-item>` actions:
+
+```html
+<grid-col label="" type="actions" width="44">
+  <closure-btn-item icon="✎" data-action="edit"></closure-btn-item>
+  <closure-btn-item icon="🗑" data-action="delete"></closure-btn-item>
+</grid-col>
+```
+
+The dropdown uses the **HTML Popover API**, so it renders in the top
+layer and is **not clipped** by the grid body's scroll container — the
+menu on the last rows opens over the page instead of being cut off.
+Outside-click / `Esc` dismissal and auto-closing any other open menu are
+handled natively. Where the Popover API is unavailable it falls back to a
+`position:fixed` panel positioned from the trigger's rect, so it **also
+escapes the clipping** (only the native light-dismiss niceties differ).
+Opening a row's menu selects that row, and choosing an item runs its action
+against the selected row.
+
+(For reference, `<grid-col type="…">` accepts `bool`, `btn`, `tags` and
+`actions`; omit `type` for a plain text cell.)
 
 ## Tag columns
 
@@ -520,9 +571,16 @@ class ClosureDataGrid extends HTMLElement {
           const q = val.toLowerCase();
           const match = Object.values(row).some(v => String(v).toLowerCase().includes(q));
           if (!match) return false;
-        } else if (val.includes(',')) {
-          const vals = val.split(',');
-          if (!vals.includes(String(row[key] || ''))) return false;
+        } else if (Array.isArray(val)) {
+          // Multi-select: match if any selected value equals the cell — or, when
+          // the cell is itself an array (e.g. a tags column from a JSON source),
+          // if the two intersect. (Was `val.includes(',')`, which also mis-split
+          // text like "García, Juan".)
+          const cell = row[key];
+          const cellVals = Array.isArray(cell)
+            ? cell.map(String)
+            : [String(cell == null ? '' : cell)];
+          if (!val.some(v => cellVals.includes(String(v)))) return false;
         } else {
           if (String(row[key] || '') !== val) return false;
         }
@@ -553,7 +611,8 @@ class ClosureDataGrid extends HTMLElement {
         } else if (ns === 'filter') {
           const v = (this._filters || {})[key];
           /*<%% if:mockup %%>*/ console.log('[resolveParams] filter.' + key + ' =', JSON.stringify(v), 'filters=', JSON.stringify(this._filters)); /*<%% end %%>*/
-          if (v) params[p.name] = v;
+          // Multi-select arrays go to the server as CSV — wire format unchanged.
+          if (v) params[p.name] = Array.isArray(v) ? v.join(',') : v;
         } else {
           const v = this._resolveExternalBind(parts);
           if (v !== undefined && v !== null && v !== '') params[p.name] = v;
@@ -641,7 +700,9 @@ class ClosureDataGrid extends HTMLElement {
         this._eof = res.eof || false;
         if (res.offset !== undefined) {
           const ps = this.pageSize;
-          this._currentPage = Math.floor(res.offset / ps) + 1;
+          // Guard div-by-zero: page-size="all" with an empty result makes
+          // pageSize 0 → res.offset / 0 = NaN → page=NaN on every later fetch.
+          this._currentPage = ps > 0 ? Math.floor(res.offset / ps) + 1 : 1;
         }
         if (res.select_index !== undefined && res.select_index >= 0) {
           this._pendingFocusIdx = res.select_index;
@@ -699,6 +760,9 @@ class ClosureDataGrid extends HTMLElement {
     }
     document.body.appendChild(form);
     form.submit();
+    form.remove(); // submit is already initiated; drop the node so it
+                   // can't orphan in <body> — this path may set
+                   // form.target="_blank", which never navigates the page
   }
 
   // ---
@@ -762,6 +826,10 @@ class ClosureDataGrid extends HTMLElement {
 
   // ---
   _cellContentWidth(cell) {
+    // Prefer the batched cache (populated by _syncColWidths) so the
+    // per-column auto-fit loop doesn't force a layout flush per cell; fall
+    // back to a one-off measurement when there's no cache.
+    if (this._widthCache && this._widthCache.has(cell)) return this._widthCache.get(cell);
     const cs = getComputedStyle(cell);
     const probe = document.createElement('span');
     probe.style.cssText = [
@@ -779,6 +847,40 @@ class ClosureDataGrid extends HTMLElement {
     const width = Math.ceil(probe.getBoundingClientRect().width + pad + 2);
     probe.remove();
     return width;
+  }
+
+  // ---
+  // Measure the text width of many cells with a SINGLE layout flush. The
+  // previous path (append → getBoundingClientRect → remove, per cell, inside
+  // the per-column loop) interleaved DOM writes with reads and forced one
+  // reflow per cell — O(columns × rows) layout thrashing. Here every probe
+  // goes into one offscreen container inserted once; the first read flushes
+  // layout once and the rest are free (no mutation between reads). Returns a
+  // Map(cell -> width) consumed by _cellContentWidth.
+  _measureCellWidths(cells) {
+    const cache = new Map();
+    if (!cells.length) return cache;
+    const container = document.createElement('div');
+    // nowrap container + inline-block probes: each probe shrinks to its own
+    // content width (a display:block child would stretch to the container).
+    container.style.cssText = 'position:fixed;left:-10000px;top:-10000px;visibility:hidden;white-space:nowrap;';
+    const probes = [];
+    const pads = [];
+    for (const cell of cells) {
+      const cs = getComputedStyle(cell);
+      const probe = document.createElement('span');
+      probe.style.cssText = 'display:inline-block;white-space:nowrap;font:' + cs.font + ';letter-spacing:' + cs.letterSpacing + ';';
+      probe.textContent = cell.textContent || '';
+      container.appendChild(probe);
+      probes.push(probe);
+      pads.push(parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight));
+    }
+    document.body.appendChild(container); // single insertion → single layout invalidation
+    for (let i = 0; i < cells.length; i++) {
+      cache.set(cells[i], Math.ceil(probes[i].getBoundingClientRect().width + pads[i] + 2));
+    }
+    container.remove();
+    return cache;
   }
 
   // ---
@@ -1105,6 +1207,14 @@ class ClosureDataGrid extends HTMLElement {
     const target = this._fillTargetElement();
     if (!target && (!fillSelector || parseInt(fillSelector, 10) > 0)) return;
     if (!target) {
+      // The target may simply be rendered later (deferred), so we retry — but
+      // a typo'd selector (e.g. fill-stop="#nope") would never match and loop
+      // at 60fps forever. Cap the retries (~1s) and warn instead of burning CPU.
+      if ((this._fillObserverRetries = (this._fillObserverRetries || 0) + 1) > 60) {
+        console.warn('closure-data-grid: fill target "' + fillSelector +
+          '" not found after ~1s — giving up (check fill-stop / fill-reserve).');
+        return;
+      }
       if (!this._fillObserverRetry) {
         this._fillObserverRetry = requestAnimationFrame(() => {
           this._fillObserverRetry = 0;
@@ -1113,6 +1223,7 @@ class ClosureDataGrid extends HTMLElement {
       }
       return;
     }
+    this._fillObserverRetries = 0; // target found — reset for any future re-setup
     this._fillResizeObserver = new ResizeObserver(() => {
       if (this._fillResizeRaf) cancelAnimationFrame(this._fillResizeRaf);
       this._fillResizeRaf = requestAnimationFrame(() => this._refreshAutoLayout());
@@ -1350,7 +1461,44 @@ class ClosureDataGrid extends HTMLElement {
         btn.type = 'button'; btn.textContent = '☰'; btn.tabIndex = -1;
         btn.style.cssText = 'border:1px solid var(--dg-border,#e5e7eb);border-radius:4px;background:#fff;cursor:pointer;font-size:14px;padding:2px 6px;';
         const panel = document.createElement('div');
-        panel.style.cssText = 'display:none;position:absolute;right:0;top:100%;margin-top:2px;background:#fff;border:1px solid var(--dg-border,#e5e7eb);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:100;overflow:hidden;';
+        // The Popover API renders the menu in the top layer, so it escapes
+        // the grid body's overflow:auto clipping — the menu on the last
+        // rows is no longer cut off. Where unsupported, the fallback uses
+        // position:fixed (same trigger-rect positioning), which also escapes
+        // the clipping — only the native light-dismiss niceties are lost.
+        const usePopover = typeof panel.showPopover === 'function'
+          && Object.prototype.hasOwnProperty.call(HTMLElement.prototype, 'popover');
+        const panelLook = 'background:#fff;border:1px solid var(--dg-border,#e5e7eb);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:100;overflow:hidden;';
+        if (usePopover) {
+          panel.popover = 'auto';
+          // No inline display: the UA keeps [popover] hidden until open.
+          // Position is fixed and recomputed from the trigger on each open.
+          panel.style.cssText = 'position:fixed;margin:0;inset:auto;min-width:max-content;' + panelLook;
+        } else {
+          // Fallback also uses position:fixed (coords set per-open from the
+          // trigger rect) so it escapes the grid's overflow clipping just like
+          // the popover — last-row menus are no longer cut off on browsers
+          // without the Popover API.
+          panel.style.cssText = 'display:none;position:fixed;margin:0;inset:auto;min-width:max-content;' + panelLook;
+        }
+        const closePanel = () => {
+          if (usePopover) { if (panel.matches(':popover-open')) panel.hidePopover(); }
+          else { panel.style.display = 'none'; panel.classList.remove('dg-action-panel-open'); }
+        };
+        // Shared positioning (fixed coords from the trigger's viewport rect);
+        // used by both the popover (on beforetoggle) and the fallback (on open).
+        const positionPanel = () => {
+          const r = btn.getBoundingClientRect();
+          panel.style.left = 'auto';
+          panel.style.right = (window.innerWidth - r.right) + 'px';
+          if (r.bottom > window.innerHeight * 0.6) {
+            panel.style.top = 'auto';
+            panel.style.bottom = (window.innerHeight - r.top + 2) + 'px';
+          } else {
+            panel.style.bottom = 'auto';
+            panel.style.top = (r.bottom + 2) + 'px';
+          }
+        };
         items.forEach(item => {
           const mi = document.createElement('button');
           mi.type = 'button'; mi.tabIndex = -1;
@@ -1358,19 +1506,30 @@ class ClosureDataGrid extends HTMLElement {
           mi.title = item.getAttribute('data-action') || '';
           mi.style.cssText = 'display:flex;align-items:center;justify-content:center;padding:8px 12px;cursor:pointer;font-size:16px;border:none;border-bottom:1px solid var(--dg-border,#e5e7eb);background:none;width:100%;';
           mi.addEventListener('click', (e) => {
-            e.stopPropagation(); panel.style.display = 'none';
+            e.stopPropagation(); closePanel();
             this._selectRow(i);
             this._executeAction(this._actionDefFromElement(item));
           });
           panel.appendChild(mi);
         });
         if (panel.lastChild) panel.lastChild.style.borderBottom = 'none';
-        btn.addEventListener('click', (e) => {
-          e.stopPropagation(); this._selectRow(i);
-          const open = panel.style.display === 'block';
-          document.querySelectorAll('.dg-action-panel-open').forEach(p => { p.style.display = 'none'; p.classList.remove('dg-action-panel-open'); });
-          if (!open) { panel.style.display = 'block'; panel.classList.add('dg-action-panel-open'); }
-        });
+        if (usePopover) {
+          // The invoker drives the toggle natively; the browser also gives
+          // us light-dismiss (outside click / Esc) and auto-closes any other
+          // open action menu for free.
+          btn.popoverTargetElement = panel;
+          panel.addEventListener('beforetoggle', (e) => {
+            if (e.newState === 'open') positionPanel();
+          });
+          btn.addEventListener('click', () => { this._selectRow(i); });
+        } else {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation(); this._selectRow(i);
+            const open = panel.style.display === 'block';
+            document.querySelectorAll('.dg-action-panel-open').forEach(p => { p.style.display = 'none'; p.classList.remove('dg-action-panel-open'); });
+            if (!open) { panel.style.display = 'block'; panel.classList.add('dg-action-panel-open'); positionPanel(); }
+          });
+        }
         wrap.appendChild(btn); wrap.appendChild(panel);
         td.appendChild(wrap);
       } else if (col.type === 'btn') {
@@ -1565,6 +1724,11 @@ class ClosureDataGrid extends HTMLElement {
       const fillIdxs = this._cols
         .map((gridCol, idx) => gridCol.fill ? idx : -1)
         .filter(idx => idx >= 0);
+      // Batch-measure every header + body cell once (single reflow) so the
+      // per-column _cellContentWidth calls below read from cache.
+      this._widthCache = this._measureCellWidths(
+        ths.concat(Array.from(this._bodyTable.querySelectorAll('tbody td')))
+      );
       const widths = this._cols.map((gridCol, idx) => {
         const cssWidth = this._cssLength(gridCol.width);
         if (cssWidth) return cssWidth;
@@ -1576,11 +1740,21 @@ class ClosureDataGrid extends HTMLElement {
         return sum + parseFloat(width);
       }, 0);
       const fillContentWidth = fillIdxs.reduce((sum, idx) => sum + this._autoFitColumnWidth(idx, ths, this._cols[idx]), 0);
+      this._widthCache = null; // measurements consumed; don't hold stale cell refs
       const gridWidth = Math.floor(this._bodyWrap.clientWidth || this._wrap.clientWidth || this.clientWidth);
       const fillAvailable = Math.max(0, gridWidth - fixedWidth);
       if (fillIdxs.length) {
-        const fillWidth = Math.ceil(Math.max(fillContentWidth, fillAvailable) / fillIdxs.length);
-        fillIdxs.forEach(idx => { widths[idx] = fillWidth + 'px'; });
+        // Distribute the exact total across fill columns (floor + spread the
+        // leftover pixels) so the sum never exceeds the available width.
+        // Math.ceil on every column could overshoot by up to (n-1)px and
+        // trigger a spurious horizontal scrollbar in auto-fit mode.
+        // TODO: a separate ~2px horizontal overflow remains even when the fill
+        // sum is exact — it comes from the .dg-wrap / cell borders, which the
+        // available-width calc doesn't subtract. Minor; not the rounding bug.
+        const total = Math.max(fillContentWidth, fillAvailable);
+        const base = Math.floor(total / fillIdxs.length);
+        let extra = total - base * fillIdxs.length;
+        fillIdxs.forEach(idx => { widths[idx] = (base + (extra-- > 0 ? 1 : 0)) + 'px'; });
       }
       const tableWidth = widths.reduce((sum, width) => {
         return width && width.endsWith('px') ? sum + parseFloat(width) : sum;
@@ -1846,6 +2020,25 @@ class ClosureDataGrid extends HTMLElement {
       this._applyFilterMode();
     });
 
+    // Refresh whole grid — declarative trigger (e.g. a `dispatch-event` in a
+    // response, or `<signal-event name="refresh" target-id="...">`). The
+    // `e.target !== this` guard ignores same-name events bubbling from a child.
+    this.addEventListener('refresh', e => {
+      if (e.target !== this) return;
+      this.refresh(e.detail || {}); // detail.goto scrolls back to a row
+    });
+
+    // Refresh just the selected row in place from server-provided data —
+    // no full reload, keeps scroll/selection. Row comes as `data-row` JSON,
+    // or as the remaining `data-*` fields merged onto the current row.
+    this.addEventListener('refresh-row', e => {
+      if (e.target !== this) return;
+      const d = e.detail || {};
+      let row = d;
+      if (d.row) { try { row = JSON.parse(d.row); } catch (err) { return; } }
+      this.updateRow(row);
+    });
+
     // Header click
     if (this._headTable) {
       this._headTable.addEventListener('click', e => {
@@ -1896,6 +2089,8 @@ class ClosureDataGrid extends HTMLElement {
         }
         document.body.appendChild(form);
         form.submit();
+        form.remove(); // drop the node post-submit so it can't orphan in
+                       // <body> on a download / new-tab action
         break;
       }
       case 'dialog': {
@@ -1909,8 +2104,11 @@ class ClosureDataGrid extends HTMLElement {
         .then(html => {
           var lb = document.createElement('closure-lightbox');
           document.body.appendChild(lb);
-          lb.showResponse(html);
-          lb.addEventListener('lb-close', () => lb.remove(), { once: true });
+          if (lb.showResponse(html)) {
+            lb.addEventListener('lb-close', () => lb.remove(), { once: true });
+          } else {
+            lb.remove(); // a listener cancelled lb-response → never opened; don't orphan the node
+          }
         })
         .catch(err => console.error('dialog fetch error:', err));
         break;
@@ -1978,6 +2176,29 @@ class ClosureDataGrid extends HTMLElement {
     const ps = this.pageSize;
     const absIdx = (this._currentPage - 1) * ps + this._selectedIdx;
     return this._rows[absIdx] || null;
+  }
+
+  // ---
+  // Re-render the currently selected row in place from new data (merged onto
+  // the existing row) — for edit-in-dialog flows where the server returns the
+  // updated row. Updates one <tr> without a full reload, preserving scroll and
+  // selection. No-op when nothing is selected; for broader changes use
+  // refresh(). Off-page / by-key updates are out of scope (use refresh()).
+  updateRow(data) {
+    if (this._selectedIdx < 0 || !data || typeof data !== 'object') return;
+    const i = this._selectedIdx; // page-relative index of the visible row
+    const absIdx = this._isDynamic ? i : (this._currentPage - 1) * this.pageSize + i;
+    if (!this._rows || !this._rows[absIdx]) return;
+    const merged = { ...this._rows[absIdx], ...data };
+    this._rows[absIdx] = merged;
+    const oldTr = this._tbody.querySelectorAll('tr')[i];
+    if (!oldTr) return;
+    const wasFocused = oldTr.classList.contains('focused');
+    const tr = this._createRow(merged, i);
+    tr.addEventListener('click', () => this._selectRow(i));
+    if (wasFocused) tr.classList.add('focused');
+    oldTr.replaceWith(tr);
+    this._syncColWidths(); // re-fit columns (auto-fit only; no-op otherwise)
   }
 
   // ---

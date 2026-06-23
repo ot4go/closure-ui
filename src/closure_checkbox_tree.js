@@ -721,6 +721,12 @@ class CheckboxTree extends HTMLElement {
     return JSON.stringify(this.getValues());
   }
 
+  // Setter so a server `set-value` (el.value = "[[path,v,vt],…]") actually
+  // restores the tree instead of silently no-opping on a getter-only property.
+  set value(v) {
+    try { this.setValues(typeof v === 'string' ? JSON.parse(v) : v); } catch (e) {}
+  }
+
   // ---
   checkAll() {
     this._treeRoot.querySelectorAll('input[type="checkbox"]').forEach(function(cb) {

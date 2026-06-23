@@ -161,6 +161,8 @@ class ClosureBtnItem extends HTMLElement {
         }
         document.body.appendChild(form);
         form.submit();
+        form.remove(); // drop the node post-submit so it can't orphan in
+                       // <body> on a download / new-tab action
       });
     } else {
       a.addEventListener('click', (e) => {

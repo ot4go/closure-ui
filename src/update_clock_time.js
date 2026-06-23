@@ -19,6 +19,7 @@ The displayed time uses the **server's** timezone, not the browser's.
 | `nodate` | hide the date row |
 | `notime` | hide the time row |
 | `dot`    | replace the "Server Time" label with a tiny `●` indicator; combined with `small`, renders time + dot inline |
+| `no-local` | don't show the local clock while syncing — hold the `--:-- --` placeholder (size preserved) until the server time arrives, then start ticking. Avoids the brief local-then-server "jump" |
 
 ## Format
 
@@ -55,6 +56,13 @@ Consumed (with fallbacks):
 > **Note:** set `window.mdclock_skip_sync_time = 1` early (before the
 > element connects) to disable the network call entirely — useful in
 > mockups and in tests where `/api/time` is not served.
+
+> **Note:** with `no-local`, the first render is **deferred** until the
+> sync resolves. If the sync **fails**, `_syncTime` still resolves (falling
+> back to the local clock), so the clock starts then — `no-local` only
+> suppresses the transient local-time flash on a successful sync, it does
+> not leave a permanently dead clock. With `mdclock_skip_sync_time` it
+> starts immediately (there is no round-trip to wait for).
 
 > **Note:** font sizes also break responsively at viewport widths of
 > 768px (36px) and 500px (28px) via `@media` rules.
@@ -129,7 +137,7 @@ class ClockDisplay extends HTMLElement {
     this._build();
   }
 
-  static get observedAttributes() { return ['small', 'nodate', 'notime', 'dot']; }
+  static get observedAttributes() { return ['small', 'nodate', 'notime', 'dot', 'no-local']; }
 
   attributeChangedCallback() {
     // _elSource always exists after a build; _elTime is null with `notime`
@@ -158,9 +166,20 @@ class ClockDisplay extends HTMLElement {
     this._dot      = dot;
 
     clearInterval(this._timer);
-    this._syncTime();
-    this._updateClock();
-    this._timer = setInterval(() => this._updateClock(), 1000);
+    if (this.hasAttribute('no-local')) {
+      // Hold the --:-- placeholder (size preserved, no layout shift) until the
+      // server time arrives, then start ticking — no flash of local time.
+      // _syncTime resolves even on failure (it falls back to local), so the
+      // clock still starts; it just waits for the round-trip first.
+      this._syncTime().then(() => {
+        this._updateClock();
+        this._timer = setInterval(() => this._updateClock(), 1000);
+      });
+    } else {
+      this._syncTime();
+      this._updateClock();
+      this._timer = setInterval(() => this._updateClock(), 1000);
+    }
   }
 
   async _syncTime() {

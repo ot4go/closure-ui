@@ -19,19 +19,58 @@ function applyWidthRange(el) {
 customElements.define('signal-event', class extends HTMLElement {
   connectedCallback() {
     this.style.display = 'none';
+    if (!this.getAttribute('name')) { this.remove(); return; }
+    // `delay="N"` (ms) turns this into a declarative timer bound to the node:
+    // the event fires N ms after connect. Without it, fires immediately (in
+    // document order, like any other directive — a same-response `redirect`
+    // would lose a still-pending dispatch).
+    const delay = parseInt(this.getAttribute('delay'), 10);
+    if (delay > 0) this._timer = setTimeout(() => this._fire(), delay);
+    else this._fire();
+  }
+
+  disconnectedCallback() {
+    // By default the timer lives and dies with the node: removing a pending
+    // <signal-event> (or replacing its container) cancels the dispatch.
+    // `no-cancel` opts out — the delayed signal still fires after removal.
+    if (this._timer && !this.hasAttribute('no-cancel')) {
+      clearTimeout(this._timer);
+      this._timer = null;
+    }
+  }
+
+  _fire() {
+    this._timer = null;
     const name = this.getAttribute('name');
-    if (!name) { this.remove(); return; }
     const detail = {};
     for (const attr of this.attributes) {
       if (attr.name.startsWith('data-')) {
         detail[attr.name.slice(5)] = attr.value;
       }
     }
-    document.dispatchEvent(new CustomEvent(name, {
-      detail,
-      bubbles: this.hasAttribute('bubbles')
-    }));
+    const target = this._resolveTarget();
+    if (target) {
+      target.dispatchEvent(new CustomEvent(name, {
+        detail,
+        bubbles: this.hasAttribute('bubbles')
+      }));
+    }
     this.remove();
+  }
+
+  // target-id (resolved at fire time) dispatches on that element; a missing
+  // id warns and skips. Otherwise the default broadcast target is document.
+  _resolveTarget() {
+    const id = this.getAttribute('target-id');
+    if (id) {
+      const el = document.getElementById(id);
+      if (!el) {
+        console.warn('signal-event: target-id "' + id + '" not found; event "' +
+          this.getAttribute('name') + '" not dispatched');
+      }
+      return el;
+    }
+    return document;
   }
 });
 
@@ -103,7 +142,7 @@ class ClockDisplay extends HTMLElement {
     this._build();
   }
 
-  static get observedAttributes() { return ['small', 'nodate', 'notime', 'dot']; }
+  static get observedAttributes() { return ['small', 'nodate', 'notime', 'dot', 'no-local']; }
 
   attributeChangedCallback() {
     // _elSource always exists after a build; _elTime is null with `notime`
@@ -132,9 +171,20 @@ class ClockDisplay extends HTMLElement {
     this._dot      = dot;
 
     clearInterval(this._timer);
-    this._syncTime();
-    this._updateClock();
-    this._timer = setInterval(() => this._updateClock(), 1000);
+    if (this.hasAttribute('no-local')) {
+      // Hold the --:-- placeholder (size preserved, no layout shift) until the
+      // server time arrives, then start ticking — no flash of local time.
+      // _syncTime resolves even on failure (it falls back to local), so the
+      // clock still starts; it just waits for the round-trip first.
+      this._syncTime().then(() => {
+        this._updateClock();
+        this._timer = setInterval(() => this._updateClock(), 1000);
+      });
+    } else {
+      this._syncTime();
+      this._updateClock();
+      this._timer = setInterval(() => this._updateClock(), 1000);
+    }
   }
 
   async _syncTime() {
@@ -258,6 +308,10 @@ class CredentialPwd extends HTMLElement {
     if (this._hasValue) {
       this._display.textContent = '\u25CF\u25CF\u25CF\u25CF\u25CF\u25CF';
     }
+    // clear-behavior controls WHEN a has-value placeholder is wiped:
+    // 'edit' (default, soft) on the first keystroke / paste; 'focus'
+    // (aggressive) the moment the field gains focus.
+    this._clearOnFocus = this.getAttribute('clear-behavior') === 'focus';
 
     this._input.addEventListener('invalid', (e) => {
       e.preventDefault();
@@ -265,9 +319,11 @@ class CredentialPwd extends HTMLElement {
     });
 
     this.addEventListener('focus', () => {
-      // Only the first focus on a has-value instance wipes the bullet
-      // placeholder — refocusing must not discard what the user typed
-      if (this._hasValue) {
+      // Aggressive mode (clear-behavior="focus") only: wipe the existing-
+      // password placeholder on focus. Soft mode (default) defers the wipe
+      // to the first keystroke / paste (see _onKeyDown / _onPaste), so
+      // accidental focus or tabbing through never blanks it.
+      if (this._hasValue && this._clearOnFocus) {
         this._hasValue = false;
         this._clear();
       }
@@ -302,6 +358,7 @@ class CredentialPwd extends HTMLElement {
   _onPaste(e) {
     const text = e.clipboardData.getData('text');
     if (!text) return;
+    if (this._hasValue) this._hasValue = false; // first edit clears the placeholder state
     this._value = text;
     this._input.value = this._value;
     this.pasted = true;
@@ -313,28 +370,33 @@ class CredentialPwd extends HTMLElement {
   _onKeyDown(e) {
     if (e.key === 'Tab') return;
     if (e.key === 'Backspace') {
+      // Soft mode: first edit clears the has-value placeholder (no-op in
+      // aggressive mode, where focus already cleared it).
+      if (this._hasValue) { this._hasValue = false; this._value = ''; }
       if (this.pasted) { this.pasted = false; this._value = ''; }
       this._value = this._value.slice(0, -1);
     } else if (e.key === 'Enter') {
-      // Priority: explicit enter-btn-id → enclosing form submit →
-      // advance focus. Covers dialogs where the action button lives
-      // outside the form.
+      // Priority: explicit enter-btn-id → the form's default action button
+      // → plain form submit → advance focus. We CLICK the default button
+      // rather than calling form.requestSubmit(): requestSubmit() carries no
+      // submitter and is not equivalent to a real button click (and a
+      // <closure-btn> is an <a>, not a type=submit) — that mismatch is why
+      // Enter could "do nothing" on a form where clicking the button works.
       const btnId = this.getAttribute('enter-btn-id');
       if (btnId) {
         const btn = document.getElementById(btnId);
-        if (btn) {
-          e.preventDefault();
-          // closure-btn handles clicks on its inner shadow anchor (which
-          // enforces disabled/readonly); plain elements take a host click
-          const anchor = btn.shadowRoot && btn.shadowRoot.querySelector('a');
-          if (anchor) anchor.click();
-          else btn.click();
-          return;
-        }
+        if (btn) { e.preventDefault(); this._activate(btn); return; }
       }
       const form = this.closest('form');
       if (form) {
         e.preventDefault();
+        // Behave like a native <input type=password>: Enter performs the
+        // form's implicit submission — click the default submit button if
+        // there is one, else submit the form directly. No closure coupling.
+        const defBtn = form.querySelector(
+          'button[type="submit"], input[type="submit"], button:not([type])'
+        );
+        if (defBtn) { defBtn.click(); return; }
         if (form.requestSubmit) form.requestSubmit();
         else form.submit();
       } else {
@@ -342,6 +404,8 @@ class CredentialPwd extends HTMLElement {
       }
       return;
     } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      // Soft mode: first edit clears the has-value placeholder.
+      if (this._hasValue) { this._hasValue = false; this._value = ''; }
       if (this.pasted) { this.pasted = false; this._value = ''; }
       this._value += e.key;
     } else {
@@ -354,13 +418,26 @@ class CredentialPwd extends HTMLElement {
   }
 
   _focusNext() {
-    var focusables = Array.from(document.querySelectorAll(
+    // Scope the walk to the nearest container (dialog / lightbox / form) so
+    // Enter never jumps focus out of the current context (e.g. into another
+    // open dialog). Falls back to the whole document when there is none.
+    var scope = this.closest('dialog, [role="dialog"], closure-lightbox, form') || document;
+    var focusables = Array.from(scope.querySelectorAll(
       'input, select, textarea, button, a[href], [tabindex]'
     )).filter(function(el) {
       return el.tabIndex >= 0 && !el.disabled && el.offsetParent !== null;
     });
     var idx = focusables.indexOf(this);
     if (idx >= 0 && idx + 1 < focusables.length) focusables[idx + 1].focus();
+  }
+
+  // Activate an `enter-btn-id` target: a <closure-btn> handles the click on
+  // its inner shadow anchor (which enforces disabled/readonly); any plain
+  // element takes a host-level click.
+  _activate(btn) {
+    const anchor = btn.shadowRoot && btn.shadowRoot.querySelector('a');
+    if (anchor) anchor.click();
+    else btn.click();
   }
 
   // ---
@@ -414,7 +491,9 @@ class BtnGrid extends HTMLElement {
   }
 
   _render() {
-    const cols = this.getAttribute('cols') || '3';
+    // Sanitize to a positive integer: a junk value (e.g. cols="banana")
+    // would otherwise emit `repeat(banana, 1fr)` and break the layout.
+    const cols = Math.max(1, parseInt(this.getAttribute('cols'), 10) || 3);
     // no-icon implies compact text-only buttons: the card sizing
     // (110px min-height, 28px padding) is designed around the icon
     const noIcon = this.hasAttribute('no-icon')
@@ -599,7 +678,15 @@ var ClosureResponse = {
       targets.forEach(function(el) { el.innerHTML = value; });
       break;
     case 'set-value':
-      targets.forEach(function(el) { el.value = value; });
+      targets.forEach(function(el) {
+        // Native checkbox/radio toggle via .checked; .value alone would
+        // not change their checked state. Truthy = "1"/"true"/"on".
+        if (el.type === 'checkbox' || el.type === 'radio') {
+          el.checked = (value === '1' || value === 'true' || value === 'on');
+        } else {
+          el.value = value;
+        }
+      });
       break;
     case 'set-attribute':
       targets.forEach(function(el) { el.setAttribute(key, value); });
@@ -810,6 +897,14 @@ var ClosureResponse = {
 
 class TargetClosure extends HTMLElement {
   connectedCallback() {
+    // Re-arm the window-level beforeunload guard on EVERY connect: a SPA that
+    // detaches and re-attaches the closure would otherwise lose it (the heavy
+    // init below is gated by _initialized, and element-level listeners survive
+    // re-attachment — but a window listener does not). addEventListener dedupes
+    // by (type, listener), so re-adding the same bound handler is a no-op.
+    if (!this._boundBeforeUnload) this._boundBeforeUnload = this._onBeforeUnload.bind(this);
+    window.addEventListener('beforeunload', this._boundBeforeUnload);
+
     if (this._initialized) return;
     this._initialized = true;
     this.style.display = 'contents';
@@ -887,10 +982,6 @@ class TargetClosure extends HTMLElement {
       if (e.target.closest('target-closure') === this) this._markDirty();
     });
 
-    // beforeunload
-    this._boundBeforeUnload = this._onBeforeUnload.bind(this);
-    window.addEventListener('beforeunload', this._boundBeforeUnload);
-
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', () => { this._updateDirtyVisibility(); this._applyEditMode(); }, { once: true });
     } else {
@@ -908,6 +999,13 @@ class TargetClosure extends HTMLElement {
     var tag = tagName.toLowerCase();
     if (!this._tagSubscribers[tag]) this._tagSubscribers[tag] = [];
     this._tagSubscribers[tag].push(obj);
+  }
+
+  unsubscribeTag(tagName, obj) {
+    var subs = this._tagSubscribers[tagName.toLowerCase()];
+    if (!subs) return;
+    var i = subs.indexOf(obj);
+    if (i >= 0) subs.splice(i, 1);
   }
 
   dispatchTags(tags) {
@@ -976,6 +1074,10 @@ class TargetClosure extends HTMLElement {
 
   _fetchAndReplace(url, opts) {
     var self = this;
+    // In-flight guard: a captured submit / anchor click must not issue a
+    // second request while the first is open (e.g. a fast double-click).
+    // Mirrors the guard <closure-template> already has for its own posts.
+    if (this._captureInFlight) return;
     opts = opts || {};
     opts.credentials = opts.credentials || 'same-origin';
     var method = (opts.method || 'GET').toUpperCase();
@@ -987,15 +1089,40 @@ class TargetClosure extends HTMLElement {
         delete opts.body;
       }
     }
+    this._captureInFlight = true;
     fetch(url, opts).then(function(r) {
       // Error bodies (e.g. validation HTML on 4xx) are still rendered
       return r.text();
     }).then(function(html) {
+      self._captureInFlight = false;
+      // Ghost-response: the closure was detached mid-flight (SPA tore it down).
+      // loadContent runs ClosureResponse, which mutates the live global DOM, so
+      // by default we DISCARD; the app can listen for `closure-ghost-response`
+      // (on document) and preventDefault() to process it anyway.
+      if (!self.isConnected) {
+        var ghost = new CustomEvent('closure-ghost-response', {
+          cancelable: true,
+          detail: { url: url, html: html, source: self },
+        });
+        if (document.dispatchEvent(ghost)) return; // not prevented → discard
+      }
       // loadContent re-wires templates/forms and runs closure-response
       // directives — a bare innerHTML would insert them inert
       self.loadContent(html);
     }).catch(function(err) {
-      self.innerHTML = '<p style="color:red;">Connection error: ' + err.message + '</p>';
+      self._captureInFlight = false;
+      if (!self.isConnected) return; // detached — nothing to surface to
+      // Don't wipe the closure body on a transient network error — it holds
+      // the user's half-filled form. Surface a cancelable event so the app
+      // can show a toast / offer a retry; call preventDefault() to take over.
+      // If nobody handles it, the form simply stays put (and is retryable).
+      var ev = new CustomEvent('closure-fetch-error', {
+        bubbles: true,
+        cancelable: true,
+        detail: { url: url, error: err, message: err.message },
+      });
+      var taken = !self.dispatchEvent(ev); // dispatchEvent → false when preventDefault was called
+      if (!taken) console.error('target-closure fetch failed:', err);
     });
   }
 
@@ -1092,6 +1219,10 @@ class TargetClosure extends HTMLElement {
         for (var g = 0; g < groups.length; g++) {
           groups[g].setAttribute('readonly', '');
         }
+        var hands = fields[i].querySelectorAll('fingerprint-hands');
+        for (var h = 0; h < hands.length; h++) {
+          hands[h].setAttribute('readonly', '');
+        }
       }
     });
   }
@@ -1131,6 +1262,16 @@ class ClosureTemplate extends HTMLElement {
     var data = {};
     if (sections.length > 0 && forms.length > 0) {
       data = this._collectData(forms);
+    } else if (forms.length > 0 && !submittedForm) {
+      // Footgun guard: forms were gathered (group-behavior="combine-*") but no
+      // <template-section> declares how to package them, so their fields would
+      // be silently dropped (only the button payload / data-* still goes). This
+      // is by design — sections drive packaging — but warn so the missing
+      // declaration is obvious instead of a silent data black hole.
+      console.warn('closure-template: ' + forms.length + ' form(s) were gathered via ' +
+        'group-behavior but no <template-section> is declared — their fields will ' +
+        'NOT be sent. Declare a <template-section> to package them, or an empty ' +
+        '<template-section> to acknowledge this on purpose and silence the warning.');
     }
 
     // Merge button sections into data (before the form is packaged,
@@ -1195,7 +1336,12 @@ class ClosureTemplate extends HTMLElement {
 
       if (sendBehavior === 'fetch-json') {
         var jsonData = {};
-        new FormData(form).forEach(function(v, k) { jsonData[k] = v; });
+        new FormData(form).forEach(function(v, k) {
+          // Preserve repeated names (checkbox groups, <select multiple>):
+          // collapse to an array instead of keeping only the last value.
+          if (k in jsonData) jsonData[k] = [].concat(jsonData[k], v);
+          else jsonData[k] = v;
+        });
         headers['Content-Type'] = 'application/json';
         fetchOpts.body = JSON.stringify(jsonData);
       } else {
@@ -1221,6 +1367,9 @@ class ClosureTemplate extends HTMLElement {
     } else {
       document.body.appendChild(form);
       form.submit();
+      form.remove(); // submit is already initiated; drop the node so it
+                     // can't orphan in <body> when the action is a
+                     // download or opens a new tab (no navigation).
     }
   }
 
@@ -1359,7 +1508,10 @@ class ClosureTemplate extends HTMLElement {
       if (!data[section]) data[section] = {};
       var target = data[section];
       new FormData(form).forEach(function(value, key) {
-        target[key] = value;
+        // Preserve repeated names (checkbox groups, <select multiple>):
+        // collapse to an array rather than overwriting with the last value.
+        if (key in target) target[key] = [].concat(target[key], value);
+        else target[key] = value;
       });
     });
     return data;
@@ -1399,11 +1551,17 @@ class ClosureTemplate extends HTMLElement {
           var fields = sectionData[section];
           var pfx = self._buildPrefix(section, noPrefix, separator);
           for (var field in fields) {
-            var hidden = document.createElement('input');
-            hidden.type = 'hidden';
-            hidden.name = pfx + field;
-            hidden.value = fields[field];
-            form.appendChild(hidden);
+            // Array values (repeated names) emit one hidden input each, so
+            // the native `name=a&name=b` semantics survive the repackaging.
+            var fval = fields[field];
+            var vals = Array.isArray(fval) ? fval : [fval];
+            for (var vi = 0; vi < vals.length; vi++) {
+              var hidden = document.createElement('input');
+              hidden.type = 'hidden';
+              hidden.name = pfx + field;
+              hidden.value = vals[vi];
+              form.appendChild(hidden);
+            }
           }
         }
       } else {
@@ -1435,6 +1593,20 @@ class ClosureTemplate extends HTMLElement {
   _handleResponse(response, responseAttrs, role) {
     var self = this;
     response.text().then(function(html) {
+      // Ghost-response: the template (and its closure) was detached while the
+      // request was in flight. ClosureResponse mutates the *live* global DOM
+      // (getElementById/querySelector), so a dead component could pop
+      // lightboxes / redirect out of nowhere. Default is to DISCARD; the app
+      // can listen for `closure-ghost-response` (on document) and
+      // preventDefault() to process it anyway.
+      if (!self.isConnected) {
+        var ghost = new CustomEvent('closure-ghost-response', {
+          cancelable: true,
+          detail: { html: html, status: response.status, ok: response.ok, role: role, source: self },
+        });
+        if (document.dispatchEvent(ghost)) return; // not prevented → discard
+        // preventDefault() called → fall through and process it anyway
+      }
       
       self._clearLoading(responseAttrs);
 
@@ -1958,6 +2130,8 @@ class ClosureBtn extends HTMLElement {
             }
             document.body.appendChild(form);
             form.submit();
+            form.remove(); // drop the node post-submit so it can't orphan
+                           // in <body> on a download / new-tab action
           });
         } else {
           a.addEventListener('click', (e) => {
@@ -1997,6 +2171,11 @@ class ClosureBtn extends HTMLElement {
     const value = this.getAttribute('value') || '';
     this._resolveTargets().forEach(el => {
       el.value = value;
+      // Assigning .value in JS does NOT fire input/change, so dirty-state
+      // tracking (target-closure listens for them) and any other listeners
+      // would miss the edit. Dispatch both, as a real user edit would.
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
     });
     return true;
   }
@@ -2190,6 +2369,8 @@ class ClosureBtnItem extends HTMLElement {
         }
         document.body.appendChild(form);
         form.submit();
+        form.remove(); // drop the node post-submit so it can't orphan in
+                       // <body> on a download / new-tab action
       });
     } else {
       a.addEventListener('click', (e) => {
@@ -2345,6 +2526,16 @@ class ClosureLightbox extends HTMLElement {
     this._closure.subscribeTag('lightbox-response-item', this);
   }
 
+  disconnectedCallback() {
+    // Defensive lifecycle cleanup: drop our tag subscription on removal. Today
+    // the closure is our own inner one and dies with us (no real leak), but
+    // unsubscribing keeps subscribe/unsubscribe symmetric and is robust if the
+    // lightbox is ever pointed at a longer-lived (e.g. page-level) closure.
+    if (this._closure && this._closure.unsubscribeTag) {
+      this._closure.unsubscribeTag('lightbox-response-item', this);
+    }
+  }
+
   onClosureTag(tag, el) {
     if (tag !== 'lightbox-response-item') return;
     var type = el.getAttribute('type') || '';
@@ -2409,7 +2600,9 @@ class ClosureLightbox extends HTMLElement {
       if (this._closure) this._closure.loadContent(html);
       else this._body.innerHTML = html;
       if (!this._dlg.open) this._dlg.showModal();
+      return true;
     }
+    return false; // a listener cancelled lb-response — modal not opened
   }
 
   showError(html) {
@@ -2423,7 +2616,9 @@ class ClosureLightbox extends HTMLElement {
       if (this._closure) this._closure.loadContent(html);
       else this._body.innerHTML = html;
       if (!this._dlg.open) this._dlg.showModal();
+      return true;
     }
+    return false; // a listener cancelled lb-error — modal not opened
   }
 
   setContent(html) {
@@ -3296,13 +3491,28 @@ class ClosureFilterBar extends HTMLElement {
     }
   }
 
+  // Normalised view of the filter values: multi-value (checkbox) fields become
+  // arrays (not a CSV string) so consumers never guess "comma means multi-
+  // select" — which would mangle text values that contain commas. Used by both
+  // the `filter-change` event and the public `values` getter so they agree.
+  _normalizedValues() {
+    const out = { ...this._values };
+    (this._fields || []).forEach(f => {
+      if (f.type === 'checkbox' && typeof out[f.name] === 'string' && out[f.name] !== '') {
+        out[f.name] = out[f.name].split(',');
+      }
+    });
+    return out;
+  }
+
   _dispatch() {
     const targetId = this.getAttribute('target');
     const dest = targetId ? document.getElementById(targetId) : this;
-    if (dest) dest.dispatchEvent(new CustomEvent('filter-change', { detail: { ...this._values }, bubbles: false }));
+    if (!dest) return;
+    dest.dispatchEvent(new CustomEvent('filter-change', { detail: this._normalizedValues(), bubbles: false }));
   }
 
-  get values() { return { ...this._values }; }
+  get values() { return this._normalizedValues(); }
 
   setValues(obj) {
     if (!this._fields) { this._pendingValues = obj; return; } // applied after init
@@ -3563,9 +3773,16 @@ class ClosureDataGrid extends HTMLElement {
           const q = val.toLowerCase();
           const match = Object.values(row).some(v => String(v).toLowerCase().includes(q));
           if (!match) return false;
-        } else if (val.includes(',')) {
-          const vals = val.split(',');
-          if (!vals.includes(String(row[key] || ''))) return false;
+        } else if (Array.isArray(val)) {
+          // Multi-select: match if any selected value equals the cell — or, when
+          // the cell is itself an array (e.g. a tags column from a JSON source),
+          // if the two intersect. (Was `val.includes(',')`, which also mis-split
+          // text like "García, Juan".)
+          const cell = row[key];
+          const cellVals = Array.isArray(cell)
+            ? cell.map(String)
+            : [String(cell == null ? '' : cell)];
+          if (!val.some(v => cellVals.includes(String(v)))) return false;
         } else {
           if (String(row[key] || '') !== val) return false;
         }
@@ -3596,7 +3813,8 @@ class ClosureDataGrid extends HTMLElement {
         } else if (ns === 'filter') {
           const v = (this._filters || {})[key];
           
-          if (v) params[p.name] = v;
+          // Multi-select arrays go to the server as CSV — wire format unchanged.
+          if (v) params[p.name] = Array.isArray(v) ? v.join(',') : v;
         } else {
           const v = this._resolveExternalBind(parts);
           if (v !== undefined && v !== null && v !== '') params[p.name] = v;
@@ -3684,7 +3902,9 @@ class ClosureDataGrid extends HTMLElement {
         this._eof = res.eof || false;
         if (res.offset !== undefined) {
           const ps = this.pageSize;
-          this._currentPage = Math.floor(res.offset / ps) + 1;
+          // Guard div-by-zero: page-size="all" with an empty result makes
+          // pageSize 0 → res.offset / 0 = NaN → page=NaN on every later fetch.
+          this._currentPage = ps > 0 ? Math.floor(res.offset / ps) + 1 : 1;
         }
         if (res.select_index !== undefined && res.select_index >= 0) {
           this._pendingFocusIdx = res.select_index;
@@ -3742,6 +3962,9 @@ class ClosureDataGrid extends HTMLElement {
     }
     document.body.appendChild(form);
     form.submit();
+    form.remove(); // submit is already initiated; drop the node so it
+                   // can't orphan in <body> — this path may set
+                   // form.target="_blank", which never navigates the page
   }
 
   // ---
@@ -3805,6 +4028,10 @@ class ClosureDataGrid extends HTMLElement {
 
   // ---
   _cellContentWidth(cell) {
+    // Prefer the batched cache (populated by _syncColWidths) so the
+    // per-column auto-fit loop doesn't force a layout flush per cell; fall
+    // back to a one-off measurement when there's no cache.
+    if (this._widthCache && this._widthCache.has(cell)) return this._widthCache.get(cell);
     const cs = getComputedStyle(cell);
     const probe = document.createElement('span');
     probe.style.cssText = [
@@ -3822,6 +4049,40 @@ class ClosureDataGrid extends HTMLElement {
     const width = Math.ceil(probe.getBoundingClientRect().width + pad + 2);
     probe.remove();
     return width;
+  }
+
+  // ---
+  // Measure the text width of many cells with a SINGLE layout flush. The
+  // previous path (append → getBoundingClientRect → remove, per cell, inside
+  // the per-column loop) interleaved DOM writes with reads and forced one
+  // reflow per cell — O(columns × rows) layout thrashing. Here every probe
+  // goes into one offscreen container inserted once; the first read flushes
+  // layout once and the rest are free (no mutation between reads). Returns a
+  // Map(cell -> width) consumed by _cellContentWidth.
+  _measureCellWidths(cells) {
+    const cache = new Map();
+    if (!cells.length) return cache;
+    const container = document.createElement('div');
+    // nowrap container + inline-block probes: each probe shrinks to its own
+    // content width (a display:block child would stretch to the container).
+    container.style.cssText = 'position:fixed;left:-10000px;top:-10000px;visibility:hidden;white-space:nowrap;';
+    const probes = [];
+    const pads = [];
+    for (const cell of cells) {
+      const cs = getComputedStyle(cell);
+      const probe = document.createElement('span');
+      probe.style.cssText = 'display:inline-block;white-space:nowrap;font:' + cs.font + ';letter-spacing:' + cs.letterSpacing + ';';
+      probe.textContent = cell.textContent || '';
+      container.appendChild(probe);
+      probes.push(probe);
+      pads.push(parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight));
+    }
+    document.body.appendChild(container); // single insertion → single layout invalidation
+    for (let i = 0; i < cells.length; i++) {
+      cache.set(cells[i], Math.ceil(probes[i].getBoundingClientRect().width + pads[i] + 2));
+    }
+    container.remove();
+    return cache;
   }
 
   // ---
@@ -4148,6 +4409,14 @@ class ClosureDataGrid extends HTMLElement {
     const target = this._fillTargetElement();
     if (!target && (!fillSelector || parseInt(fillSelector, 10) > 0)) return;
     if (!target) {
+      // The target may simply be rendered later (deferred), so we retry — but
+      // a typo'd selector (e.g. fill-stop="#nope") would never match and loop
+      // at 60fps forever. Cap the retries (~1s) and warn instead of burning CPU.
+      if ((this._fillObserverRetries = (this._fillObserverRetries || 0) + 1) > 60) {
+        console.warn('closure-data-grid: fill target "' + fillSelector +
+          '" not found after ~1s — giving up (check fill-stop / fill-reserve).');
+        return;
+      }
       if (!this._fillObserverRetry) {
         this._fillObserverRetry = requestAnimationFrame(() => {
           this._fillObserverRetry = 0;
@@ -4156,6 +4425,7 @@ class ClosureDataGrid extends HTMLElement {
       }
       return;
     }
+    this._fillObserverRetries = 0; // target found — reset for any future re-setup
     this._fillResizeObserver = new ResizeObserver(() => {
       if (this._fillResizeRaf) cancelAnimationFrame(this._fillResizeRaf);
       this._fillResizeRaf = requestAnimationFrame(() => this._refreshAutoLayout());
@@ -4393,7 +4663,44 @@ class ClosureDataGrid extends HTMLElement {
         btn.type = 'button'; btn.textContent = '☰'; btn.tabIndex = -1;
         btn.style.cssText = 'border:1px solid var(--dg-border,#e5e7eb);border-radius:4px;background:#fff;cursor:pointer;font-size:14px;padding:2px 6px;';
         const panel = document.createElement('div');
-        panel.style.cssText = 'display:none;position:absolute;right:0;top:100%;margin-top:2px;background:#fff;border:1px solid var(--dg-border,#e5e7eb);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:100;overflow:hidden;';
+        // The Popover API renders the menu in the top layer, so it escapes
+        // the grid body's overflow:auto clipping — the menu on the last
+        // rows is no longer cut off. Where unsupported, the fallback uses
+        // position:fixed (same trigger-rect positioning), which also escapes
+        // the clipping — only the native light-dismiss niceties are lost.
+        const usePopover = typeof panel.showPopover === 'function'
+          && Object.prototype.hasOwnProperty.call(HTMLElement.prototype, 'popover');
+        const panelLook = 'background:#fff;border:1px solid var(--dg-border,#e5e7eb);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:100;overflow:hidden;';
+        if (usePopover) {
+          panel.popover = 'auto';
+          // No inline display: the UA keeps [popover] hidden until open.
+          // Position is fixed and recomputed from the trigger on each open.
+          panel.style.cssText = 'position:fixed;margin:0;inset:auto;min-width:max-content;' + panelLook;
+        } else {
+          // Fallback also uses position:fixed (coords set per-open from the
+          // trigger rect) so it escapes the grid's overflow clipping just like
+          // the popover — last-row menus are no longer cut off on browsers
+          // without the Popover API.
+          panel.style.cssText = 'display:none;position:fixed;margin:0;inset:auto;min-width:max-content;' + panelLook;
+        }
+        const closePanel = () => {
+          if (usePopover) { if (panel.matches(':popover-open')) panel.hidePopover(); }
+          else { panel.style.display = 'none'; panel.classList.remove('dg-action-panel-open'); }
+        };
+        // Shared positioning (fixed coords from the trigger's viewport rect);
+        // used by both the popover (on beforetoggle) and the fallback (on open).
+        const positionPanel = () => {
+          const r = btn.getBoundingClientRect();
+          panel.style.left = 'auto';
+          panel.style.right = (window.innerWidth - r.right) + 'px';
+          if (r.bottom > window.innerHeight * 0.6) {
+            panel.style.top = 'auto';
+            panel.style.bottom = (window.innerHeight - r.top + 2) + 'px';
+          } else {
+            panel.style.bottom = 'auto';
+            panel.style.top = (r.bottom + 2) + 'px';
+          }
+        };
         items.forEach(item => {
           const mi = document.createElement('button');
           mi.type = 'button'; mi.tabIndex = -1;
@@ -4401,19 +4708,30 @@ class ClosureDataGrid extends HTMLElement {
           mi.title = item.getAttribute('data-action') || '';
           mi.style.cssText = 'display:flex;align-items:center;justify-content:center;padding:8px 12px;cursor:pointer;font-size:16px;border:none;border-bottom:1px solid var(--dg-border,#e5e7eb);background:none;width:100%;';
           mi.addEventListener('click', (e) => {
-            e.stopPropagation(); panel.style.display = 'none';
+            e.stopPropagation(); closePanel();
             this._selectRow(i);
             this._executeAction(this._actionDefFromElement(item));
           });
           panel.appendChild(mi);
         });
         if (panel.lastChild) panel.lastChild.style.borderBottom = 'none';
-        btn.addEventListener('click', (e) => {
-          e.stopPropagation(); this._selectRow(i);
-          const open = panel.style.display === 'block';
-          document.querySelectorAll('.dg-action-panel-open').forEach(p => { p.style.display = 'none'; p.classList.remove('dg-action-panel-open'); });
-          if (!open) { panel.style.display = 'block'; panel.classList.add('dg-action-panel-open'); }
-        });
+        if (usePopover) {
+          // The invoker drives the toggle natively; the browser also gives
+          // us light-dismiss (outside click / Esc) and auto-closes any other
+          // open action menu for free.
+          btn.popoverTargetElement = panel;
+          panel.addEventListener('beforetoggle', (e) => {
+            if (e.newState === 'open') positionPanel();
+          });
+          btn.addEventListener('click', () => { this._selectRow(i); });
+        } else {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation(); this._selectRow(i);
+            const open = panel.style.display === 'block';
+            document.querySelectorAll('.dg-action-panel-open').forEach(p => { p.style.display = 'none'; p.classList.remove('dg-action-panel-open'); });
+            if (!open) { panel.style.display = 'block'; panel.classList.add('dg-action-panel-open'); positionPanel(); }
+          });
+        }
         wrap.appendChild(btn); wrap.appendChild(panel);
         td.appendChild(wrap);
       } else if (col.type === 'btn') {
@@ -4608,6 +4926,11 @@ class ClosureDataGrid extends HTMLElement {
       const fillIdxs = this._cols
         .map((gridCol, idx) => gridCol.fill ? idx : -1)
         .filter(idx => idx >= 0);
+      // Batch-measure every header + body cell once (single reflow) so the
+      // per-column _cellContentWidth calls below read from cache.
+      this._widthCache = this._measureCellWidths(
+        ths.concat(Array.from(this._bodyTable.querySelectorAll('tbody td')))
+      );
       const widths = this._cols.map((gridCol, idx) => {
         const cssWidth = this._cssLength(gridCol.width);
         if (cssWidth) return cssWidth;
@@ -4619,11 +4942,21 @@ class ClosureDataGrid extends HTMLElement {
         return sum + parseFloat(width);
       }, 0);
       const fillContentWidth = fillIdxs.reduce((sum, idx) => sum + this._autoFitColumnWidth(idx, ths, this._cols[idx]), 0);
+      this._widthCache = null; // measurements consumed; don't hold stale cell refs
       const gridWidth = Math.floor(this._bodyWrap.clientWidth || this._wrap.clientWidth || this.clientWidth);
       const fillAvailable = Math.max(0, gridWidth - fixedWidth);
       if (fillIdxs.length) {
-        const fillWidth = Math.ceil(Math.max(fillContentWidth, fillAvailable) / fillIdxs.length);
-        fillIdxs.forEach(idx => { widths[idx] = fillWidth + 'px'; });
+        // Distribute the exact total across fill columns (floor + spread the
+        // leftover pixels) so the sum never exceeds the available width.
+        // Math.ceil on every column could overshoot by up to (n-1)px and
+        // trigger a spurious horizontal scrollbar in auto-fit mode.
+        // TODO: a separate ~2px horizontal overflow remains even when the fill
+        // sum is exact — it comes from the .dg-wrap / cell borders, which the
+        // available-width calc doesn't subtract. Minor; not the rounding bug.
+        const total = Math.max(fillContentWidth, fillAvailable);
+        const base = Math.floor(total / fillIdxs.length);
+        let extra = total - base * fillIdxs.length;
+        fillIdxs.forEach(idx => { widths[idx] = (base + (extra-- > 0 ? 1 : 0)) + 'px'; });
       }
       const tableWidth = widths.reduce((sum, width) => {
         return width && width.endsWith('px') ? sum + parseFloat(width) : sum;
@@ -4889,6 +5222,25 @@ class ClosureDataGrid extends HTMLElement {
       this._applyFilterMode();
     });
 
+    // Refresh whole grid — declarative trigger (e.g. a `dispatch-event` in a
+    // response, or `<signal-event name="refresh" target-id="...">`). The
+    // `e.target !== this` guard ignores same-name events bubbling from a child.
+    this.addEventListener('refresh', e => {
+      if (e.target !== this) return;
+      this.refresh(e.detail || {}); // detail.goto scrolls back to a row
+    });
+
+    // Refresh just the selected row in place from server-provided data —
+    // no full reload, keeps scroll/selection. Row comes as `data-row` JSON,
+    // or as the remaining `data-*` fields merged onto the current row.
+    this.addEventListener('refresh-row', e => {
+      if (e.target !== this) return;
+      const d = e.detail || {};
+      let row = d;
+      if (d.row) { try { row = JSON.parse(d.row); } catch (err) { return; } }
+      this.updateRow(row);
+    });
+
     // Header click
     if (this._headTable) {
       this._headTable.addEventListener('click', e => {
@@ -4939,6 +5291,8 @@ class ClosureDataGrid extends HTMLElement {
         }
         document.body.appendChild(form);
         form.submit();
+        form.remove(); // drop the node post-submit so it can't orphan in
+                       // <body> on a download / new-tab action
         break;
       }
       case 'dialog': {
@@ -4952,8 +5306,11 @@ class ClosureDataGrid extends HTMLElement {
         .then(html => {
           var lb = document.createElement('closure-lightbox');
           document.body.appendChild(lb);
-          lb.showResponse(html);
-          lb.addEventListener('lb-close', () => lb.remove(), { once: true });
+          if (lb.showResponse(html)) {
+            lb.addEventListener('lb-close', () => lb.remove(), { once: true });
+          } else {
+            lb.remove(); // a listener cancelled lb-response → never opened; don't orphan the node
+          }
         })
         .catch(err => console.error('dialog fetch error:', err));
         break;
@@ -5021,6 +5378,29 @@ class ClosureDataGrid extends HTMLElement {
     const ps = this.pageSize;
     const absIdx = (this._currentPage - 1) * ps + this._selectedIdx;
     return this._rows[absIdx] || null;
+  }
+
+  // ---
+  // Re-render the currently selected row in place from new data (merged onto
+  // the existing row) — for edit-in-dialog flows where the server returns the
+  // updated row. Updates one <tr> without a full reload, preserving scroll and
+  // selection. No-op when nothing is selected; for broader changes use
+  // refresh(). Off-page / by-key updates are out of scope (use refresh()).
+  updateRow(data) {
+    if (this._selectedIdx < 0 || !data || typeof data !== 'object') return;
+    const i = this._selectedIdx; // page-relative index of the visible row
+    const absIdx = this._isDynamic ? i : (this._currentPage - 1) * this.pageSize + i;
+    if (!this._rows || !this._rows[absIdx]) return;
+    const merged = { ...this._rows[absIdx], ...data };
+    this._rows[absIdx] = merged;
+    const oldTr = this._tbody.querySelectorAll('tr')[i];
+    if (!oldTr) return;
+    const wasFocused = oldTr.classList.contains('focused');
+    const tr = this._createRow(merged, i);
+    tr.addEventListener('click', () => this._selectRow(i));
+    if (wasFocused) tr.classList.add('focused');
+    oldTr.replaceWith(tr);
+    this._syncColWidths(); // re-fit columns (auto-fit only; no-op otherwise)
   }
 
   // ---
@@ -5872,6 +6252,12 @@ class CheckboxTree extends HTMLElement {
     return JSON.stringify(this.getValues());
   }
 
+  // Setter so a server `set-value` (el.value = "[[path,v,vt],…]") actually
+  // restores the tree instead of silently no-opping on a getter-only property.
+  set value(v) {
+    try { this.setValues(typeof v === 'string' ? JSON.parse(v) : v); } catch (e) {}
+  }
+
   // ---
   checkAll() {
     this._treeRoot.querySelectorAll('input[type="checkbox"]').forEach(function(cb) {
@@ -6010,6 +6396,12 @@ class CheckboxGroup extends HTMLElement {
   // ---
   get value() {
     return JSON.stringify(this._getData());
+  }
+
+  // Setter so a server `set-value` (el.value = JSON) restores the group instead
+  // of silently no-opping on a getter-only property.
+  set value(v) {
+    try { this.setValues(typeof v === 'string' ? JSON.parse(v) : v); } catch (e) {}
   }
 
   getValues() {
@@ -7077,6 +7469,8 @@ class SessionKeepAlive extends HTMLElement {
     }
     document.body.appendChild(form);
     form.submit();
+    form.remove(); // drop the node post-submit so it can't orphan in
+                   // <body> if the POST doesn't navigate the page away
   }
 
   _reset() {
@@ -7145,7 +7539,10 @@ class SessionKeepAlive extends HTMLElement {
   _navigate(url, method, payload) {
     if (String(method).toUpperCase() === 'GET') {
       const qs = new URLSearchParams(payload || {}).toString();
-      window.location.href = qs ? url + '?' + qs : url;
+      // Respect a query string the server already put on the URL (e.g.
+      // "/login?reason=timeout") instead of appending a second "?".
+      const sep = url.includes('?') ? '&' : '?';
+      window.location.href = qs ? url + sep + qs : url;
       return;
     }
     const form = document.createElement('form');
@@ -7161,6 +7558,8 @@ class SessionKeepAlive extends HTMLElement {
     }
     document.body.appendChild(form);
     form.submit();
+    form.remove(); // drop the node post-submit so it can't orphan in
+                   // <body> if the POST doesn't navigate the page away
   }
 }
 

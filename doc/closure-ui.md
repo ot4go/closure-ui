@@ -111,7 +111,9 @@
   - [Selection vs focus](#selection-vs-focus)
   - [Methods](#methods-4)
   - [Events](#events-5)
+  - [Refreshing after an edit](#refreshing-after-an-edit)
   - [Cell buttons](#cell-buttons)
+  - [Action menu columns](#action-menu-columns)
   - [Tag columns](#tag-columns)
   - [Footer buttons](#footer-buttons)
   - [Example](#example-16)
@@ -231,12 +233,15 @@ duplicating the parser.
 Aseptic one-shot event dispatcher. Used to deliver named signals from a
 streamed HTML response (or any other HTML payload) to JavaScript listeners
 on the page. The element never renders (`display: none`); on connect it
-reads its `name` and `data-*` attributes, dispatches a `CustomEvent` on
-`document`, and removes itself from the DOM.
+reads its `name` and `data-*` attributes, dispatches a `CustomEvent` (on
+`document` by default — or a named element via `target-id`), and removes
+itself. With `delay` it acts as a declarative, DOM-bound **timer**: the
+signal fires after the delay unless the node is removed first.
 
-It is intentionally decoupled — no registry of its own, no target lookup,
-no bubbling by default. Listeners subscribe with the standard DOM API:
-`document.addEventListener(name, handler)`.
+By default it is decoupled — no registry, dispatches on `document`, no
+bubbling. Listeners subscribe with the standard DOM API:
+`document.addEventListener(name, handler)`. `target-id` opts into a
+specific element only when you need one.
 
 ## Attributes
 
@@ -244,6 +249,9 @@ no bubbling by default. Listeners subscribe with the standard DOM API:
 |---|---|
 | `name="x"`  | event name passed to `CustomEvent` (required) |
 | `bubbles`   | if present, the event bubbles (default: `false`) |
+| `target-id="x"` | dispatch on the element with this id instead of `document` (resolved **when the event fires**; a missing id logs `console.warn` and skips dispatch). Pair with `bubbles` so it still reaches `document` |
+| `delay="N"` | fire `N` ms after connect instead of immediately — a declarative timer. Removing the node (or replacing its container) before then cancels it |
+| `no-cancel` | **special cases** — with `delay`, keep the timer running even if the node is removed (opts out of cancel-on-disconnect; the signal then fires from a detached node) |
 | `data-*`    | every `data-*` becomes a key of `event.detail`, with the `data-` prefix stripped; the key keeps its original kebab-case |
 
 ## Example
@@ -262,19 +270,43 @@ document.addEventListener('need-fingerprint', (e) => {
 });
 ```
 
+Delayed, targeted signal — a self-contained, non-blocking timer node:
+
+```html
+<!-- 5s after this lands, poke #live-grid; the rest of the payload runs now -->
+<signal-event name="auto-refresh" target-id="live-grid" delay="5000"></signal-event>
+```
+
 ## Behaviour
 
-> **Note:** the element fires exactly once, in `connectedCallback`, and
-> removes itself afterwards. For a script to receive the event the
-> matching `addEventListener` must already be registered when the element
-> is parsed — in a streamed response, place the `<script>` that
-> subscribes earlier in the document than the `<signal-event>` tags that
-> trigger it.
+> **Note:** the element fires once and removes itself. For a script to
+> receive the event the matching `addEventListener` must already be
+> registered when the signal fires — in a streamed response, place the
+> subscribing `<script>` earlier in the document than the `<signal-event>`.
 
-> **Note:** the event is dispatched on `document`. There is no
-> `target-id` attribute — the emitter does not know who listens, that is
-> the point of the pub/sub split. If a listener wants to scope itself, it
-> filters inside its handler.
+> **Note:** by default the event is dispatched on `document` — the emitter
+> need not know who listens (the point of the pub/sub split), and a scoped
+> listener filters inside its handler. For a **targeted** dispatch prefer
+> the `ClosureResponse` directives `dispatch-event` / `trigger-click`;
+> `target-id` here exists mainly for the `delay` case (a delayed, targeted
+> signal those synchronous directives can't express) and for HTML inserted
+> outside the `closure-response` flow.
+
+> **Note — timer bound to the node.** `delay="N"` fires the signal `N` ms
+> after connect. Its lifetime is the node's: remove the `<signal-event>`
+> (or replace its container with another response) and the pending dispatch
+> is **cancelled** — declarative cancellation. A `target-id` is resolved
+> **when it fires** (after the delay), so the DOM is settled by then; a
+> missing id logs `console.warn` and skips.
+>
+> For special cases where the signal must outlive its node, add
+> `no-cancel`: the timer keeps running after removal and fires from a
+> detached node (held in memory until it does). Use sparingly — it gives
+> up the "remove the node to cancel" guarantee.
+>
+> ⚠️ A delayed signal is **lost if the page navigates** (a `redirect` /
+> full reload clears the timer). Use `delay` only for in-page signals; for
+> something that must survive navigation, schedule it server-side.
 
 ---
 
@@ -289,7 +321,7 @@ Provides default visual variables (`--form-btn-*`) consumed by `<closure-btn>`.
 
 | Attribute | Description |
 |---|---|
-| `cols="N"` | number of grid columns (default `3`) |
+| `cols="N"` | number of grid columns (default `3`; non-integers fall back to `3`, values `< 1` clamp to `1`) |
 | `no-icon`  | hide icons inside slotted buttons and switch to compact text-only sizing (sets `--form-btn-icon-display: none`, `--form-btn-min-height: 0`, `--form-btn-padding: 14px 16px`) |
 
 
@@ -367,6 +399,7 @@ The displayed time uses the **server's** timezone, not the browser's.
 | `nodate` | hide the date row |
 | `notime` | hide the time row |
 | `dot`    | replace the "Server Time" label with a tiny `●` indicator; combined with `small`, renders time + dot inline |
+| `no-local` | don't show the local clock while syncing — hold the `--:-- --` placeholder (size preserved) until the server time arrives, then start ticking. Avoids the brief local-then-server "jump" |
 
 ## Format
 
@@ -404,6 +437,13 @@ Consumed (with fallbacks):
 > element connects) to disable the network call entirely — useful in
 > mockups and in tests where `/api/time` is not served.
 
+> **Note:** with `no-local`, the first render is **deferred** until the
+> sync resolves. If the sync **fails**, `_syncTime` still resolves (falling
+> back to the local clock), so the clock starts then — `no-local` only
+> suppresses the transient local-time flash on a successful sync, it does
+> not leave a permanently dead clock. With `mdclock_skip_sync_time` it
+> starts immediately (there is no round-trip to wait for).
+
 > **Note:** font sizes also break responsively at viewport widths of
 > 768px (36px) and 500px (28px) via `@media` rules.
 
@@ -416,6 +456,12 @@ Masked password input with paste-friendly behaviour. Wraps a hidden
 while showing bullet glyphs (`●`) to the user. Designed to defeat
 stored-credential autofill on shared admin screens.
 
+It is meant to be a drop-in, **more secure `<input type="password">`**: it
+works inside a plain native `<form>` — submission, validation and Enter all
+behave as they would for a native password field, **with no dependency on
+the closure system**. The closure-specific hooks (`enter-btn-id`) are
+optional extras for dialogs, not requirements.
+
 ## Attributes
 
 | Attribute | Description |
@@ -424,6 +470,7 @@ stored-credential autofill on shared admin screens.
 | `required` | mirrors HTML `required` validation |
 | `readonly` | disables interaction (`tabIndex=-1`, `pointer-events: none`) |
 | `has-value` | preload bullet placeholder (an existing password is on file) |
+| `clear-behavior="edit\|focus"` | when a `has-value` field wipes its placeholder — `edit` (soft, **default**) on the first keystroke / paste; `focus` (aggressive) the moment it gains focus |
 | `enter-btn-id="x"` | element activated by Enter (e.g. a `<closure-btn>` outside the form, as in dialogs) |
 
 ## Properties
@@ -464,20 +511,34 @@ Consumed (with fallbacks):
 
 ## Behaviour
 
-> **Note:** the first focus on a `has-value` instance **wipes** the bullet
-> placeholder and starts a fresh input. There is no edit-in-place mode —
-> the user must type the whole new password.
+> **Note:** a `has-value` instance shows a bullet placeholder for the
+> existing (server-held) password; it never holds the plaintext, so the
+> user always types the **whole** new password to change it. *When* the
+> placeholder is wiped depends on `clear-behavior`:
+> - **`edit` (default, soft):** the placeholder survives focus / tabbing and
+>   is wiped on the **first keystroke or paste** — accidental focus never
+>   blanks it.
+> - **`focus` (aggressive):** the placeholder is wiped the moment the field
+>   gains focus — for shared-screen admin panels where a stale value must
+>   not linger.
 
 > **Note:** on paste, the whole pasted string replaces the value and
 > `pasted=true` is exposed. **Backspace then clears the entire pasted
 > value** (no character-by-character editing). Type-after-paste also wipes
 > the pasted content.
 
-> **Note:** Enter activates, in priority order: the `enter-btn-id`
-> target (use this in dialogs where the action button sits outside the
-> form), else the enclosing `<form>`'s submit (inside a closure this
-> routes through the template), else it moves focus to the next
-> focusable element.
+> **Note:** Enter mirrors a native `<input type="password">`. Priority:
+> the `enter-btn-id` target if set (for dialogs / `<closure-btn>`s that sit
+> outside the form — it clicks the element, routing a `<closure-btn>`
+> through its `ct-role`); else the form's **implicit submission** — it
+> clicks the default submit button (`[type="submit"]` or a typeless
+> `<button>`) if present, else submits the form directly; else, with no
+> enclosing form, it advances focus.
+>
+> A `<closure-btn>` action button (an `<a>`, not a `type=submit`) is **not**
+> auto-discovered as the default — point `enter-btn-id` at it. Keeping the
+> component free of closure-specific button discovery is intentional: it
+> stays a drop-in native password field.
 
 ---
 
@@ -632,6 +693,9 @@ coexist; results are concatenated.
 `set-style` (uses `key` / `value`), `set-text`, `set-html`, `set-value`,
 `set-attribute` (`key` / `value`), `remove-attribute` (`key`).
 
+`set-value` sets `.checked` on checkbox / radio targets (truthy values are
+`"1"`, `"true"` or `"on"`) and `.value` on every other element.
+
 ### Navigation
 `redirect` (`url`), `refresh`, `push-state` / `replace-state`
 (`url`, `state`), `go-back`, `open-url` (`url`, `target`).
@@ -666,6 +730,14 @@ coexist; results are concatenated.
 
 ## Behaviour
 
+> **Security — trusted HTML only.** `set-html`, `set-text`'s sibling
+> content actions and `<closure-response-section>` render server-provided
+> markup **as HTML via `innerHTML`** (this is the point of the engine, like
+> `htmx`). Treat every response body as **trusted**: it is the server's job
+> to escape any user-derived data before sending it. Never route
+> third-party / user-controlled HTML through `ClosureResponse` unescaped —
+> use `set-text` (which uses `textContent`) for untrusted strings.
+
 > **Note:** the queue executes synchronously **except** for `type="delay"`,
 > which yields via `setTimeout` and resumes the rest of the queue in the
 > callback. Subsequent items therefore run after the delay.
@@ -695,6 +767,18 @@ A closure also tracks **dirty state** per template (so observed UI like
 optionally **capture** form submits / anchor clicks happening inside
 its tree.
 
+> **Optional by design — a feature, not a requirement.** The whole
+> closure / template / form-grouping layer is opt-in. The custom inputs
+> (`credential-pwd`, `closure-checkbox-tree`, `closure-checkbox-group`,
+> `fingerprint-hands`) are form-associated and submit **natively** inside
+> a plain `<form>`, and every display component (grids, tabs, status bars,
+> lightbox, clock…) works with no closure at all. Reach for
+> `<target-closure>` only when you want the server-driven workflow:
+> posting without a full reload, response directives, dirty-state
+> tracking, or combining several forms. Form grouping in particular is
+> opt-in — the default is `group-behavior="none"`, and a plain `<form>`
+> with no `closure` attribute always submits natively, untouched.
+
 ## Attributes
 
 | Attribute | Description |
@@ -721,6 +805,14 @@ its tree.
 | `anchors`  | every `<a>` click inside |
 | `all`      | forms + anchors |
 
+> **Note:** captured form submits are sent URL-encoded (not
+> `multipart/form-data`), so **binary file uploads are not transported**.
+> An `<input type="file">` is serialized like any other field, so the
+> server receives the literal string `"[object File]"` as its value (a
+> reliable "no real file" sentinel), never the contents. Use a plain
+> native `<form enctype="multipart/form-data">` (no `closure` attribute,
+> capture off) for file uploads.
+
 ### Form association
 
 | Markup | Belongs to |
@@ -744,6 +836,7 @@ Place on **any** descendant of a closure:
 | Method | Description |
 |---|---|
 | `subscribeTag(tagName, obj)` | route every `<tagName>` element in a server response to `obj.onClosureTag(tagName, el)` |
+| `unsubscribeTag(tagName, obj)` | remove a tag subscriber (e.g. a `<closure-lightbox>` on disconnect) |
 | `dispatchTags(tags)`         | invoked by `ClosureResponse` to deliver the elements its subscribers requested |
 | `loadContent(html)`          | replace inner HTML, re-resolve templates and forms, re-arm dirty / submit hooks |
 | `cleanDirty(templates)`      | clear dirty flag — `"*"` for all, or `"a,b"` |
@@ -753,9 +846,36 @@ Place on **any** descendant of a closure:
 | Event | Bubbles | Cancelable | Detail |
 |---|---|---|---|
 | `closure-template-response` | yes | no | `{ html, status, role }` — emitted by `<closure-template>` after a request |
+| `closure-fetch-error` | yes | yes | `{ url, error, message }` — a **captured** submit / anchor fetch failed at the network level |
+| `closure-ghost-response` (fired on `document`) | — | yes | `{ html, …, source }` — a response arrived for a closure/template **detached mid-flight**. Discarded by default; **`preventDefault()` to process it anyway**. Also fired by `<closure-template>` |
 
 (Native `beforeunload` is hooked when at least one template inside
 declares `<template-lock-dirty block-unload>` — see below.)
+
+### Network errors on captured fetches
+
+When a captured form submit or anchor click (`capture-inner-content`) fails
+at the **network** level, the closure does **not** replace its body — doing
+so would destroy the user's half-filled form. Instead it dispatches a
+cancelable `closure-fetch-error` event and leaves the DOM untouched, so the
+action stays retryable.
+
+**The error policy is yours to define.** Listen for the event and show a
+toast, open a `<closure-lightbox>`, offer a retry, or ignore it — the
+component imposes nothing. Call `preventDefault()` to signal you handled it;
+otherwise the closure logs the error to the console as a fallback.
+
+```js
+myClosure.addEventListener('closure-fetch-error', (e) => {
+  e.preventDefault();                  // take over — suppress the console fallback
+  showToast('Network error — please retry', e.detail.message);
+});
+```
+
+> **Note:** this covers only **network-level** failures (the `fetch`
+> rejected). An HTTP error *response* (4xx/5xx) that carries a body — e.g.
+> server-rendered validation HTML — is still rendered into the closure as
+> before; that path is unchanged.
 
 ## Inner declarative elements
 
@@ -841,6 +961,28 @@ are used.
 > after replacing HTML, so server-pushed bodies (e.g. lightbox results)
 > stay fully reactive.
 
+> **Note:** captured submits / anchor clicks (`capture-inner-content`)
+> are guarded against re-entry — while one fetch is open a second
+> capture is ignored, so a fast double-click can't fire duplicate
+> requests. (Template-routed posts have their own equivalent guard.)
+
+> **Ghost responses.** A `fetch` resolves even if the closure (or template)
+> was removed from the DOM while the request was in flight — a SPA navigating
+> away, a container replaced by another response. Because `ClosureResponse`
+> mutates the **live, global** DOM (`getElementById` / `querySelector`),
+> processing a dead component's response could pop a lightbox or redirect out
+> of nowhere. So the default is to **discard** it. To override, listen on
+> `document` for `closure-ghost-response` and `preventDefault()` — the
+> response is then processed as usual (use this if a late redirect / side
+> effect must still apply). `detail` carries the `html` and the originating
+> element as `source`.
+>
+> ```js
+> document.addEventListener('closure-ghost-response', (e) => {
+>   if (shouldStillApply(e.detail)) e.preventDefault(); // process it anyway
+> });
+> ```
+
 ---
 
 # `<closure-template>`
@@ -866,6 +1008,15 @@ runs and which `<template-url>` / `<template-section>` set applies.
 
 `submit-json` is intentionally **not** supported — there is no browser
 enctype that produces a JSON body via form submit.
+
+> **Note:** binary file uploads are **not** transported. The template
+> repackages every field into a hidden-input form (and, in `fetch*` modes,
+> URL-encodes or JSON-stringifies it), so an `<input type="file">` is
+> serialized like any other field: the server receives the literal string
+> `"[object File]"` as its value — never the file contents. That value is
+> a reliable sentinel for "no real file was sent". Use a native
+> `<form enctype="multipart/form-data">` outside the closure flow for
+> actual uploads.
 
 ## Child elements
 
@@ -943,6 +1094,12 @@ mark or clean the closure's dirty templates without code.
 
 ## Behaviour
 
+> **Note:** repeated field names (a checkbox group, `<select multiple>`)
+> are **preserved**, not collapsed to the last value. In `fetch-json` they
+> become a JSON **array** (`"roles":["admin","editor"]`); in `flat` /
+> `prefix` packaging and `submit` / `fetch` modes they stay as multiple
+> `name=…` pairs, matching native form encoding.
+
 > **Note:** when `delegate-response` is set, the template does **not**
 > insert the response into a target. It dispatches a
 > `closure-template-response` event up to the enclosing closure (via
@@ -953,6 +1110,19 @@ mark or clean the closure's dirty templates without code.
 > `submittedForm` is passed in (e.g. a native form submit captured by
 > `<target-closure>`), `execute` packages **its** fields verbatim
 > instead of inventing sections.
+
+> **Note:** `<template-section>` is what declares **how gathered forms are
+> packaged** — `group-behavior` only decides *which* forms are collected.
+> So a button-triggered submit that gathers forms (`combine-sections` /
+> `combine-children`) but declares **no** `<template-section>` sends only the
+> button payload (`data-*`); the gathered forms' fields are **not** packaged.
+> This is by design, but `execute` emits a `console.warn` in that case so the
+> missing declaration doesn't read as silent data loss. To **silence it on
+> purpose without changing behaviour**, declare an **empty** `<template-section>`:
+> it packages into a name-less hidden input (which is never serialized), so
+> nothing extra is sent — it just acknowledges the intent. Give the section a
+> `name="x"` or `standalone-inputs` when you actually want the gathered fields
+> sent.
 
 > **Note:** the `ct-role` resolution always prefers a role-specific
 > child (`<template-url ct-role="approve">`) over the catch-all
@@ -1033,7 +1203,9 @@ attribute it becomes a dropdown that hosts `<closure-btn-item>` children.
 
 `client-action="set-value"` writes `value` to the resolved target's
 `.value` property without a server round trip and without dispatching
-the normal `btn-action` event.
+the normal `btn-action` event. It **does** fire `input` and `change`
+(bubbling) on each target afterwards, so dirty-state tracking and other
+listeners react as if the user had edited the field.
 
 ```html
 <input id="year" type="text">
@@ -1173,8 +1345,8 @@ control title and open/close declaratively.
 | `close(action?)`                              | close with the given `action` (default `"close"`) |
 | `setTitle(html)`                              | replace the title (HTML allowed) |
 | `setContent(html)`                            | replace the body (routes through the inner closure when present) |
-| `showResponse(html)`                          | set body + open; fires cancelable `lb-response` first |
-| `showError(html)`                             | set body + open; fires cancelable `lb-error` first |
+| `showResponse(html)`                          | set body + open; fires cancelable `lb-response` first. **Returns `true` if it opened, `false` if a listener cancelled it** (so a caller that created the lightbox can remove it instead of leaking the node) |
+| `showError(html)`                             | set body + open; fires cancelable `lb-error` first. Returns `true`/`false` like `showResponse` |
 | **static** `MsgAlert(msg, title?)`            | spawn a one-OK alert lightbox; auto-removes on close |
 | **static** `MsgConfirm(msg, title?)`          | spawn an OK/Cancel lightbox; resolves a Promise → `true` (OK) / `false` |
 
@@ -1569,7 +1741,7 @@ lightbox.
 
 | Event | Bubbles | Detail |
 |---|---|---|
-| `filter-change` | no | `{ field: value, … }` |
+| `filter-change` | no | `{ field: value, … }` — a `type="checkbox"` (multi-select) field is an **array** of selected values; `select` / `text` fields are strings. (Arrays avoid the "comma = multi-select" ambiguity, so text values may contain commas.) |
 
 Fired on the configured target after Apply or after the user removes a
 chip.
@@ -1578,7 +1750,7 @@ chip.
 
 | Member | Description |
 |---|---|
-| `.values` (get) | shallow copy of the current filter values |
+| `.values` (get) | current filter values, normalised the same way as the `filter-change` detail (a `type="checkbox"` field is an **array**, others are strings) |
 | `setValues(obj)`| programmatic update; refreshes chips and dispatches `filter-change` |
 
 ## Example
@@ -1756,6 +1928,7 @@ the keyboard while the selection drives a side panel.
 | Method | Description |
 |---|---|
 | `refresh(opts)`        | reload data (`opts.goto = "<id>"` to scroll to a specific row after refresh) |
+| `updateRow(data)`      | re-render the **selected** row in place from `data` (merged onto it) — no reload; no-op if nothing is selected |
 | `.selectedRow` (getter)| the currently selected row object, or `null` |
 
 ## Events
@@ -1765,6 +1938,31 @@ the keyboard while the selection drives a side panel.
 | `row-select` | yes | `{ row, index }` |
 | `row-focus`  | yes | `{ row, index }` |
 | `filter-change` (handled, not fired) | — | accepted from a paired `<closure-filter-bar>` |
+| `refresh` (handled, not fired) | — | reloads the grid; `detail` is passed to `refresh()` (e.g. `goto`). Fired *at* the grid by id (`dispatch-event` / `signal-event`) |
+| `refresh-row` (handled, not fired) | — | re-renders the **selected** row from `detail` (a `data-row` JSON string, or the `data-*` fields). Ignores events bubbling from children |
+
+## Refreshing after an edit
+
+A common flow: a row is edited in a `<closure-lightbox>`, and on success the
+server response refreshes the grid declaratively — no full page reload. Drive
+it from the closure response: `dispatch-event` fires a `refresh` (whole grid)
+or `refresh-row` (just the edited row) **at the grid by id**, carrying data via
+`data-*` (stripped of `data-`, kept kebab-case — the same convention as button
+payloads; **not** the `dataset` camel-casing).
+
+```html
+<!-- close the dialog, then re-render only the edited row from the new data -->
+<closure-response>
+  <response-item type="close-lightbox" target-id="editBox"></response-item>
+  <response-item type="dispatch-event" event="refresh-row" target-id="usersGrid"
+                 data-row='{"id":42,"name":"Ana","status":"approved"}'></response-item>
+</closure-response>
+```
+
+Use `refresh` (with optional `data-goto`) instead when several rows may have
+changed; `refresh-row` only touches the selected row. The same events also pair
+with a delayed `<signal-event name="refresh" target-id="usersGrid" delay="…">`
+for polling.
 
 ## Cell buttons
 
@@ -1784,6 +1982,31 @@ fields. These optional attributes control per-row presentation:
 When a `type="btn"` column has no explicit `grid-col width`, any
 `width` declared on its child buttons contributes to the column's
 auto-fit minimum width.
+
+## Action menu columns
+
+Columns with `type="actions"` render a compact menu button (`☰`) per row
+that opens a dropdown of `<closure-btn-item>` actions:
+
+```html
+<grid-col label="" type="actions" width="44">
+  <closure-btn-item icon="✎" data-action="edit"></closure-btn-item>
+  <closure-btn-item icon="🗑" data-action="delete"></closure-btn-item>
+</grid-col>
+```
+
+The dropdown uses the **HTML Popover API**, so it renders in the top
+layer and is **not clipped** by the grid body's scroll container — the
+menu on the last rows opens over the page instead of being cut off.
+Outside-click / `Esc` dismissal and auto-closing any other open menu are
+handled natively. Where the Popover API is unavailable it falls back to a
+`position:fixed` panel positioned from the trigger's rect, so it **also
+escapes the clipping** (only the native light-dismiss niceties differ).
+Opening a row's menu selects that row, and choosing an item runs its action
+against the selected row.
+
+(For reference, `<grid-col type="…">` accepts `bool`, `btn`, `tags` and
+`actions`; omit `type` for a plain text cell.)
 
 ## Tag columns
 
@@ -2802,6 +3025,16 @@ configured logoff URL.
 | `{"ok":false, "redirect":"<url>", "method":"POST"\|"GET", "payload":{…}}`    | denied — client navigates as instructed |
 
 Anything else → `session-extend-failed` event, **no** countdown reset.
+
+> **Clock skew — prefer `remaining`.** `until` is resolved against the
+> **browser clock** (`new Date(until) − Date.now()`), so a user whose
+> system clock is off will see the session end early or late. Return
+> **`remaining`** (exact seconds, computed server-side) when the client
+> clock can't be trusted — it is immune to skew. `until` stays available
+> for convenience when the client clock is reliable. (This element does
+> **not** reuse `<clock-display>`'s server-time offset: that offset is
+> private per `<clock-display>` instance and may not be present on the
+> page, so `remaining` is the robust path.)
 
 ## Events
 

@@ -67,6 +67,9 @@ coexist; results are concatenated.
 `set-style` (uses `key` / `value`), `set-text`, `set-html`, `set-value`,
 `set-attribute` (`key` / `value`), `remove-attribute` (`key`).
 
+`set-value` sets `.checked` on checkbox / radio targets (truthy values are
+`"1"`, `"true"` or `"on"`) and `.value` on every other element.
+
 ### Navigation
 `redirect` (`url`), `refresh`, `push-state` / `replace-state`
 (`url`, `state`), `go-back`, `open-url` (`url`, `target`).
@@ -100,6 +103,14 @@ coexist; results are concatenated.
 `execute-template` (`closure-template`, `ct-role`).
 
 ## Behaviour
+
+> **Security — trusted HTML only.** `set-html`, `set-text`'s sibling
+> content actions and `<closure-response-section>` render server-provided
+> markup **as HTML via `innerHTML`** (this is the point of the engine, like
+> `htmx`). Treat every response body as **trusted**: it is the server's job
+> to escape any user-derived data before sending it. Never route
+> third-party / user-controlled HTML through `ClosureResponse` unescaped —
+> use `set-text` (which uses `textContent`) for untrusted strings.
 
 > **Note:** the queue executes synchronously **except** for `type="delay"`,
 > which yields via `setTimeout` and resumes the rest of the queue in the
@@ -256,7 +267,15 @@ var ClosureResponse = {
       targets.forEach(function(el) { el.innerHTML = value; });
       break;
     case 'set-value':
-      targets.forEach(function(el) { el.value = value; });
+      targets.forEach(function(el) {
+        // Native checkbox/radio toggle via .checked; .value alone would
+        // not change their checked state. Truthy = "1"/"true"/"on".
+        if (el.type === 'checkbox' || el.type === 'radio') {
+          el.checked = (value === '1' || value === 'true' || value === 'on');
+        } else {
+          el.value = value;
+        }
+      });
       break;
     case 'set-attribute':
       targets.forEach(function(el) { el.setAttribute(key, value); });

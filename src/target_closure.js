@@ -13,6 +13,18 @@ A closure also tracks **dirty state** per template (so observed UI like
 optionally **capture** form submits / anchor clicks happening inside
 its tree.
 
+> **Optional by design — a feature, not a requirement.** The whole
+> closure / template / form-grouping layer is opt-in. The custom inputs
+> (`credential-pwd`, `closure-checkbox-tree`, `closure-checkbox-group`,
+> `fingerprint-hands`) are form-associated and submit **natively** inside
+> a plain `<form>`, and every display component (grids, tabs, status bars,
+> lightbox, clock…) works with no closure at all. Reach for
+> `<target-closure>` only when you want the server-driven workflow:
+> posting without a full reload, response directives, dirty-state
+> tracking, or combining several forms. Form grouping in particular is
+> opt-in — the default is `group-behavior="none"`, and a plain `<form>`
+> with no `closure` attribute always submits natively, untouched.
+
 ## Attributes
 
 | Attribute | Description |
@@ -39,6 +51,14 @@ its tree.
 | `anchors`  | every `<a>` click inside |
 | `all`      | forms + anchors |
 
+> **Note:** captured form submits are sent URL-encoded (not
+> `multipart/form-data`), so **binary file uploads are not transported**.
+> An `<input type="file">` is serialized like any other field, so the
+> server receives the literal string `"[object File]"` as its value (a
+> reliable "no real file" sentinel), never the contents. Use a plain
+> native `<form enctype="multipart/form-data">` (no `closure` attribute,
+> capture off) for file uploads.
+
 ### Form association
 
 | Markup | Belongs to |
@@ -62,6 +82,7 @@ Place on **any** descendant of a closure:
 | Method | Description |
 |---|---|
 | `subscribeTag(tagName, obj)` | route every `<tagName>` element in a server response to `obj.onClosureTag(tagName, el)` |
+| `unsubscribeTag(tagName, obj)` | remove a tag subscriber (e.g. a `<closure-lightbox>` on disconnect) |
 | `dispatchTags(tags)`         | invoked by `ClosureResponse` to deliver the elements its subscribers requested |
 | `loadContent(html)`          | replace inner HTML, re-resolve templates and forms, re-arm dirty / submit hooks |
 | `cleanDirty(templates)`      | clear dirty flag — `"*"` for all, or `"a,b"` |
@@ -71,9 +92,36 @@ Place on **any** descendant of a closure:
 | Event | Bubbles | Cancelable | Detail |
 |---|---|---|---|
 | `closure-template-response` | yes | no | `{ html, status, role }` — emitted by `<closure-template>` after a request |
+| `closure-fetch-error` | yes | yes | `{ url, error, message }` — a **captured** submit / anchor fetch failed at the network level |
+| `closure-ghost-response` (fired on `document`) | — | yes | `{ html, …, source }` — a response arrived for a closure/template **detached mid-flight**. Discarded by default; **`preventDefault()` to process it anyway**. Also fired by `<closure-template>` |
 
 (Native `beforeunload` is hooked when at least one template inside
 declares `<template-lock-dirty block-unload>` — see below.)
+
+### Network errors on captured fetches
+
+When a captured form submit or anchor click (`capture-inner-content`) fails
+at the **network** level, the closure does **not** replace its body — doing
+so would destroy the user's half-filled form. Instead it dispatches a
+cancelable `closure-fetch-error` event and leaves the DOM untouched, so the
+action stays retryable.
+
+**The error policy is yours to define.** Listen for the event and show a
+toast, open a `<closure-lightbox>`, offer a retry, or ignore it — the
+component imposes nothing. Call `preventDefault()` to signal you handled it;
+otherwise the closure logs the error to the console as a fallback.
+
+```js
+myClosure.addEventListener('closure-fetch-error', (e) => {
+  e.preventDefault();                  // take over — suppress the console fallback
+  showToast('Network error — please retry', e.detail.message);
+});
+```
+
+> **Note:** this covers only **network-level** failures (the `fetch`
+> rejected). An HTTP error *response* (4xx/5xx) that carries a body — e.g.
+> server-rendered validation HTML — is still rendered into the closure as
+> before; that path is unchanged.
 
 ## Inner declarative elements
 
@@ -159,12 +207,42 @@ are used.
 > after replacing HTML, so server-pushed bodies (e.g. lightbox results)
 > stay fully reactive.
 
+> **Note:** captured submits / anchor clicks (`capture-inner-content`)
+> are guarded against re-entry — while one fetch is open a second
+> capture is ignored, so a fast double-click can't fire duplicate
+> requests. (Template-routed posts have their own equivalent guard.)
+
+> **Ghost responses.** A `fetch` resolves even if the closure (or template)
+> was removed from the DOM while the request was in flight — a SPA navigating
+> away, a container replaced by another response. Because `ClosureResponse`
+> mutates the **live, global** DOM (`getElementById` / `querySelector`),
+> processing a dead component's response could pop a lightbox or redirect out
+> of nowhere. So the default is to **discard** it. To override, listen on
+> `document` for `closure-ghost-response` and `preventDefault()` — the
+> response is then processed as usual (use this if a late redirect / side
+> effect must still apply). `detail` carries the `html` and the originating
+> element as `source`.
+>
+> ```js
+> document.addEventListener('closure-ghost-response', (e) => {
+>   if (shouldStillApply(e.detail)) e.preventDefault(); // process it anyway
+> });
+> ```
+
 ---
 %%>*/
 
 
 class TargetClosure extends HTMLElement {
   connectedCallback() {
+    // Re-arm the window-level beforeunload guard on EVERY connect: a SPA that
+    // detaches and re-attaches the closure would otherwise lose it (the heavy
+    // init below is gated by _initialized, and element-level listeners survive
+    // re-attachment — but a window listener does not). addEventListener dedupes
+    // by (type, listener), so re-adding the same bound handler is a no-op.
+    if (!this._boundBeforeUnload) this._boundBeforeUnload = this._onBeforeUnload.bind(this);
+    window.addEventListener('beforeunload', this._boundBeforeUnload);
+
     if (this._initialized) return;
     this._initialized = true;
     this.style.display = 'contents';
@@ -242,10 +320,6 @@ class TargetClosure extends HTMLElement {
       if (e.target.closest('target-closure') === this) this._markDirty();
     });
 
-    // beforeunload
-    this._boundBeforeUnload = this._onBeforeUnload.bind(this);
-    window.addEventListener('beforeunload', this._boundBeforeUnload);
-
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', () => { this._updateDirtyVisibility(); this._applyEditMode(); }, { once: true });
     } else {
@@ -263,6 +337,13 @@ class TargetClosure extends HTMLElement {
     var tag = tagName.toLowerCase();
     if (!this._tagSubscribers[tag]) this._tagSubscribers[tag] = [];
     this._tagSubscribers[tag].push(obj);
+  }
+
+  unsubscribeTag(tagName, obj) {
+    var subs = this._tagSubscribers[tagName.toLowerCase()];
+    if (!subs) return;
+    var i = subs.indexOf(obj);
+    if (i >= 0) subs.splice(i, 1);
   }
 
   dispatchTags(tags) {
@@ -339,6 +420,10 @@ class TargetClosure extends HTMLElement {
 
   _fetchAndReplace(url, opts) {
     var self = this;
+    // In-flight guard: a captured submit / anchor click must not issue a
+    // second request while the first is open (e.g. a fast double-click).
+    // Mirrors the guard <closure-template> already has for its own posts.
+    if (this._captureInFlight) return;
     opts = opts || {};
     opts.credentials = opts.credentials || 'same-origin';
     var method = (opts.method || 'GET').toUpperCase();
@@ -350,15 +435,40 @@ class TargetClosure extends HTMLElement {
         delete opts.body;
       }
     }
+    this._captureInFlight = true;
     fetch(url, opts).then(function(r) {
       // Error bodies (e.g. validation HTML on 4xx) are still rendered
       return r.text();
     }).then(function(html) {
+      self._captureInFlight = false;
+      // Ghost-response: the closure was detached mid-flight (SPA tore it down).
+      // loadContent runs ClosureResponse, which mutates the live global DOM, so
+      // by default we DISCARD; the app can listen for `closure-ghost-response`
+      // (on document) and preventDefault() to process it anyway.
+      if (!self.isConnected) {
+        var ghost = new CustomEvent('closure-ghost-response', {
+          cancelable: true,
+          detail: { url: url, html: html, source: self },
+        });
+        if (document.dispatchEvent(ghost)) return; // not prevented → discard
+      }
       // loadContent re-wires templates/forms and runs closure-response
       // directives — a bare innerHTML would insert them inert
       self.loadContent(html);
     }).catch(function(err) {
-      self.innerHTML = '<p style="color:red;">Connection error: ' + err.message + '</p>';
+      self._captureInFlight = false;
+      if (!self.isConnected) return; // detached — nothing to surface to
+      // Don't wipe the closure body on a transient network error — it holds
+      // the user's half-filled form. Surface a cancelable event so the app
+      // can show a toast / offer a retry; call preventDefault() to take over.
+      // If nobody handles it, the form simply stays put (and is retryable).
+      var ev = new CustomEvent('closure-fetch-error', {
+        bubbles: true,
+        cancelable: true,
+        detail: { url: url, error: err, message: err.message },
+      });
+      var taken = !self.dispatchEvent(ev); // dispatchEvent → false when preventDefault was called
+      if (!taken) console.error('target-closure fetch failed:', err);
     });
   }
 
@@ -454,6 +564,10 @@ class TargetClosure extends HTMLElement {
         var groups = fields[i].querySelectorAll('closure-checkbox-group');
         for (var g = 0; g < groups.length; g++) {
           groups[g].setAttribute('readonly', '');
+        }
+        var hands = fields[i].querySelectorAll('fingerprint-hands');
+        for (var h = 0; h < hands.length; h++) {
+          hands[h].setAttribute('readonly', '');
         }
       }
     });

@@ -70,7 +70,9 @@ attribute it becomes a dropdown that hosts `<closure-btn-item>` children.
 
 `client-action="set-value"` writes `value` to the resolved target's
 `.value` property without a server round trip and without dispatching
-the normal `btn-action` event.
+the normal `btn-action` event. It **does** fire `input` and `change`
+(bubbling) on each target afterwards, so dirty-state tracking and other
+listeners react as if the user had edited the field.
 
 ```html
 <input id="year" type="text">
@@ -423,6 +425,8 @@ class ClosureBtn extends HTMLElement {
             }
             document.body.appendChild(form);
             form.submit();
+            form.remove(); // drop the node post-submit so it can't orphan
+                           // in <body> on a download / new-tab action
           });
         } else {
           a.addEventListener('click', (e) => {
@@ -462,6 +466,11 @@ class ClosureBtn extends HTMLElement {
     const value = this.getAttribute('value') || '';
     this._resolveTargets().forEach(el => {
       el.value = value;
+      // Assigning .value in JS does NOT fire input/change, so dirty-state
+      // tracking (target-closure listens for them) and any other listeners
+      // would miss the edit. Dispatch both, as a real user edit would.
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
     });
     return true;
   }
