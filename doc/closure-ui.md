@@ -35,6 +35,7 @@
 - [`ClosureResponse` (global object)](#closureresponse-global-object)
   - [Public API](#public-api)
   - [Markup the processor recognises](#markup-the-processor-recognises)
+  - [Where the response content lands](#where-the-response-content-lands)
   - [`<response-item>` types](#response-item-types)
   - [Behaviour](#behaviour-5)
 - [`<target-closure>`](#target-closure)
@@ -316,6 +317,13 @@ Shadow-DOM grid layout for action buttons.
 
 Slots its children into a CSS grid with a configurable column count.
 Provides default visual variables (`--form-btn-*`) consumed by `<closure-btn>`.
+
+Use it to lay out a set of action buttons in an even, responsive grid with
+consistent sizing and spacing — typically the button row of a form or dialog. It
+is purely a **layout shell**: it slots whatever children you give it and supplies
+the shared `--form-btn-*` tokens, but it does not create, enable/disable or
+decide which buttons appear — that is the parent's job. (For a cluster *inside* a
+`<closure-status-bar>`, use `<status-buttons>` instead.)
 
 ## Attributes
 
@@ -681,11 +689,56 @@ Attributes on `<closure-response-section>`:
 | `target-selector-all="css"`| `querySelectorAll` destinations |
 | `raw`                      | write content verbatim, skip nested parsing |
 
+## Where the response content lands
+
+Directives always run first. *Content* placement then depends on the `sections`
+attribute of `<closure-response>`:
+
+| You want… | Markup |
+|---|---|
+| Replace the current `<target-closure>`'s content | `<closure-response>` **without** `sections` — the leftover HTML becomes its `innerHTML` |
+| Run only directives / leave the container untouched | `<closure-response sections>` (even with zero sections) |
+| Distribute content to specific elements | `<closure-response sections>` + one `<closure-response-section>` per destination, **each carrying its own** `target-id` / `target-selector` / `target-selector-all` |
+| (button flow) land in a named element | `<template-response-ok target>` / `response-target-id` on the `<closure-template>` |
+
+The `sections` attribute is the switch. **With it, the loose leftover content is
+disconnected**: `process()` returns `{ handled: true }`, the caller leaves the
+`<target-closure>` alone, and each `<closure-response-section>` places its body
+at its own target(s). **Without it**, the leftover HTML is written into the
+`<target-closure>`'s own `innerHTML`.
+
+> ⚠️ A `<closure-response>` **without** `sections` that carries only directives
+> (no leftover content) leaves an empty body — so the container's `innerHTML`
+> becomes `""` and the current container is **wiped**. Add `sections` whenever a
+> response should run directives without replacing anything.
+
 ## `<response-item>` types
 
-Every item supports the same target-resolution attributes
-(`target-id`, `target-selector`, `target-selector-all`) — multiple may
-coexist; results are concatenated.
+### Target resolution
+
+Every `<response-item>` (and every `<closure-response-section>`) picks the
+element(s) it acts on with up to three attributes. They are **additive, not
+mutually exclusive** — when more than one is present the matches are
+**concatenated in this fixed order**, with **no de-duplication** (an element
+matched twice is acted on twice):
+
+| Attribute | Resolver | Matches |
+|---|---|---|
+| `target-id="x"`             | `document.getElementById`   | the one element with that id |
+| `target-selector="css"`     | `document.querySelector`    | the **first** element matching the selector |
+| `target-selector-all="css"` | `document.querySelectorAll` | **every** element matching the selector |
+
+Resolution always runs against the **whole document**, not scoped to the
+response fragment. Edge behaviour:
+
+- **No target, or no match** → the item resolves to an empty list and becomes a
+  **silent no-op** (`add-class` on nothing does nothing). Items that don't use
+  targets at all — navigation, storage, `delay` — still run regardless.
+- **Invalid selector** (malformed CSS from the server) → caught, logged with
+  `console.warn`, and skipped, so one bad selector can't abort the rest of the
+  queue.
+- `focus` acts on the **first** resolved target only; the DOM / class / style /
+  content items act on **all** resolved targets.
 
 ### DOM
 `hide`, `show` (`display="…"`), `clear-content`, `remove`,
@@ -699,6 +752,34 @@ coexist; results are concatenated.
 ### Navigation
 `redirect` (`url`), `refresh`, `push-state` / `replace-state`
 (`url`, `state`), `go-back`, `open-url` (`url`, `target`).
+
+`redirect`, `refresh` and `auto-redirect` accept an optional
+`target="_parent|_top"` to navigate the parent or top frame instead of the
+current one (escape an iframe); omit it to stay in this window.
+
+**The recommended — and effectively the only reliable — cross-frame use is
+`refresh target="_parent"` against a same-origin return page.** The canonical
+case is a payment-gateway iframe: the gateway redirects to *your* (same-origin)
+return page inside the iframe, which fires `refresh target="_parent"` so the
+host reloads and the server re-evaluates the transaction. Let the server decide
+what happens next.
+
+> ⚠️ **Cross-frame `redirect` / `auto-redirect` (`target="_parent|_top"`) is a
+> discouraged practice.** It is kept for the rare same-origin (or
+> user-activated) case, but should be avoided in general. Although the
+> cross-origin Location policy *does* permit writing `location.href`, navigating
+> a cross-origin parent/top frame is **additionally** gated by the browser's
+> frame-navigation rules — it generally requires a real **user activation** — so
+> a server-driven cross-origin redirect is frequently blocked in practice
+> (anti-tabnabbing) and **fails silently**. Prefer `refresh target="_parent"`.
+>
+> Related gotchas: `refresh` itself calls `reload()`, which is **same-origin
+> only** and throws `SecurityError` on a cross-origin parent; and
+> `document.domain` is **not** a workaround for the subdomain case — modern
+> browsers have disabled it.
+
+`open-url` opens with `noopener,noreferrer` so the new tab can't reach back via
+`window.opener`.
 
 ### Lightbox
 `close-lightbox` (closes nearest `[open]` lightbox or the targeted one),
@@ -749,6 +830,18 @@ coexist; results are concatenated.
 > its queue still resumes; and a full-page `redirect` clears the pending timer
 > on unload regardless. Use `delay` for in-page sequencing, not as a guarantee
 > that the tail runs.
+
+> **Note — global navigation timers.** Unlike `type="delay"` (which aborts if
+> its container was detached, to avoid injecting HTML into a dead node),
+> `type="auto-redirect"` is an **absolute, unstoppable deadline** by design: it
+> delegates to a `setTimeout` that is **not** bound to the closure's lifecycle.
+> If the server schedules a redirect in 5 s (e.g. after showing a success
+> modal), the browser **will** navigate when the timer expires, even if the user
+> closes the modal first. This is intended, not an orphaned timer. The
+> navigation acts on the resolved navigation window (`window` by default, or the
+> `target="_parent|_top"` frame) — independent of local DOM state, so the
+> server's directive to leave the current context is final. (A full-page reload
+> still clears it on unload, as with any timer.)
 
 > **Note:** elements whose tag is **not** `<response-item>` are forwarded
 > to handlers registered with `closure.subscribeTag(tagName, obj)`. This
@@ -1017,6 +1110,13 @@ Multiple templates may live inside one closure. The button's
 `closure-template="…"` and `ct-role="…"` attributes pick which one
 runs and which `<template-url>` / `<template-section>` set applies.
 
+Think of it as the **recipe a `<closure-btn>` follows when it fires**: where to
+POST, how to package the closure's forms, and what to do with the response — all
+declared in markup instead of JavaScript, so a `<target-closure>` can run a
+server workflow without a full page reload. It does not send binary uploads:
+every field is repackaged into hidden inputs / JSON, so a file input needs a
+native `<form enctype="multipart/form-data">` outside the closure flow.
+
 ## Attributes (on `<closure-template>`)
 
 | Attribute | Description |
@@ -1172,6 +1272,13 @@ inside a shadow DOM. By default a click dispatches a bubbling
 `btn-action` event that the enclosing `<target-closure>` picks up to
 route the request to the matching `<closure-template>`. With the `menu`
 attribute it becomes a dropdown that hosts `<closure-btn-item>` children.
+
+Reach for it as the **action trigger** of a `<target-closure>` workflow: a click
+emits the bubbling `btn-action` event and the closure routes the request to the
+matching `<closure-template>`; with `menu` it instead opens a panel of
+`<closure-btn-item>` actions. It is not a general-purpose `<button>` for
+arbitrary scripting — its job is to fire a *routed* closure action (or a menu of
+them); button state and form validation stay with the surrounding closure / form.
 
 ## Attributes
 
@@ -1469,6 +1576,13 @@ and border, and re-themes inner button defaults via `--form-btn-bg`.
 The slotted children are typically `<label>`, `<status-msg>`,
 `<status-part>`, `<status-kv>` and `<status-buttons>`.
 
+Use it as a single themed strip to surface the **state of a workflow** — a result
+message, a few key/value facts, and the actions that follow — kept visually
+together via a `type` colour preset. It is purely presentational: it lays out and
+themes whatever you slot into it (`<status-msg>`, `<status-kv>`, `<status-part>`,
+`<status-buttons>`) but holds no state of its own; the content is driven from
+outside, usually a closure response.
+
 ## Attributes
 
 | Attribute | Description |
@@ -1541,6 +1655,11 @@ contributes no box of its own — its children inherit the parent bar's
 flex slot. Adds gentle shadow-DOM styling to slotted `<ul>`, `<ol>` and
 `<p>` so multi-line messages stay readable inside the bar.
 
+Use it to drop **prose or a list** — a sentence, a `<ul>` of validation errors —
+into a status bar and keep it readable, without it grabbing its own flex cell. It
+is a styling wrapper only — no controls, no state; for labelled facts use
+`<status-kv>`, for buttons use `<status-buttons>`.
+
 No attributes, no methods, no events.
 
 ## Example
@@ -1561,6 +1680,11 @@ No attributes, no methods, no events.
 Flexible cell inside `<closure-status-bar>`. Useful for arbitrary content
 that doesn't fit `<status-msg>`, `<status-kv>` or `<status-buttons>`.
 Inherits the bar's height and exposes layout presets.
+
+Use it as the **catch-all cell** of a status bar for content that doesn't fit the
+purpose-built `<status-msg>` / `<status-kv>` / `<status-buttons>` — a small custom
+layout, stacked figures, an inline widget. It is a layout container only: it
+sizes and arranges what you put in it but holds no state and adds no behaviour.
 
 ## Attributes
 
@@ -1614,6 +1738,12 @@ to fill the trailing gap on the last row (lower N = stretches first).
 Auto-laying button group inside `<closure-status-bar>`. Picks the column
 count that minimises empty cells, optionally stretches one button to
 fill the trailing gap, and paints separator borders between cells.
+
+Use it for the **action cluster of a status bar** when a handful of buttons
+should pack tidily and reflow as the bar narrows, instead of being laid out by
+hand. It only handles *placement* (column count, the optional stretch,
+separators) — the buttons' look, labels and behaviour are their own; for a
+free-standing button grid outside a status bar use `<btn-grid>`.
 
 ## Attributes
 
@@ -1672,6 +1802,11 @@ Key / value pair for `<closure-status-bar>`. The key is rendered as an
 uppercase, muted, fixed-width label; the value as the bar's normal text.
 The original inner HTML of the host becomes the value content on connect.
 
+Use it for a **single labelled fact** in a status bar — a timestamp, a count, an
+id — where the label/value pairing should be styled consistently. It is
+display-only: no editing, no interactivity; for actions use `<status-buttons>`,
+for free-form content use `<status-part>`.
+
 ## Attributes
 
 | Attribute | Description |
@@ -1723,6 +1858,12 @@ Configurable filter UI: a chip strip showing the active values, a
 optional list of one-click presets. Dispatches `filter-change` on the
 configured target so a paired `<closure-data-grid>` (or any consumer)
 can refetch.
+
+Use it to give a grid or list a compact filter UI without scattering form
+controls across the page: the form lives in a modal behind a single button, and
+a chip strip keeps the active filters visible. It does not fetch or filter
+anything itself — it only emits `filter-change` with the current values; you wire
+that to a `<closure-data-grid>` (or your own fetch) to actually reload.
 
 ## Attributes
 
@@ -1836,6 +1977,19 @@ Paginated data table that can take its rows from inline markup or from
 a dynamic fetch. Renders a header, a scrollable body and pagination
 controls. Selection and focus are tracked separately so consumers like
 `<closure-row-viewer>` can react to either.
+
+Use it whenever a server (or inline markup) owns a list and the page just needs
+to **show, page and act on it**. The grid is display + interaction, not state:
+it renders the rows it is given and emits `row-select` / `row-focus` for the
+rest of the page to react to — the canonical pairing is a grid driving a
+`<closure-row-viewer>` (master → detail), optionally fed by a `<filter-bar>`
+through its `<query-param>`s. Inline mode suits data already on the page; dynamic
+mode (`<query-definition>`) hands paging and filtering to the server.
+
+It is **not** an editable spreadsheet: cells are not inputs and rows are not
+mutated in place — row actions (`type="actions"`) fire closure directives or
+templates, so every change round-trips through the server like the rest of the
+library.
 
 ## Data sources
 
@@ -2312,6 +2466,18 @@ light DOM via `<cbt-item>` children; the actual checkboxes are
 rendered inside the shadow root. `formAssociated`, so the tree
 participates in form submission as a single field.
 
+Reach for it when a form needs a **hierarchical multi-select that posts as one
+field** — permissions, category pickers, org units — where parent rows reflect
+and drive their children (check a parent → all descendants; a partial set →
+indeterminate parent). Being `formAssociated`, it behaves like a native control:
+it has a `name`, a value, and submits with the form; the collapsed pill keeps a
+large tree compact until the user opens it.
+
+It is **not** a generic tree-view or file explorer: every node is a checkbox,
+there is no drag-drop, lazy-loading or per-node action — the whole tree is
+declared up front in light DOM via `<cbt-item>`, and its only output is the
+aggregated selection.
+
 Two visual modes:
 
 | Mode | Trigger | Shows |
@@ -2451,6 +2617,12 @@ form-associated field. Submits a single value containing every tree's
 selections, either as a concatenated flat list or as an object keyed
 by tree name.
 
+Use it when a form needs **several related checkbox trees submitted together as
+one field** — e.g. permissions split into sections by resource type — without
+wiring each tree's value by hand. The trees stay independent: the group only
+concatenates their values into one payload; it does not cascade or share
+selection state between them.
+
 ## Attributes
 
 | Attribute | Description |
@@ -2535,6 +2707,12 @@ can still demultiplex.
 Tab control that manages a set of `<closure-tab>` panels. Renders a
 button bar above the panels; the active tab's panel is shown, the rest
 are hidden. No Shadow DOM — buttons are added in light DOM.
+
+Use it to switch between sibling content panels **without navigation or
+fetching** — the panels already exist on the page and the bar just toggles which
+one is visible. It is not a router or a lazy-loader: every `<closure-tab>` and
+its content are present up front; the bar manages selection, visibility and (per
+tab) an optional enable/disable toggle, nothing more.
 
 ## Attributes
 
@@ -2821,6 +2999,12 @@ content in a `.cfr-body` so the row can stack a label above
 (or beside) it. Surfaces validation hints (`error`, `warning`,
 `required`) and a hidden inline message that the parent row updates.
 
+Use it to wrap a single input (or `<credential-pwd>`, checkbox tree, etc.) that
+needs a label and inline validation messaging inside a form. It does not lay
+itself out — width, label position and responsive collapse are decided by the
+parent `<closure-form-row>`; the field just owns its label, body wrapper and
+error / warning hint.
+
 ## Attributes
 
 | Attribute | Description |
@@ -2888,6 +3072,12 @@ children (same pattern as `<closure-data-grid>`). Each
 which select to fill, which row fields supply the option key and label,
 and (optionally) which other select acts as a cascading filter.
 
+Use it for **small, static cascading dropdowns** — country → state → city,
+category → subcategory — where the options are known up front and a network
+round-trip per change would be overkill. Because the rows are baked into the
+HTML, it is not meant for large or live datasets: for those, fetch from the
+server and populate the selects yourself.
+
 ## Attributes
 
 None. Configuration lives in the children.
@@ -2953,6 +3143,16 @@ selectable / toggleable.
 
 Finger naming: `l1`–`l5` for the left hand (`l1`=thumb), `r1`–`r5` for
 the right hand (`r1`=thumb).
+
+Use it as a form-associated **state diagram** for a biometric-capture workflow:
+it shows, per finger, whether a print has been recorded and — with `toggle` —
+lets an operator mark fingers by hand, e.g. an enrolment screen that pairs it
+with an external scanner driving the state. As a `formAssociated` control it
+carries a `name` and posts its per-finger string with the form, like any input.
+
+It does **not** read or capture actual fingerprints — there is no scanner
+integration here; it only renders and edits the *recorded / not-recorded* state
+you feed it (via attributes, `value`, or clicks).
 
 ## Attributes
 

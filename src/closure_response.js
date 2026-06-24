@@ -55,11 +55,56 @@ Attributes on `<closure-response-section>`:
 | `target-selector-all="css"`| `querySelectorAll` destinations |
 | `raw`                      | write content verbatim, skip nested parsing |
 
+## Where the response content lands
+
+Directives always run first. *Content* placement then depends on the `sections`
+attribute of `<closure-response>`:
+
+| You want… | Markup |
+|---|---|
+| Replace the current `<target-closure>`'s content | `<closure-response>` **without** `sections` — the leftover HTML becomes its `innerHTML` |
+| Run only directives / leave the container untouched | `<closure-response sections>` (even with zero sections) |
+| Distribute content to specific elements | `<closure-response sections>` + one `<closure-response-section>` per destination, **each carrying its own** `target-id` / `target-selector` / `target-selector-all` |
+| (button flow) land in a named element | `<template-response-ok target>` / `response-target-id` on the `<closure-template>` |
+
+The `sections` attribute is the switch. **With it, the loose leftover content is
+disconnected**: `process()` returns `{ handled: true }`, the caller leaves the
+`<target-closure>` alone, and each `<closure-response-section>` places its body
+at its own target(s). **Without it**, the leftover HTML is written into the
+`<target-closure>`'s own `innerHTML`.
+
+> ⚠️ A `<closure-response>` **without** `sections` that carries only directives
+> (no leftover content) leaves an empty body — so the container's `innerHTML`
+> becomes `""` and the current container is **wiped**. Add `sections` whenever a
+> response should run directives without replacing anything.
+
 ## `<response-item>` types
 
-Every item supports the same target-resolution attributes
-(`target-id`, `target-selector`, `target-selector-all`) — multiple may
-coexist; results are concatenated.
+### Target resolution
+
+Every `<response-item>` (and every `<closure-response-section>`) picks the
+element(s) it acts on with up to three attributes. They are **additive, not
+mutually exclusive** — when more than one is present the matches are
+**concatenated in this fixed order**, with **no de-duplication** (an element
+matched twice is acted on twice):
+
+| Attribute | Resolver | Matches |
+|---|---|---|
+| `target-id="x"`             | `document.getElementById`   | the one element with that id |
+| `target-selector="css"`     | `document.querySelector`    | the **first** element matching the selector |
+| `target-selector-all="css"` | `document.querySelectorAll` | **every** element matching the selector |
+
+Resolution always runs against the **whole document**, not scoped to the
+response fragment. Edge behaviour:
+
+- **No target, or no match** → the item resolves to an empty list and becomes a
+  **silent no-op** (`add-class` on nothing does nothing). Items that don't use
+  targets at all — navigation, storage, `delay` — still run regardless.
+- **Invalid selector** (malformed CSS from the server) → caught, logged with
+  `console.warn`, and skipped, so one bad selector can't abort the rest of the
+  queue.
+- `focus` acts on the **first** resolved target only; the DOM / class / style /
+  content items act on **all** resolved targets.
 
 ### DOM
 `hide`, `show` (`display="…"`), `clear-content`, `remove`,
@@ -73,6 +118,34 @@ coexist; results are concatenated.
 ### Navigation
 `redirect` (`url`), `refresh`, `push-state` / `replace-state`
 (`url`, `state`), `go-back`, `open-url` (`url`, `target`).
+
+`redirect`, `refresh` and `auto-redirect` accept an optional
+`target="_parent|_top"` to navigate the parent or top frame instead of the
+current one (escape an iframe); omit it to stay in this window.
+
+**The recommended — and effectively the only reliable — cross-frame use is
+`refresh target="_parent"` against a same-origin return page.** The canonical
+case is a payment-gateway iframe: the gateway redirects to *your* (same-origin)
+return page inside the iframe, which fires `refresh target="_parent"` so the
+host reloads and the server re-evaluates the transaction. Let the server decide
+what happens next.
+
+> ⚠️ **Cross-frame `redirect` / `auto-redirect` (`target="_parent|_top"`) is a
+> discouraged practice.** It is kept for the rare same-origin (or
+> user-activated) case, but should be avoided in general. Although the
+> cross-origin Location policy *does* permit writing `location.href`, navigating
+> a cross-origin parent/top frame is **additionally** gated by the browser's
+> frame-navigation rules — it generally requires a real **user activation** — so
+> a server-driven cross-origin redirect is frequently blocked in practice
+> (anti-tabnabbing) and **fails silently**. Prefer `refresh target="_parent"`.
+>
+> Related gotchas: `refresh` itself calls `reload()`, which is **same-origin
+> only** and throws `SecurityError` on a cross-origin parent; and
+> `document.domain` is **not** a workaround for the subdomain case — modern
+> browsers have disabled it.
+
+`open-url` opens with `noopener,noreferrer` so the new tab can't reach back via
+`window.opener`.
 
 ### Lightbox
 `close-lightbox` (closes nearest `[open]` lightbox or the targeted one),
@@ -123,6 +196,18 @@ coexist; results are concatenated.
 > its queue still resumes; and a full-page `redirect` clears the pending timer
 > on unload regardless. Use `delay` for in-page sequencing, not as a guarantee
 > that the tail runs.
+
+> **Note — global navigation timers.** Unlike `type="delay"` (which aborts if
+> its container was detached, to avoid injecting HTML into a dead node),
+> `type="auto-redirect"` is an **absolute, unstoppable deadline** by design: it
+> delegates to a `setTimeout` that is **not** bound to the closure's lifecycle.
+> If the server schedules a redirect in 5 s (e.g. after showing a success
+> modal), the browser **will** navigate when the timer expires, even if the user
+> closes the modal first. This is intended, not an orphaned timer. The
+> navigation acts on the resolved navigation window (`window` by default, or the
+> `target="_parent|_top"` frame) — independent of local DOM state, so the
+> server's directive to leave the current context is final. (A full-page reload
+> still clears it on unload, as with any timer.)
 
 > **Note:** elements whose tag is **not** `<response-item>` are forwarded
 > to handlers registered with `closure.subscribeTag(tagName, obj)`. This
@@ -252,6 +337,13 @@ var ClosureResponse = {
     var targets = this._resolveTargets(item);
     var key = item.getAttribute('key') || '';
     var value = item.getAttribute('value') || '';
+    // Navigation window: `target` lets a navigation command escape an iframe —
+    // '_parent'/'_top' retarget the parent/top frame (e.g. break a payment
+    // gateway widget out to the host page); anything else stays in this window.
+    var win = window;
+    var navTarget = item.getAttribute('target');
+    if (navTarget === '_parent') win = window.parent;
+    else if (navTarget === '_top') win = window.top;
 
     switch (type) {
     // --- DOM ---
@@ -306,10 +398,10 @@ var ClosureResponse = {
 
     // --- Navigation ---
     case 'redirect':
-      window.location.href = item.getAttribute('url') || '';
+      win.location.href = item.getAttribute('url') || '';
       break;
     case 'refresh':
-      window.location.reload();
+      win.location.reload();
       break;
     case 'push-state':
       history.pushState(
@@ -331,7 +423,8 @@ var ClosureResponse = {
     case 'open-url':
       window.open(
         item.getAttribute('url') || '',
-        item.getAttribute('target') || '_blank'
+        item.getAttribute('target') || '_blank',
+        'noopener,noreferrer'
       );
       break;
 
@@ -408,7 +501,7 @@ var ClosureResponse = {
     case 'auto-redirect':
       var ms = parseInt(item.getAttribute('ms') || '3000', 10);
       var url = item.getAttribute('url') || '';
-      setTimeout(function() { window.location.href = url; }, ms);
+      setTimeout(function() { win.location.href = url; }, ms);
       break;
 
     // --- Closure ---
@@ -430,10 +523,6 @@ var ClosureResponse = {
       });
       break;
 
-    // --- Target (set default target for content) ---
-    case 'target':
-      // Handled by caller, not here
-      break;
     }
   },
 

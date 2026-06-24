@@ -6,6 +6,11 @@ contributes no box of its own — its children inherit the parent bar's
 flex slot. Adds gentle shadow-DOM styling to slotted `<ul>`, `<ol>` and
 `<p>` so multi-line messages stay readable inside the bar.
 
+Use it to drop **prose or a list** — a sentence, a `<ul>` of validation errors —
+into a status bar and keep it readable, without it grabbing its own flex cell. It
+is a styling wrapper only — no controls, no state; for labelled facts use
+`<status-kv>`, for buttons use `<status-buttons>`.
+
 No attributes, no methods, no events.
 
 ## Example

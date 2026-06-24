@@ -5,6 +5,11 @@ Flexible cell inside `<closure-status-bar>`. Useful for arbitrary content
 that doesn't fit `<status-msg>`, `<status-kv>` or `<status-buttons>`.
 Inherits the bar's height and exposes layout presets.
 
+Use it as the **catch-all cell** of a status bar for content that doesn't fit the
+purpose-built `<status-msg>` / `<status-kv>` / `<status-buttons>` — a small custom
+layout, stacked figures, an inline widget. It is a layout container only: it
+sizes and arranges what you put in it but holds no state and adds no behaviour.
+
 ## Attributes
 
 | Attribute | Description |

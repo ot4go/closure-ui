@@ -6,6 +6,12 @@ content in a `.cfr-body` so the row can stack a label above
 (or beside) it. Surfaces validation hints (`error`, `warning`,
 `required`) and a hidden inline message that the parent row updates.
 
+Use it to wrap a single input (or `<credential-pwd>`, checkbox tree, etc.) that
+needs a label and inline validation messaging inside a form. It does not lay
+itself out — width, label position and responsive collapse are decided by the
+parent `<closure-form-row>`; the field just owns its label, body wrapper and
+error / warning hint.
+
 ## Attributes
 
 | Attribute | Description |

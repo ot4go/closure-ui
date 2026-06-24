@@ -5,6 +5,12 @@ Auto-laying button group inside `<closure-status-bar>`. Picks the column
 count that minimises empty cells, optionally stretches one button to
 fill the trailing gap, and paints separator borders between cells.
 
+Use it for the **action cluster of a status bar** when a handful of buttons
+should pack tidily and reflow as the bar narrows, instead of being laid out by
+hand. It only handles *placement* (column count, the optional stretch,
+separators) — the buttons' look, labels and behaviour are their own; for a
+free-standing button grid outside a status bar use `<btn-grid>`.
+
 ## Attributes
 
 | Attribute | Description |

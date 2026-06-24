@@ -11,6 +11,12 @@ children (same pattern as `<closure-data-grid>`). Each
 which select to fill, which row fields supply the option key and label,
 and (optionally) which other select acts as a cascading filter.
 
+Use it for **small, static cascading dropdowns** — country → state → city,
+category → subcategory — where the options are known up front and a network
+round-trip per change would be overkill. Because the rows are baked into the
+HTML, it is not meant for large or live datasets: for those, fetch from the
+server and populate the selects yourself.
+
 ## Attributes
 
 None. Configuration lives in the children.

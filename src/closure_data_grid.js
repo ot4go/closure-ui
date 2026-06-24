@@ -6,6 +6,19 @@ a dynamic fetch. Renders a header, a scrollable body and pagination
 controls. Selection and focus are tracked separately so consumers like
 `<closure-row-viewer>` can react to either.
 
+Use it whenever a server (or inline markup) owns a list and the page just needs
+to **show, page and act on it**. The grid is display + interaction, not state:
+it renders the rows it is given and emits `row-select` / `row-focus` for the
+rest of the page to react to — the canonical pairing is a grid driving a
+`<closure-row-viewer>` (master → detail), optionally fed by a `<filter-bar>`
+through its `<query-param>`s. Inline mode suits data already on the page; dynamic
+mode (`<query-definition>`) hands paging and filtering to the server.
+
+It is **not** an editable spreadsheet: cells are not inputs and rows are not
+mutated in place — row actions (`type="actions"`) fire closure directives or
+templates, so every change round-trips through the server like the rest of the
+library.
+
 ## Data sources
 
 | Source | How |
@@ -393,6 +406,7 @@ class ClosureDataGrid extends HTMLElement {
       if (this._onDocClick) document.addEventListener('click', this._onDocClick);
       if (this._onDocKeydown) document.addEventListener('keydown', this._onDocKeydown);
       if (this._onWinResize) window.addEventListener('resize', this._onWinResize);
+      if (this._onScrollClosePanels) window.addEventListener('scroll', this._onScrollClosePanels, { capture: true, passive: true });
       // Observers only once the grid is built — _wrap is set in _build
       if (this._wrap) {
         this._setupAutoFitResizeObserver();
@@ -422,6 +436,7 @@ class ClosureDataGrid extends HTMLElement {
     if (this._onDocClick) document.removeEventListener('click', this._onDocClick);
     if (this._onDocKeydown) document.removeEventListener('keydown', this._onDocKeydown);
     if (this._onWinResize) window.removeEventListener('resize', this._onWinResize);
+    if (this._onScrollClosePanels) window.removeEventListener('scroll', this._onScrollClosePanels, { capture: true });
     if (this._masterEl && this._onMasterEvent) {
       this._masterEl.removeEventListener(this._detailEvent, this._onMasterEvent);
       this._masterEl = null;
@@ -1671,6 +1686,11 @@ class ClosureDataGrid extends HTMLElement {
   // ---
   _selectRow(idx) {
     const rows = Array.from(this._tbody.querySelectorAll('tr'));
+    // The "no results" placeholder is a <tr> too. Never select it: it has no
+    // backing row, so row-select would fire with row: undefined and break
+    // consumers (e.g. <closure-row-viewer> reading row.id). Guarding here (not
+    // just the click handler) also covers the keyboard / programmatic paths.
+    if (rows[idx] && rows[idx].querySelector('.dg-no-results')) return;
     const changed = this._selectedIdx !== idx;
     rows.forEach(r => r.classList.remove('focused'));
     if (rows[idx]) {
@@ -1944,6 +1964,15 @@ class ClosureDataGrid extends HTMLElement {
       document.querySelectorAll('.dg-action-panel-open').forEach(p => { p.style.display = 'none'; p.classList.remove('dg-action-panel-open'); });
     };
     document.addEventListener('click', this._onDocClick);
+
+    // Anchored action menus are position:fixed (to escape the table's clip), so
+    // they don't track their row. Close any open one on scroll — grid body or
+    // page — so it never floats detached. capture:true catches the (non-
+    // bubbling) scroll from the inner body wrap as well as window scroll.
+    this._onScrollClosePanels = () => {
+      document.querySelectorAll('.dg-action-panel-open').forEach(p => { p.style.display = 'none'; p.classList.remove('dg-action-panel-open'); });
+    };
+    window.addEventListener('scroll', this._onScrollClosePanels, { capture: true, passive: true });
 
     // Mouseover
     this._tbody.addEventListener('mouseover', () => {

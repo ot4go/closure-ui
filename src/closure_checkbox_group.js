@@ -6,6 +6,12 @@ form-associated field. Submits a single value containing every tree's
 selections, either as a concatenated flat list or as an object keyed
 by tree name.
 
+Use it when a form needs **several related checkbox trees submitted together as
+one field** — e.g. permissions split into sections by resource type — without
+wiring each tree's value by hand. The trees stay independent: the group only
+concatenates their values into one payload; it does not cascade or share
+selection state between them.
+
 ## Attributes
 
 | Attribute | Description |

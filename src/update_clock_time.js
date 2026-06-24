@@ -216,7 +216,7 @@ class ClockDisplay extends HTMLElement {
       const t1 = Date.now();
       const txt = await res.text();
       // Parse timezone offset from server response (e.g. "-05:00" or "+01:00")
-      const m = txt.match(/([+-]\d{2}):(\d{2})$/);
+      const m = txt.match(/([+-]\d{2}):(\d{2})\s*$/);
       // Sign comes from the string — parseInt("-00") is 0, which would
       // drop the minutes term for ±00:mm offsets
       this._tzOffsetMin = m

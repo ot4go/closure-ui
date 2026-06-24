@@ -7,6 +7,12 @@ optional list of one-click presets. Dispatches `filter-change` on the
 configured target so a paired `<closure-data-grid>` (or any consumer)
 can refetch.
 
+Use it to give a grid or list a compact filter UI without scattering form
+controls across the page: the form lives in a modal behind a single button, and
+a chip strip keeps the active filters visible. It does not fetch or filter
+anything itself — it only emits `filter-change` with the current values; you wire
+that to a `<closure-data-grid>` (or your own fetch) to actually reload.
+
 ## Attributes
 
 | Attribute | Description |

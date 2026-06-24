@@ -6,6 +6,13 @@ Shadow-DOM grid layout for action buttons.
 Slots its children into a CSS grid with a configurable column count.
 Provides default visual variables (`--form-btn-*`) consumed by `<closure-btn>`.
 
+Use it to lay out a set of action buttons in an even, responsive grid with
+consistent sizing and spacing — typically the button row of a form or dialog. It
+is purely a **layout shell**: it slots whatever children you give it and supplies
+the shared `--form-btn-*` tokens, but it does not create, enable/disable or
+decide which buttons appear — that is the parent's job. (For a cluster *inside* a
+`<closure-status-bar>`, use `<status-buttons>` instead.)
+
 ## Attributes
 
 | Attribute | Description |

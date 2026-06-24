@@ -226,7 +226,7 @@ class ClockDisplay extends HTMLElement {
       const t1 = Date.now();
       const txt = await res.text();
       // Parse timezone offset from server response (e.g. "-05:00" or "+01:00")
-      const m = txt.match(/([+-]\d{2}):(\d{2})$/);
+      const m = txt.match(/([+-]\d{2}):(\d{2})\s*$/);
       // Sign comes from the string — parseInt("-00") is 0, which would
       // drop the minutes term for ±00:mm offsets
       this._tzOffsetMin = m
@@ -685,6 +685,13 @@ var ClosureResponse = {
     var targets = this._resolveTargets(item);
     var key = item.getAttribute('key') || '';
     var value = item.getAttribute('value') || '';
+    // Navigation window: `target` lets a navigation command escape an iframe —
+    // '_parent'/'_top' retarget the parent/top frame (e.g. break a payment
+    // gateway widget out to the host page); anything else stays in this window.
+    var win = window;
+    var navTarget = item.getAttribute('target');
+    if (navTarget === '_parent') win = window.parent;
+    else if (navTarget === '_top') win = window.top;
 
     switch (type) {
     // --- DOM ---
@@ -739,10 +746,10 @@ var ClosureResponse = {
 
     // --- Navigation ---
     case 'redirect':
-      window.location.href = item.getAttribute('url') || '';
+      win.location.href = item.getAttribute('url') || '';
       break;
     case 'refresh':
-      window.location.reload();
+      win.location.reload();
       break;
     case 'push-state':
       history.pushState(
@@ -764,7 +771,8 @@ var ClosureResponse = {
     case 'open-url':
       window.open(
         item.getAttribute('url') || '',
-        item.getAttribute('target') || '_blank'
+        item.getAttribute('target') || '_blank',
+        'noopener,noreferrer'
       );
       break;
 
@@ -841,7 +849,7 @@ var ClosureResponse = {
     case 'auto-redirect':
       var ms = parseInt(item.getAttribute('ms') || '3000', 10);
       var url = item.getAttribute('url') || '';
-      setTimeout(function() { window.location.href = url; }, ms);
+      setTimeout(function() { win.location.href = url; }, ms);
       break;
 
     // --- Closure ---
@@ -863,10 +871,6 @@ var ClosureResponse = {
       });
       break;
 
-    // --- Target (set default target for content) ---
-    case 'target':
-      // Handled by caller, not here
-      break;
     }
   },
 
@@ -1403,7 +1407,10 @@ class ClosureTemplate extends HTMLElement {
         new FormData(form).forEach(function(v, k) {
           // Preserve repeated names (checkbox groups, <select multiple>):
           // collapse to an array instead of keeping only the last value.
-          if (k in jsonData) jsonData[k] = [].concat(jsonData[k], v);
+          // hasOwnProperty (not `k in`): `in` walks the prototype chain, so a
+          // field named "toString"/"constructor"/… would falsely test true and
+          // corrupt the value by concatenating with the inherited function.
+          if (Object.prototype.hasOwnProperty.call(jsonData, k)) jsonData[k] = [].concat(jsonData[k], v);
           else jsonData[k] = v;
         });
         headers['Content-Type'] = 'application/json';
@@ -1574,7 +1581,10 @@ class ClosureTemplate extends HTMLElement {
       new FormData(form).forEach(function(value, key) {
         // Preserve repeated names (checkbox groups, <select multiple>):
         // collapse to an array rather than overwriting with the last value.
-        if (key in target) target[key] = [].concat(target[key], value);
+        // hasOwnProperty (not `key in`): `in` walks the prototype chain, so a
+        // field named "toString"/"constructor"/… would falsely test true and
+        // corrupt the value by concatenating with the inherited function.
+        if (Object.prototype.hasOwnProperty.call(target, key)) target[key] = [].concat(target[key], value);
         else target[key] = value;
       });
     });
@@ -2651,11 +2661,18 @@ class ClosureLightbox extends HTMLElement {
     }
     if (opts.buttons) this._buildButtons(opts.buttons);
     else this._footer.style.display = 'none';
-    this._dlg.showModal();
+    // Guard like showResponse()/showError(): showModal() on an already-open
+    // dialog throws InvalidStateError, so a double-click on a button that calls
+    // open() would otherwise crash the main thread.
+    if (!this._dlg.open) this._dlg.showModal();
   }
 
   close(action) {
     this._action = action || 'close';
+    // Native dialog.close() on an already-closed dialog is a spec no-op (not a
+    // throw), but bail anyway so a double-click on Cancel doesn't fire a second
+    // spurious lb-close. Symmetric with the guarded showModal() calls.
+    if (!this._dlg || !this._dlg.open) return;
     this._dlg.close();
     this.dispatchEvent(new CustomEvent('lb-close', {
       detail: { action: this._action },
@@ -3690,6 +3707,7 @@ class ClosureDataGrid extends HTMLElement {
       if (this._onDocClick) document.addEventListener('click', this._onDocClick);
       if (this._onDocKeydown) document.addEventListener('keydown', this._onDocKeydown);
       if (this._onWinResize) window.addEventListener('resize', this._onWinResize);
+      if (this._onScrollClosePanels) window.addEventListener('scroll', this._onScrollClosePanels, { capture: true, passive: true });
       // Observers only once the grid is built — _wrap is set in _build
       if (this._wrap) {
         this._setupAutoFitResizeObserver();
@@ -3719,6 +3737,7 @@ class ClosureDataGrid extends HTMLElement {
     if (this._onDocClick) document.removeEventListener('click', this._onDocClick);
     if (this._onDocKeydown) document.removeEventListener('keydown', this._onDocKeydown);
     if (this._onWinResize) window.removeEventListener('resize', this._onWinResize);
+    if (this._onScrollClosePanels) window.removeEventListener('scroll', this._onScrollClosePanels, { capture: true });
     if (this._masterEl && this._onMasterEvent) {
       this._masterEl.removeEventListener(this._detailEvent, this._onMasterEvent);
       this._masterEl = null;
@@ -4968,6 +4987,11 @@ class ClosureDataGrid extends HTMLElement {
   // ---
   _selectRow(idx) {
     const rows = Array.from(this._tbody.querySelectorAll('tr'));
+    // The "no results" placeholder is a <tr> too. Never select it: it has no
+    // backing row, so row-select would fire with row: undefined and break
+    // consumers (e.g. <closure-row-viewer> reading row.id). Guarding here (not
+    // just the click handler) also covers the keyboard / programmatic paths.
+    if (rows[idx] && rows[idx].querySelector('.dg-no-results')) return;
     const changed = this._selectedIdx !== idx;
     rows.forEach(r => r.classList.remove('focused'));
     if (rows[idx]) {
@@ -5241,6 +5265,15 @@ class ClosureDataGrid extends HTMLElement {
       document.querySelectorAll('.dg-action-panel-open').forEach(p => { p.style.display = 'none'; p.classList.remove('dg-action-panel-open'); });
     };
     document.addEventListener('click', this._onDocClick);
+
+    // Anchored action menus are position:fixed (to escape the table's clip), so
+    // they don't track their row. Close any open one on scroll — grid body or
+    // page — so it never floats detached. capture:true catches the (non-
+    // bubbling) scroll from the inner body wrap as well as window scroll.
+    this._onScrollClosePanels = () => {
+      document.querySelectorAll('.dg-action-panel-open').forEach(p => { p.style.display = 'none'; p.classList.remove('dg-action-panel-open'); });
+    };
+    window.addEventListener('scroll', this._onScrollClosePanels, { capture: true, passive: true });
 
     // Mouseover
     this._tbody.addEventListener('mouseover', () => {
@@ -7537,6 +7570,12 @@ class SessionKeepAlive extends HTMLElement {
   }
 
   _startTimer() {
+    // Absolute deadline, recomputed on every (re)start — including extends.
+    // _tick derives _remaining from the wall clock instead of decrementing, so
+    // a backgrounded tab (where setInterval is throttled to ~1/min) can't drift
+    // the countdown out of sync with the server and surprise the user with a
+    // 401 instead of the graceful expiry screen.
+    this._targetTime = Date.now() + this._remaining * 1000;
     if (this._timerActive || this._remaining <= 0) return;
     this._timer = setInterval(this._tick, 1000);
     this._timerActive = true;
@@ -7548,7 +7587,7 @@ class SessionKeepAlive extends HTMLElement {
   }
 
   _tick() {
-    this._remaining--;
+    this._remaining = Math.round((this._targetTime - Date.now()) / 1000);
     if (this._remaining <= 0) {
       this._remaining = 0;
       this._stopTimer();
@@ -7614,6 +7653,12 @@ class SessionKeepAlive extends HTMLElement {
         } else {
           this._remaining = this._timeout;
         }
+        // Malformed grant — a bad `until` date or a non-numeric `remaining`
+        // both yield NaN (Math.max(0, NaN) is NaN, not 0), and NaN <= 0 is
+        // false, so the countdown would tick NaN forever and never expire (an
+        // immortal "zombie" session). Treat it as exhausted — the secure
+        // default for a session-timeout component.
+        if (!Number.isFinite(this._remaining)) this._remaining = 0;
         // A grant that is already exhausted (remaining 0 / until in the
         // past) is an expiry, not an extension
         if (this._remaining <= 0) {

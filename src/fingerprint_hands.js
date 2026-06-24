@@ -8,6 +8,16 @@ selectable / toggleable.
 Finger naming: `l1`–`l5` for the left hand (`l1`=thumb), `r1`–`r5` for
 the right hand (`r1`=thumb).
 
+Use it as a form-associated **state diagram** for a biometric-capture workflow:
+it shows, per finger, whether a print has been recorded and — with `toggle` —
+lets an operator mark fingers by hand, e.g. an enrolment screen that pairs it
+with an external scanner driving the state. As a `formAssociated` control it
+carries a `name` and posts its per-finger string with the form, like any input.
+
+It does **not** read or capture actual fingerprints — there is no scanner
+integration here; it only renders and edits the *recorded / not-recorded* state
+you feed it (via attributes, `value`, or clicks).
+
 ## Attributes
 
 | Attribute | Description |

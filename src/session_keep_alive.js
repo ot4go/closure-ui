@@ -168,6 +168,12 @@ class SessionKeepAlive extends HTMLElement {
   }
 
   _startTimer() {
+    // Absolute deadline, recomputed on every (re)start — including extends.
+    // _tick derives _remaining from the wall clock instead of decrementing, so
+    // a backgrounded tab (where setInterval is throttled to ~1/min) can't drift
+    // the countdown out of sync with the server and surprise the user with a
+    // 401 instead of the graceful expiry screen.
+    this._targetTime = Date.now() + this._remaining * 1000;
     if (this._timerActive || this._remaining <= 0) return;
     this._timer = setInterval(this._tick, 1000);
     this._timerActive = true;
@@ -179,7 +185,7 @@ class SessionKeepAlive extends HTMLElement {
   }
 
   _tick() {
-    this._remaining--;
+    this._remaining = Math.round((this._targetTime - Date.now()) / 1000);
     if (this._remaining <= 0) {
       this._remaining = 0;
       this._stopTimer();
@@ -245,6 +251,12 @@ class SessionKeepAlive extends HTMLElement {
         } else {
           this._remaining = this._timeout;
         }
+        // Malformed grant — a bad `until` date or a non-numeric `remaining`
+        // both yield NaN (Math.max(0, NaN) is NaN, not 0), and NaN <= 0 is
+        // false, so the countdown would tick NaN forever and never expire (an
+        // immortal "zombie" session). Treat it as exhausted — the secure
+        // default for a session-timeout component.
+        if (!Number.isFinite(this._remaining)) this._remaining = 0;
         // A grant that is already exhausted (remaining 0 / until in the
         // past) is an expiry, not an extension
         if (this._remaining <= 0) {

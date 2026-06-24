@@ -7,6 +7,13 @@ and border, and re-themes inner button defaults via `--form-btn-bg`.
 The slotted children are typically `<label>`, `<status-msg>`,
 `<status-part>`, `<status-kv>` and `<status-buttons>`.
 
+Use it as a single themed strip to surface the **state of a workflow** — a result
+message, a few key/value facts, and the actions that follow — kept visually
+together via a `type` colour preset. It is purely presentational: it lays out and
+themes whatever you slot into it (`<status-msg>`, `<status-kv>`, `<status-part>`,
+`<status-buttons>`) but holds no state of its own; the content is driven from
+outside, usually a closure response.
+
 ## Attributes
 
 | Attribute | Description |

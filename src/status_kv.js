@@ -5,6 +5,11 @@ Key / value pair for `<closure-status-bar>`. The key is rendered as an
 uppercase, muted, fixed-width label; the value as the bar's normal text.
 The original inner HTML of the host becomes the value content on connect.
 
+Use it for a **single labelled fact** in a status bar — a timestamp, a count, an
+id — where the label/value pairing should be styled consistently. It is
+display-only: no editing, no interactivity; for actions use `<status-buttons>`,
+for free-form content use `<status-part>`.
+
 ## Attributes
 
 | Attribute | Description |

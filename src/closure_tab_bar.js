@@ -5,6 +5,12 @@ Tab control that manages a set of `<closure-tab>` panels. Renders a
 button bar above the panels; the active tab's panel is shown, the rest
 are hidden. No Shadow DOM — buttons are added in light DOM.
 
+Use it to switch between sibling content panels **without navigation or
+fetching** — the panels already exist on the page and the bar just toggles which
+one is visible. It is not a router or a lazy-loader: every `<closure-tab>` and
+its content are present up front; the bar manages selection, visibility and (per
+tab) an optional enable/disable toggle, nothing more.
+
 ## Attributes
 
 | Attribute | Description |

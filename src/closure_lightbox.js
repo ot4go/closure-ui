@@ -262,11 +262,18 @@ class ClosureLightbox extends HTMLElement {
     }
     if (opts.buttons) this._buildButtons(opts.buttons);
     else this._footer.style.display = 'none';
-    this._dlg.showModal();
+    // Guard like showResponse()/showError(): showModal() on an already-open
+    // dialog throws InvalidStateError, so a double-click on a button that calls
+    // open() would otherwise crash the main thread.
+    if (!this._dlg.open) this._dlg.showModal();
   }
 
   close(action) {
     this._action = action || 'close';
+    // Native dialog.close() on an already-closed dialog is a spec no-op (not a
+    // throw), but bail anyway so a double-click on Cancel doesn't fire a second
+    // spurious lb-close. Symmetric with the guarded showModal() calls.
+    if (!this._dlg || !this._dlg.open) return;
     this._dlg.close();
     this.dispatchEvent(new CustomEvent('lb-close', {
       detail: { action: this._action },

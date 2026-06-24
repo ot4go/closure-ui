@@ -6,6 +6,18 @@ light DOM via `<cbt-item>` children; the actual checkboxes are
 rendered inside the shadow root. `formAssociated`, so the tree
 participates in form submission as a single field.
 
+Reach for it when a form needs a **hierarchical multi-select that posts as one
+field** — permissions, category pickers, org units — where parent rows reflect
+and drive their children (check a parent → all descendants; a partial set →
+indeterminate parent). Being `formAssociated`, it behaves like a native control:
+it has a `name`, a value, and submits with the form; the collapsed pill keeps a
+large tree compact until the user opens it.
+
+It is **not** a generic tree-view or file explorer: every node is a checkbox,
+there is no drag-drop, lazy-loading or per-node action — the whole tree is
+declared up front in light DOM via `<cbt-item>`, and its only output is the
+aggregated selection.
+
 Two visual modes:
 
 | Mode | Trigger | Shows |

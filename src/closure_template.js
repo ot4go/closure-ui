@@ -11,6 +11,13 @@ Multiple templates may live inside one closure. The button's
 `closure-template="…"` and `ct-role="…"` attributes pick which one
 runs and which `<template-url>` / `<template-section>` set applies.
 
+Think of it as the **recipe a `<closure-btn>` follows when it fires**: where to
+POST, how to package the closure's forms, and what to do with the response — all
+declared in markup instead of JavaScript, so a `<target-closure>` can run a
+server workflow without a full page reload. It does not send binary uploads:
+every field is repackaged into hidden inputs / JSON, so a file input needs a
+native `<form enctype="multipart/form-data">` outside the closure flow.
+
 ## Attributes (on `<closure-template>`)
 
 | Attribute | Description |
@@ -252,7 +259,10 @@ class ClosureTemplate extends HTMLElement {
         new FormData(form).forEach(function(v, k) {
           // Preserve repeated names (checkbox groups, <select multiple>):
           // collapse to an array instead of keeping only the last value.
-          if (k in jsonData) jsonData[k] = [].concat(jsonData[k], v);
+          // hasOwnProperty (not `k in`): `in` walks the prototype chain, so a
+          // field named "toString"/"constructor"/… would falsely test true and
+          // corrupt the value by concatenating with the inherited function.
+          if (Object.prototype.hasOwnProperty.call(jsonData, k)) jsonData[k] = [].concat(jsonData[k], v);
           else jsonData[k] = v;
         });
         headers['Content-Type'] = 'application/json';
@@ -423,7 +433,10 @@ class ClosureTemplate extends HTMLElement {
       new FormData(form).forEach(function(value, key) {
         // Preserve repeated names (checkbox groups, <select multiple>):
         // collapse to an array rather than overwriting with the last value.
-        if (key in target) target[key] = [].concat(target[key], value);
+        // hasOwnProperty (not `key in`): `in` walks the prototype chain, so a
+        // field named "toString"/"constructor"/… would falsely test true and
+        // corrupt the value by concatenating with the inherited function.
+        if (Object.prototype.hasOwnProperty.call(target, key)) target[key] = [].concat(target[key], value);
         else target[key] = value;
       });
     });

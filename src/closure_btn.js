@@ -7,6 +7,13 @@ inside a shadow DOM. By default a click dispatches a bubbling
 route the request to the matching `<closure-template>`. With the `menu`
 attribute it becomes a dropdown that hosts `<closure-btn-item>` children.
 
+Reach for it as the **action trigger** of a `<target-closure>` workflow: a click
+emits the bubbling `btn-action` event and the closure routes the request to the
+matching `<closure-template>`; with `menu` it instead opens a panel of
+`<closure-btn-item>` actions. It is not a general-purpose `<button>` for
+arbitrary scripting — its job is to fire a *routed* closure action (or a menu of
+them); button state and form validation stay with the surrounding closure / form.
+
 ## Attributes
 
 | Attribute | Description |
