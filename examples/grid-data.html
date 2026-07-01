@@ -29,9 +29,11 @@
 
 <blockquote><p>⌨ <strong>Keyboard navigation:</strong> click the grid to focus it;
   the ↑/↓ arrow keys move the <em>focused</em> row (<code>row-focus</code> event),
-  <kbd>Enter</kbd> promotes it to <em>selected</em> (<code>row-select</code> event),
-  <kbd>PageUp</kbd>/<kbd>PageDown</kbd> change page, and the mouse wheel also moves
-  through the pages.</p></blockquote>
+  <kbd>Enter</kbd> promotes it to <em>selected</em> (<code>row-select</code> event), and
+  <kbd>PageUp</kbd>/<kbd>PageDown</kbd> change page. This grid uses the default
+  <strong>continuous</strong> scroll disposition, so the mouse wheel scrolls the
+  page normally; see <a href="#scroll-modes">scroll modes</a> below for the
+  <code>window</code> disposition where the wheel flips pages instead.</p></blockquote>
 
 <closure-data-grid id="gridBasico" page-size="5">
   <grid-col name="id"     label="ID"      width="60"></grid-col>
@@ -68,6 +70,63 @@
     &lt;g-col name="puesto"&gt;Analyst&lt;/g-col&gt;
   &lt;/g-row&gt;
   &lt;!-- … 11 more rows … --&gt;
+&lt;/closure-data-grid&gt;</pre>
+
+<!-- ============================================================ -->
+<!-- 1b. Scroll modes (window vs continuous) + grid-layout         -->
+<!-- ============================================================ -->
+<h2 id="scroll-modes">1b. Scroll disposition &amp; <code>&lt;grid-layout&gt;</code></h2>
+<p>A grid is either a <strong>continuous</strong> flow (its natural height; the
+  mouse wheel scrolls the document so you can reach whatever is below it) or a
+  height-bounded <strong>window</strong> (the wheel over the body flips pages).
+  Set it explicitly with <code>scroll="window|continuous"</code>, or let it be
+  inferred: <code>page-size="auto"</code> or a <code>max-rows</code> cap ⇒
+  <code>window</code>, otherwise <code>continuous</code>.</p>
+
+<p><strong>Window</strong> — hover the body and spin the wheel: it pages instead
+  of scrolling the document.</p>
+
+<closure-data-grid id="gridWindow" page-size="4" scroll="window">
+  <grid-col name="id"   label="ID"   width="60" align="right"></grid-col>
+  <grid-col name="nombre" label="Name"></grid-col>
+  <grid-key>id</grid-key>
+  <g-row><g-col name="id">1</g-col><g-col name="nombre">Ana Torres</g-col></g-row>
+  <g-row><g-col name="id">2</g-col><g-col name="nombre">Luis Pérez</g-col></g-row>
+  <g-row><g-col name="id">3</g-col><g-col name="nombre">Marta Gil</g-col></g-row>
+  <g-row><g-col name="id">4</g-col><g-col name="nombre">Jorge Ruiz</g-col></g-row>
+  <g-row><g-col name="id">5</g-col><g-col name="nombre">Lucía Mora</g-col></g-row>
+  <g-row><g-col name="id">6</g-col><g-col name="nombre">Pablo Sanz</g-col></g-row>
+  <g-row><g-col name="id">7</g-col><g-col name="nombre">Elena Díaz</g-col></g-row>
+  <g-row><g-col name="id">8</g-col><g-col name="nombre">Raúl Vega</g-col></g-row>
+</closure-data-grid>
+
+<p><strong><code>&lt;grid-layout&gt;</code></strong> — the declarative container: its
+  attributes are hoisted onto the grid (the child value wins over a host
+  attribute). Here it sets <code>page-size</code> and <code>scroll</code> in one
+  place instead of on the host element.</p>
+
+<closure-data-grid id="gridLayout">
+  <grid-layout page-size="4" scroll="window"></grid-layout>
+  <grid-col name="id"   label="ID"   width="60" align="right"></grid-col>
+  <grid-col name="nombre" label="Name"></grid-col>
+  <grid-key>id</grid-key>
+  <g-row><g-col name="id">1</g-col><g-col name="nombre">Ana Torres</g-col></g-row>
+  <g-row><g-col name="id">2</g-col><g-col name="nombre">Luis Pérez</g-col></g-row>
+  <g-row><g-col name="id">3</g-col><g-col name="nombre">Marta Gil</g-col></g-row>
+  <g-row><g-col name="id">4</g-col><g-col name="nombre">Jorge Ruiz</g-col></g-row>
+  <g-row><g-col name="id">5</g-col><g-col name="nombre">Lucía Mora</g-col></g-row>
+  <g-row><g-col name="id">6</g-col><g-col name="nombre">Pablo Sanz</g-col></g-row>
+  <g-row><g-col name="id">7</g-col><g-col name="nombre">Elena Díaz</g-col></g-row>
+  <g-row><g-col name="id">8</g-col><g-col name="nombre">Raúl Vega</g-col></g-row>
+</closure-data-grid>
+
+<pre>&lt;!-- explicit on the host --&gt;
+&lt;closure-data-grid id="gridWindow" page-size="4" scroll="window"&gt; … &lt;/closure-data-grid&gt;
+
+&lt;!-- or declared once via the hoisting container --&gt;
+&lt;closure-data-grid id="gridLayout"&gt;
+  &lt;grid-layout page-size="4" scroll="window"&gt;&lt;/grid-layout&gt;
+  …
 &lt;/closure-data-grid&gt;</pre>
 
 <!-- ============================================================ -->

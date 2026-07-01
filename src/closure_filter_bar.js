@@ -38,6 +38,8 @@ that to a `<closure-data-grid>` (or your own fetch) to actually reload.
 | `options="a,b,c"`  | inline options for `select` |
 | `map-data-id="id"` | populate options from a `<data-map>` (map-item: `value` / `label`) |
 | `no-all`           | omit the leading "All" empty option |
+| `placeholder="x"`  | placeholder for `type="text"` inputs (default `Search…`) |
+| `default="x"`      | initial value seeded into the field on first build (opt-in; overridden by a programmatic `setValues()`) |
 
 ### `<filter-preset>`
 
@@ -162,11 +164,13 @@ class ClosureFilterBar extends HTMLElement {
           options = (f.getAttribute('options') || '').split(',').map(s => s.trim()).filter(Boolean).map(s => ({ value: s, label: s }));
         }
         return {
-          name:    f.getAttribute('name'),
-          label:   f.getAttribute('label'),
-          type:    f.getAttribute('type') || 'select',
-          options: options,
-          noAll:   f.hasAttribute('no-all'),
+          name:        f.getAttribute('name'),
+          label:       f.getAttribute('label'),
+          type:        f.getAttribute('type') || 'select',
+          options:     options,
+          noAll:       f.hasAttribute('no-all'),
+          placeholder: f.getAttribute('placeholder') || '',
+          default:     f.getAttribute('default') || '',
         };
       });
       this._presets = Array.from(this.querySelectorAll('filter-preset')).map(p => {
@@ -291,10 +295,18 @@ class ClosureFilterBar extends HTMLElement {
       } else {
         input = document.createElement('input');
         input.type = 'text';
-        input.placeholder = 'Search…';
+        input.placeholder = f.placeholder || 'Search…';
         input.style.cssText = 'width:100%;margin-top:4px;padding:6px 8px;border:1px solid var(--border,#e5e7eb);border-radius:4px;font-size:13px;font-family:var(--font,sans-serif);';
         this._inputs[f.name] = input;
         lbl.appendChild(input);
+      }
+      // Seed the field's initial value from `default` (opt-in). Only when the
+      // caller hasn't already set a value programmatically, so explicit
+      // setValues() always wins. Works for text/select directly and for the
+      // checkbox virtual input via its CSV setter.
+      if (f.default !== '' && (this._values[f.name] === undefined || this._values[f.name] === '')) {
+        this._inputs[f.name].value = f.default;
+        this._values[f.name] = f.default;
       }
       const setValueBtns = this._setValueBtns.filter(b => b.target === f.name);
       if (setValueBtns.length > 0) {

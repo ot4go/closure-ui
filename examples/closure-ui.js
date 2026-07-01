@@ -1914,8 +1914,12 @@ customElements.define('closure-template', ClosureTemplate);
 class ClosureBtn extends HTMLElement {
   static _style = [
     ':host {',
-    '  display: var(--form-btn-host-display, block);',
-    '  min-height: var(--form-btn-min-height, 100px);',
+    // A naked <closure-btn> is a normal, compact, inline button. The big
+    // full-width "tile" look is opt-in via a container (<btn-grid>,
+    // <status-buttons>, …) which sets --form-btn-min-height / -host-display /
+    // -width itself; none rely on these defaults (grid items blockify anyway).
+    '  display: var(--form-btn-host-display, inline-block);',
+    '  min-height: var(--form-btn-min-height, 0);',
     '  position: relative;',
     '}',
     'a {',
@@ -1964,6 +1968,12 @@ class ClosureBtn extends HTMLElement {
     'a.red:hover { background: var(--red-hover, #b91c1c); }',
     'a.btn-full { width: 100%; }',
     'a.small { padding: 6px 12px; font-size: 12px; }',
+    /* small: a compact, inline button (not the full-width 100px tile). Inside a
+       status bar the inherited --form-btn-* vars already make it compact and the
+       button is a flex item there, so this host override is a no-op in that
+       context (verified pixel-identical) and only affects standalone small buttons. */
+    ':host(.small) { display: inline-block; min-height: 0; vertical-align: middle; }',
+    ':host(.small) a { width: var(--form-btn-width, auto); }',
     /* v-fill: make <a> stretch to host's full height so content centers */
     ':host([v-fill]) { display: flex; }',
     ':host([v-fill]) a { height: 100%; }',
@@ -3355,11 +3365,13 @@ class ClosureFilterBar extends HTMLElement {
           options = (f.getAttribute('options') || '').split(',').map(s => s.trim()).filter(Boolean).map(s => ({ value: s, label: s }));
         }
         return {
-          name:    f.getAttribute('name'),
-          label:   f.getAttribute('label'),
-          type:    f.getAttribute('type') || 'select',
-          options: options,
-          noAll:   f.hasAttribute('no-all'),
+          name:        f.getAttribute('name'),
+          label:       f.getAttribute('label'),
+          type:        f.getAttribute('type') || 'select',
+          options:     options,
+          noAll:       f.hasAttribute('no-all'),
+          placeholder: f.getAttribute('placeholder') || '',
+          default:     f.getAttribute('default') || '',
         };
       });
       this._presets = Array.from(this.querySelectorAll('filter-preset')).map(p => {
@@ -3484,10 +3496,18 @@ class ClosureFilterBar extends HTMLElement {
       } else {
         input = document.createElement('input');
         input.type = 'text';
-        input.placeholder = 'Search…';
+        input.placeholder = f.placeholder || 'Search…';
         input.style.cssText = 'width:100%;margin-top:4px;padding:6px 8px;border:1px solid var(--border,#e5e7eb);border-radius:4px;font-size:13px;font-family:var(--font,sans-serif);';
         this._inputs[f.name] = input;
         lbl.appendChild(input);
+      }
+      // Seed the field's initial value from `default` (opt-in). Only when the
+      // caller hasn't already set a value programmatically, so explicit
+      // setValues() always wins. Works for text/select directly and for the
+      // checkbox virtual input via its CSV setter.
+      if (f.default !== '' && (this._values[f.name] === undefined || this._values[f.name] === '')) {
+        this._inputs[f.name].value = f.default;
+        this._values[f.name] = f.default;
       }
       const setValueBtns = this._setValueBtns.filter(b => b.target === f.name);
       if (setValueBtns.length > 0) {
@@ -3840,6 +3860,28 @@ class ClosureDataGrid extends HTMLElement {
     this._detailMasterKey = this.getAttribute('detail-master-key') || this._detailKey;
     this._detailFilters = {};
     this._masterRow = null;
+
+    // Layout disposition. `<grid-layout>` is a declarative container: when
+    // present, its layout attributes are hoisted onto the host so the rest of
+    // the engine keeps reading them from one place (this.getAttribute(...)). A
+    // manual <grid-layout> value always wins over the same host attribute.
+    const layoutEl = this.querySelector('grid-layout');
+    if (layoutEl) {
+      ['page-size', 'min-rows', 'max-rows', 'scroll'].forEach(attr => {
+        if (layoutEl.hasAttribute(attr)) this.setAttribute(attr, layoutEl.getAttribute(attr));
+      });
+    }
+    // Resolve the scroll mode. An explicit scroll="window|continuous" (host or
+    // hoisted) wins. Otherwise infer defensively for backward compatibility: a
+    // physically bounded box (page-size="auto" or a max-rows cap) is a Window
+    // with internal scroll; anything else flows continuously with the document.
+    const scrollAttr = (this.getAttribute('scroll') || '').toLowerCase();
+    if (scrollAttr === 'window' || scrollAttr === 'continuous') {
+      this._scrollMode = scrollAttr;
+    } else {
+      const layoutMaxRows = parseInt(this.getAttribute('max-rows'), 10) || 0;
+      this._scrollMode = (this.getAttribute('page-size') === 'auto' || layoutMaxRows > 0) ? 'window' : 'continuous';
+    }
   }
 
   // ---
@@ -5133,6 +5175,17 @@ class ClosureDataGrid extends HTMLElement {
   _applyMaxHeight() {
     const maxRows = parseInt(this.getAttribute('max-rows'), 10) || 0;
     if (maxRows <= 0 || !this._wrap) return;
+    // A max-rows cap physically bounds the container, so the box must own the
+    // scroll. Force Window mode: the inner overflow handles any rows beyond the
+    // cap and the wheel legitimately paginates rather than escaping to the page.
+    // Warn once if this silently overrides an explicit scroll="continuous" —
+    // that combination is contradictory and the author's intent loses here.
+    if (!this._warnedScrollConflict &&
+        (this.getAttribute('scroll') || '').toLowerCase() === 'continuous') {
+      this._warnedScrollConflict = true;
+      console.warn('<closure-data-grid>: scroll="continuous" is ignored because max-rows bounds the grid; using window mode.');
+    }
+    this._scrollMode = 'window';
     const theadH = this.hasAttribute('headless') ? 0 : (this._headTable ? this._headTable.offsetHeight : 32);
     const paginH = this.hasAttribute('footerless') ? 0 : (this._pagination ? this._pagination.offsetHeight : 36);
     const ROW_H = 34;
@@ -5283,6 +5336,11 @@ class ClosureDataGrid extends HTMLElement {
     // Wheel
     this._bodyWrap.addEventListener('wheel', e => {
       if (!this._pagination) return;
+      // Continuous mode: never hijack the wheel. The grid flows at its natural
+      // height, so the wheel must drive the native document scroll (so the user
+      // can slide past the grid and reach the page/dialog footer) instead of
+      // being trapped flipping pages. Bail out before preventDefault().
+      if (this._scrollMode === 'continuous') return;
       // Horizontal scroll (deltaY 0) must keep scrolling, not paginate
       if (e.deltaY === 0) return;
       e.preventDefault();

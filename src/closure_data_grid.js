@@ -36,7 +36,7 @@ Dynamic requests expect JSON by default. Set `response="g-row"` on
 | `<grid-col>`        | column definition (`name`, `label`, `width`, `align`, `fill`, `type`, `map-data-id`) |
 | `<grid-key>`        | per-row identity (composed of one or more `name`s) |
 | `<grid-footer-buttons>` | extra buttons in the pagination footer (`side="left|center|right"`) |
-| `<grid-layout>`     | overrides `page-size`, scrolling mode, etc. |
+| `<grid-layout>`     | declarative container: hoists `page-size`, `min-rows`, `max-rows`, `scroll` onto the grid (child value wins over the host attribute) |
 | `<query-definition>`| dynamic-mode endpoint and defaults |
 | `<query-param>`     | maps an external value (filter, etc.) into a query parameter |
 | `<on-no-results>`   | markup rendered when the result set is empty |
@@ -50,6 +50,7 @@ Dynamic requests expect JSON by default. Set `response="g-row"` on
 | Attribute | Description |
 |---|---|
 | `page-size="auto"` | sizes the grid to the available viewport height and derives row count from that height |
+| `scroll="window\|continuous"` | scroll disposition (see note below); inferred when omitted |
 | `fill-reserve="N"` | with `page-size="auto"`, reserve `N` pixels below the grid |
 | `fill-reserve="selector"` | reserve the live height of the matched element and relayout when it resizes |
 | `fill-stop="selector"` | stop the grid at the matched element's top edge and relayout when it resizes |
@@ -344,6 +345,21 @@ effect because sizing is calculated per column, not per cell.
 > picks a `pageSize` that fills the viewport without overflow on first
 > render. Manual `<grid-layout page-size="N">` always wins.
 
+> **Note:** scroll disposition (`scroll="window|continuous"`):
+> - **`window`** — the grid is a height-bounded box with internal scroll;
+>   the mouse wheel over the body is captured to flip pages. This is the
+>   mode for `page-size="auto"` and for any grid with a `max-rows` cap.
+> - **`continuous`** — the grid flows at its natural height; the wheel is
+>   **not** captured, so the native document scroll slides past the grid to
+>   reach whatever follows it (page/dialog footer). Move through data with
+>   the keyboard or the pagination buttons.
+>
+> When `scroll` is omitted it is inferred: `window` if `page-size="auto"`
+> or a `max-rows` cap is set, otherwise `continuous`. A `max-rows` cap
+> always forces `window` (the box is physically bounded, so it owns the
+> scroll). Set `scroll` explicitly — on the host or via `<grid-layout>` —
+> to override the inference.
+
 > **Note:** `<filter-preset>` lets the markup expose one-click filter
 > sets that the consumer can wire to buttons; the preset writes back
 > through the filter bar so the chips visually update.
@@ -539,6 +555,28 @@ class ClosureDataGrid extends HTMLElement {
     this._detailMasterKey = this.getAttribute('detail-master-key') || this._detailKey;
     this._detailFilters = {};
     this._masterRow = null;
+
+    // Layout disposition. `<grid-layout>` is a declarative container: when
+    // present, its layout attributes are hoisted onto the host so the rest of
+    // the engine keeps reading them from one place (this.getAttribute(...)). A
+    // manual <grid-layout> value always wins over the same host attribute.
+    const layoutEl = this.querySelector('grid-layout');
+    if (layoutEl) {
+      ['page-size', 'min-rows', 'max-rows', 'scroll'].forEach(attr => {
+        if (layoutEl.hasAttribute(attr)) this.setAttribute(attr, layoutEl.getAttribute(attr));
+      });
+    }
+    // Resolve the scroll mode. An explicit scroll="window|continuous" (host or
+    // hoisted) wins. Otherwise infer defensively for backward compatibility: a
+    // physically bounded box (page-size="auto" or a max-rows cap) is a Window
+    // with internal scroll; anything else flows continuously with the document.
+    const scrollAttr = (this.getAttribute('scroll') || '').toLowerCase();
+    if (scrollAttr === 'window' || scrollAttr === 'continuous') {
+      this._scrollMode = scrollAttr;
+    } else {
+      const layoutMaxRows = parseInt(this.getAttribute('max-rows'), 10) || 0;
+      this._scrollMode = (this.getAttribute('page-size') === 'auto' || layoutMaxRows > 0) ? 'window' : 'continuous';
+    }
   }
 
   // ---
@@ -1832,6 +1870,17 @@ class ClosureDataGrid extends HTMLElement {
   _applyMaxHeight() {
     const maxRows = parseInt(this.getAttribute('max-rows'), 10) || 0;
     if (maxRows <= 0 || !this._wrap) return;
+    // A max-rows cap physically bounds the container, so the box must own the
+    // scroll. Force Window mode: the inner overflow handles any rows beyond the
+    // cap and the wheel legitimately paginates rather than escaping to the page.
+    // Warn once if this silently overrides an explicit scroll="continuous" —
+    // that combination is contradictory and the author's intent loses here.
+    if (!this._warnedScrollConflict &&
+        (this.getAttribute('scroll') || '').toLowerCase() === 'continuous') {
+      this._warnedScrollConflict = true;
+      console.warn('<closure-data-grid>: scroll="continuous" is ignored because max-rows bounds the grid; using window mode.');
+    }
+    this._scrollMode = 'window';
     const theadH = this.hasAttribute('headless') ? 0 : (this._headTable ? this._headTable.offsetHeight : 32);
     const paginH = this.hasAttribute('footerless') ? 0 : (this._pagination ? this._pagination.offsetHeight : 36);
     const ROW_H = 34;
@@ -1982,6 +2031,11 @@ class ClosureDataGrid extends HTMLElement {
     // Wheel
     this._bodyWrap.addEventListener('wheel', e => {
       if (!this._pagination) return;
+      // Continuous mode: never hijack the wheel. The grid flows at its natural
+      // height, so the wheel must drive the native document scroll (so the user
+      // can slide past the grid and reach the page/dialog footer) instead of
+      // being trapped flipping pages. Bail out before preventDefault().
+      if (this._scrollMode === 'continuous') return;
       // Horizontal scroll (deltaY 0) must keep scrolling, not paginate
       if (e.deltaY === 0) return;
       e.preventDefault();

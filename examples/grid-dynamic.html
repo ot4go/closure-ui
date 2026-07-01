@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>closure-ui — Dynamic grid (backend)</title>
+<script src="closure-ui.js"></script>
+</head>
+<body>
+
+<h1>closure-ui — Dynamic grid with a backend</h1>
+<p>This page is <strong>not</strong> self-contained: the grids fetch their rows
+  from a small Go server. Run it and open this page through it:</p>
+<pre>cd examples/server
+go run .
+# then open http://localhost:8099/grid-dynamic.html</pre>
+<p>Opening this file directly (<code>file://</code>) will show empty grids and a
+  fetch error — there is no endpoint to call. Every other example page works
+  offline; this one is the exception that demonstrates dynamic mode.</p>
+<p>The rows come from <code>examples/server/data/people.json</code> — edit that
+  file (no recompile) to change what the demo serves.</p>
+<p>Like the rest, this page is <strong>pure HTML</strong> — no stylesheet — so what
+  you see is the components' built-in default styling.</p>
+
+<!-- ============================================================ -->
+<!-- 1. Server-side pagination                                     -->
+<!-- ============================================================ -->
+<h2>1. Server-side pagination</h2>
+<p>In dynamic mode the grid fetches <em>one page at a time</em>. The
+  <code>&lt;query-definition&gt;</code> declares the endpoint and the
+  <code>&lt;query-param&gt;</code> children map the grid's paging state onto the
+  request: <code>bind="grid.offset"</code> and <code>bind="grid.limit"</code>. The
+  server replies with <code>{ data:[…], result:{ total, offset, eof } }</code> and
+  the grid renders that page, deriving the pager from <code>total</code>.</p>
+
+<closure-data-grid id="peopleGrid" page-size="10">
+  <grid-col name="id"     label="ID"   width="60" align="right"></grid-col>
+  <grid-col name="name"   label="Name" width="30%"></grid-col>
+  <grid-col name="city"   label="City" width="20%"></grid-col>
+  <grid-col name="role"   label="Role"></grid-col>
+  <grid-col name="active" label="Active" type="bool" width="80"></grid-col>
+  <grid-key>id</grid-key>
+
+  <query-definition url="/api/people" method="POST">
+    <query-param name="offset" bind="grid.offset"></query-param>
+    <query-param name="limit"  bind="grid.limit"></query-param>
+  </query-definition>
+
+  <on-no-results><p>No people match.</p></on-no-results>
+  <on-fetch-error><p>Could not reach the server — is <code>go run .</code> running?</p></on-fetch-error>
+</closure-data-grid>
+
+<pre>&lt;closure-data-grid id="peopleGrid" page-size="10"&gt;
+  &lt;grid-col name="id" label="ID" align="right"&gt;&lt;/grid-col&gt;
+  &lt;grid-col name="active" label="Active" type="bool"&gt;&lt;/grid-col&gt;
+  ...
+  &lt;query-definition url="/api/people" method="POST"&gt;
+    &lt;query-param name="offset" bind="grid.offset"&gt;&lt;/query-param&gt;
+    &lt;query-param name="limit"  bind="grid.limit"&gt;&lt;/query-param&gt;
+  &lt;/query-definition&gt;
+&lt;/closure-data-grid&gt;</pre>
+
+<!-- ============================================================ -->
+<!-- 2. Filtering wired to the backend                             -->
+<!-- ============================================================ -->
+<h2>2. Filtering wired to the backend</h2>
+<p>A paired <code>&lt;closure-filter-bar&gt;</code> targets the grid. Each
+  <code>&lt;filter-field&gt;</code> value reaches the server through a matching
+  <code>&lt;query-param bind="filter.X"&gt;</code>; changing a filter re-fetches
+  page 1. This bar also shows the two filter-field attributes added recently:
+  <code>placeholder</code> (per-field hint) and <code>default</code> (seed value
+  on first open) — the Name field opens pre-filled with <code>Ana</code>.</p>
+
+<closure-filter-bar target="peopleFiltered" dialog-title="Filter people">
+  <filter-field name="q"    label="Name" type="text"
+                placeholder="Search by name…" default="Ana"></filter-field>
+  <filter-field name="city" label="City"
+                options="Madrid,Sevilla,Valencia,Bilbao,Zaragoza"></filter-field>
+  <filter-field name="role" label="Role"
+                options="Analyst,Developer,Designer,Manager,Support"></filter-field>
+</closure-filter-bar>
+
+<closure-data-grid id="peopleFiltered" page-size="10">
+  <grid-col name="id"     label="ID"   width="60" align="right"></grid-col>
+  <grid-col name="name"   label="Name" width="30%"></grid-col>
+  <grid-col name="city"   label="City" width="20%"></grid-col>
+  <grid-col name="role"   label="Role"></grid-col>
+  <grid-col name="active" label="Active" type="bool" width="80"></grid-col>
+  <grid-key>id</grid-key>
+
+  <query-definition url="/api/people" method="POST">
+    <query-param name="offset" bind="grid.offset"></query-param>
+    <query-param name="limit"  bind="grid.limit"></query-param>
+    <query-param name="q"      bind="filter.q"></query-param>
+    <query-param name="city"   bind="filter.city"></query-param>
+    <query-param name="role"   bind="filter.role"></query-param>
+  </query-definition>
+
+  <on-no-results><p>No people match the current filter.</p></on-no-results>
+  <on-fetch-error><p>Could not reach the server — is <code>go run .</code> running?</p></on-fetch-error>
+</closure-data-grid>
+
+<pre>&lt;closure-filter-bar target="peopleFiltered"&gt;
+  &lt;filter-field name="q" label="Name" type="text"
+                placeholder="Search by name…" default="Ana"&gt;&lt;/filter-field&gt;
+  &lt;filter-field name="city" label="City" options="Madrid,Sevilla,…"&gt;&lt;/filter-field&gt;
+&lt;/closure-filter-bar&gt;
+
+&lt;closure-data-grid id="peopleFiltered" page-size="10"&gt;
+  ...
+  &lt;query-param name="q"    bind="filter.q"&gt;&lt;/query-param&gt;
+  &lt;query-param name="city" bind="filter.city"&gt;&lt;/query-param&gt;
+&lt;/closure-data-grid&gt;</pre>
+
+<p><a href="index.html">← back to the example index</a></p>
+
+</body>
+</html>

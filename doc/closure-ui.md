@@ -1890,6 +1890,8 @@ that to a `<closure-data-grid>` (or your own fetch) to actually reload.
 | `options="a,b,c"`  | inline options for `select` |
 | `map-data-id="id"` | populate options from a `<data-map>` (map-item: `value` / `label`) |
 | `no-all`           | omit the leading "All" empty option |
+| `placeholder="x"`  | placeholder for `type="text"` inputs (default `Search…`) |
+| `default="x"`      | initial value seeded into the field on first build (opt-in; overridden by a programmatic `setValues()`) |
 
 ### `<filter-preset>`
 
@@ -2008,7 +2010,7 @@ Dynamic requests expect JSON by default. Set `response="g-row"` on
 | `<grid-col>`        | column definition (`name`, `label`, `width`, `align`, `fill`, `type`, `map-data-id`) |
 | `<grid-key>`        | per-row identity (composed of one or more `name`s) |
 | `<grid-footer-buttons>` | extra buttons in the pagination footer (`side="left|center|right"`) |
-| `<grid-layout>`     | overrides `page-size`, scrolling mode, etc. |
+| `<grid-layout>`     | declarative container: hoists `page-size`, `min-rows`, `max-rows`, `scroll` onto the grid (child value wins over the host attribute) |
 | `<query-definition>`| dynamic-mode endpoint and defaults |
 | `<query-param>`     | maps an external value (filter, etc.) into a query parameter |
 | `<on-no-results>`   | markup rendered when the result set is empty |
@@ -2022,6 +2024,7 @@ Dynamic requests expect JSON by default. Set `response="g-row"` on
 | Attribute | Description |
 |---|---|
 | `page-size="auto"` | sizes the grid to the available viewport height and derives row count from that height |
+| `scroll="window\|continuous"` | scroll disposition (see note below); inferred when omitted |
 | `fill-reserve="N"` | with `page-size="auto"`, reserve `N` pixels below the grid |
 | `fill-reserve="selector"` | reserve the live height of the matched element and relayout when it resizes |
 | `fill-stop="selector"` | stop the grid at the matched element's top edge and relayout when it resizes |
@@ -2316,6 +2319,21 @@ effect because sizing is calculated per column, not per cell.
 > picks a `pageSize` that fills the viewport without overflow on first
 > render. Manual `<grid-layout page-size="N">` always wins.
 
+> **Note:** scroll disposition (`scroll="window|continuous"`):
+> - **`window`** — the grid is a height-bounded box with internal scroll;
+>   the mouse wheel over the body is captured to flip pages. This is the
+>   mode for `page-size="auto"` and for any grid with a `max-rows` cap.
+> - **`continuous`** — the grid flows at its natural height; the wheel is
+>   **not** captured, so the native document scroll slides past the grid to
+>   reach whatever follows it (page/dialog footer). Move through data with
+>   the keyboard or the pagination buttons.
+>
+> When `scroll` is omitted it is inferred: `window` if `page-size="auto"`
+> or a `max-rows` cap is set, otherwise `continuous`. A `max-rows` cap
+> always forces `window` (the box is physically bounded, so it owns the
+> scroll). Set `scroll` explicitly — on the host or via `<grid-layout>` —
+> to override the inference.
+
 > **Note:** `<filter-preset>` lets the markup expose one-click filter
 > sets that the consumer can wire to buttons; the preset writes back
 > through the filter bar so the chips visually update.
@@ -2336,7 +2354,7 @@ trivial implementation and are always loaded as a set.
 | `<grid-col>`         | column descriptor: `name`, `label`, `width`, `align`, `fill`, `type`, `map-data-id` |
 | `<grid-footer-buttons>` | extra pagination footer buttons; `side="left|center|right"` |
 | `<grid-key>`         | per-row identity (text content is one or more `name`s, comma-separated) |
-| `<grid-layout>`      | layout overrides: `page-size`, scroll mode, `auto-page-size` |
+| `<grid-layout>`      | layout container: hoists `page-size`, `min-rows`, `max-rows`, `scroll="window\|continuous"` onto the grid (child value wins) |
 | `<g-row>`            | one row of inline data (contains `<g-col>` cells) |
 | `<g-col>`            | one cell inside `<g-row>`; `name="…"` matches a `<grid-col>` |
 | `<g-detail>`         | nested detail rows inside a `<g-row>`; `name="…"` becomes an array field |

@@ -138,8 +138,12 @@ Class variants apply built-in colours and sizes:
 class ClosureBtn extends HTMLElement {
   static _style = [
     ':host {',
-    '  display: var(--form-btn-host-display, block);',
-    '  min-height: var(--form-btn-min-height, 100px);',
+    // A naked <closure-btn> is a normal, compact, inline button. The big
+    // full-width "tile" look is opt-in via a container (<btn-grid>,
+    // <status-buttons>, …) which sets --form-btn-min-height / -host-display /
+    // -width itself; none rely on these defaults (grid items blockify anyway).
+    '  display: var(--form-btn-host-display, inline-block);',
+    '  min-height: var(--form-btn-min-height, 0);',
     '  position: relative;',
     '}',
     'a {',
@@ -188,6 +192,12 @@ class ClosureBtn extends HTMLElement {
     'a.red:hover { background: var(--red-hover, #b91c1c); }',
     'a.btn-full { width: 100%; }',
     'a.small { padding: 6px 12px; font-size: 12px; }',
+    /* small: a compact, inline button (not the full-width 100px tile). Inside a
+       status bar the inherited --form-btn-* vars already make it compact and the
+       button is a flex item there, so this host override is a no-op in that
+       context (verified pixel-identical) and only affects standalone small buttons. */
+    ':host(.small) { display: inline-block; min-height: 0; vertical-align: middle; }',
+    ':host(.small) a { width: var(--form-btn-width, auto); }',
     /* v-fill: make <a> stretch to host's full height so content centers */
     ':host([v-fill]) { display: flex; }',
     ':host([v-fill]) a { height: 100%; }',

@@ -13,7 +13,7 @@ trivial implementation and are always loaded as a set.
 | `<grid-col>`         | column descriptor: `name`, `label`, `width`, `align`, `fill`, `type`, `map-data-id` |
 | `<grid-footer-buttons>` | extra pagination footer buttons; `side="left|center|right"` |
 | `<grid-key>`         | per-row identity (text content is one or more `name`s, comma-separated) |
-| `<grid-layout>`      | layout overrides: `page-size`, scroll mode, `auto-page-size` |
+| `<grid-layout>`      | layout container: hoists `page-size`, `min-rows`, `max-rows`, `scroll="window\|continuous"` onto the grid (child value wins) |
 | `<g-row>`            | one row of inline data (contains `<g-col>` cells) |
 | `<g-col>`            | one cell inside `<g-row>`; `name="…"` matches a `<grid-col>` |
 | `<g-detail>`         | nested detail rows inside a `<g-row>`; `name="…"` becomes an array field |
