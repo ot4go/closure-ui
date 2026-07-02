@@ -71,38 +71,45 @@
   - [Example](#example-9)
   - [CSS Variables](#css-variables-5)
   - [Behaviour](#behaviour-10)
-- [`<closure-status-bar>`](#closure-status-bar)
+- [`<closure-lazy-iframe>`](#closure-lazy-iframe)
   - [Attributes](#attributes-9)
-  - [Children](#children-2)
+  - [Methods / properties](#methods-properties)
+  - [Events](#events-4)
   - [Example](#example-10)
   - [CSS Variables](#css-variables-6)
   - [Behaviour](#behaviour-11)
-- [`<status-msg>`](#status-msg)
-  - [Example](#example-11)
-- [`<status-part>`](#status-part)
+- [`<closure-status-bar>`](#closure-status-bar)
   - [Attributes](#attributes-10)
-  - [Example](#example-12)
-  - [Behaviour](#behaviour-12)
-- [`<status-buttons>`](#status-buttons)
-  - [Attributes](#attributes-11)
-  - [Children](#children-3)
-  - [Example](#example-13)
+  - [Children](#children-2)
+  - [Example](#example-11)
   - [CSS Variables](#css-variables-7)
+  - [Behaviour](#behaviour-12)
+- [`<status-msg>`](#status-msg)
+  - [Example](#example-12)
+- [`<status-part>`](#status-part)
+  - [Attributes](#attributes-11)
+  - [Example](#example-13)
   - [Behaviour](#behaviour-13)
-- [`<status-kv>`](#status-kv)
+- [`<status-buttons>`](#status-buttons)
   - [Attributes](#attributes-12)
-  - [Properties](#properties-1)
+  - [Children](#children-3)
   - [Example](#example-14)
   - [CSS Variables](#css-variables-8)
   - [Behaviour](#behaviour-14)
-- [`<closure-filter-bar>`](#closure-filter-bar)
+- [`<status-kv>`](#status-kv)
   - [Attributes](#attributes-13)
-  - [Children](#children-4)
-  - [Events](#events-4)
-  - [Properties / Methods](#properties-methods)
+  - [Properties](#properties-1)
   - [Example](#example-15)
   - [CSS Variables](#css-variables-9)
   - [Behaviour](#behaviour-15)
+- [`<closure-filter-bar>`](#closure-filter-bar)
+  - [Attributes](#attributes-14)
+  - [Children](#children-4)
+  - [Events](#events-5)
+  - [Properties / Methods](#properties-methods)
+  - [Example](#example-16)
+  - [CSS Variables](#css-variables-10)
+  - [Behaviour](#behaviour-16)
 - [`<closure-data-grid>`](#closure-data-grid)
   - [Data sources](#data-sources)
   - [Children (configuration)](#children-configuration)
@@ -110,98 +117,98 @@
   - [Master/detail](#masterdetail)
   - [Selection vs focus](#selection-vs-focus)
   - [Methods](#methods-4)
-  - [Events](#events-5)
+  - [Events](#events-6)
   - [Refreshing after an edit](#refreshing-after-an-edit)
   - [Cell buttons](#cell-buttons)
   - [Action menu columns](#action-menu-columns)
   - [Tag columns](#tag-columns)
   - [Footer buttons](#footer-buttons)
-  - [Example](#example-16)
+  - [Example](#example-17)
   - [Column sizing](#column-sizing)
-  - [CSS Variables](#css-variables-10)
-  - [Behaviour](#behaviour-16)
+  - [CSS Variables](#css-variables-11)
+  - [Behaviour](#behaviour-17)
 - [`<closure-data-grid>` children](#closure-data-grid-children)
   - [Tags](#tags)
-  - [Example](#example-17)
+  - [Example](#example-18)
   - [`<grid-col>` sizing attributes](#grid-col-sizing-attributes)
-  - [Behaviour](#behaviour-17)
+  - [Behaviour](#behaviour-18)
 - [`<closure-row-viewer>`](#closure-row-viewer)
-  - [Attributes](#attributes-14)
+  - [Attributes](#attributes-15)
   - [Per-child binding attributes](#per-child-binding-attributes)
   - [Properties](#properties-2)
-  - [Example](#example-18)
-  - [Behaviour](#behaviour-18)
+  - [Example](#example-19)
+  - [Behaviour](#behaviour-19)
 - [`<closure-checkbox-tree>`](#closure-checkbox-tree)
-  - [Attributes](#attributes-15)
+  - [Attributes](#attributes-16)
   - [Children](#children-5)
   - [Form value](#form-value)
   - [Properties](#properties-3)
   - [Methods](#methods-5)
-  - [Events](#events-6)
-  - [Example](#example-19)
-  - [Behaviour](#behaviour-19)
-- [`<cbt-item>`](#cbt-item)
-  - [Attributes](#attributes-16)
+  - [Events](#events-7)
   - [Example](#example-20)
   - [Behaviour](#behaviour-20)
-- [`<closure-checkbox-group>`](#closure-checkbox-group)
+- [`<cbt-item>`](#cbt-item)
   - [Attributes](#attributes-17)
+  - [Example](#example-21)
+  - [Behaviour](#behaviour-21)
+- [`<closure-checkbox-group>`](#closure-checkbox-group)
+  - [Attributes](#attributes-18)
   - [Children](#children-6)
   - [Form value](#form-value-1)
   - [Properties](#properties-4)
   - [Methods](#methods-6)
-  - [Events](#events-7)
-  - [Example](#example-21)
-  - [Behaviour](#behaviour-21)
-- [`<closure-tab-bar>`](#closure-tab-bar)
-  - [Attributes](#attributes-18)
-  - [Children](#children-7)
-  - [Methods](#methods-7)
   - [Events](#events-8)
   - [Example](#example-22)
-  - [CSS Variables](#css-variables-11)
   - [Behaviour](#behaviour-22)
-- [`<closure-tab>`](#closure-tab)
+- [`<closure-tab-bar>`](#closure-tab-bar)
   - [Attributes](#attributes-19)
+  - [Children](#children-7)
+  - [Methods](#methods-7)
+  - [Events](#events-9)
   - [Example](#example-23)
+  - [CSS Variables](#css-variables-12)
   - [Behaviour](#behaviour-23)
+- [`<closure-tab>`](#closure-tab)
+  - [Attributes](#attributes-20)
+  - [Example](#example-24)
+  - [Behaviour](#behaviour-24)
 - [`<closure-summary>`](#closure-summary)
   - [Pairing](#pairing)
-  - [Attributes](#attributes-20)
-  - [Methods](#methods-8)
-  - [CSS Variables](#css-variables-12)
-  - [Behaviour](#behaviour-24)
-- [`<closure-form-row>`](#closure-form-row)
   - [Attributes](#attributes-21)
-  - [Children](#children-8)
-  - [Density](#density)
-  - [Example](#example-24)
+  - [Methods](#methods-8)
   - [CSS Variables](#css-variables-13)
   - [Behaviour](#behaviour-25)
-- [`<closure-form-field>`](#closure-form-field)
+- [`<closure-form-row>`](#closure-form-row)
   - [Attributes](#attributes-22)
-  - [Children](#children-9)
+  - [Children](#children-8)
+  - [Density](#density)
   - [Example](#example-25)
+  - [CSS Variables](#css-variables-14)
   - [Behaviour](#behaviour-26)
-- [`<closure-data-source>`](#closure-data-source)
+- [`<closure-form-field>`](#closure-form-field)
   - [Attributes](#attributes-23)
-  - [Children](#children-10)
+  - [Children](#children-9)
   - [Example](#example-26)
   - [Behaviour](#behaviour-27)
-- [`<fingerprint-hands>`](#fingerprint-hands)
+- [`<closure-data-source>`](#closure-data-source)
   - [Attributes](#attributes-24)
+  - [Children](#children-10)
+  - [Example](#example-27)
+  - [Behaviour](#behaviour-28)
+- [`<fingerprint-hands>`](#fingerprint-hands)
+  - [Attributes](#attributes-25)
   - [Form value](#form-value-2)
   - [Properties](#properties-5)
-  - [Events](#events-9)
-  - [Example](#example-27)
-  - [CSS Variables](#css-variables-14)
-  - [Behaviour](#behaviour-28)
-- [`<session-keep-alive>`](#session-keep-alive)
-  - [Attributes](#attributes-25)
   - [Events](#events-10)
   - [Example](#example-28)
   - [CSS Variables](#css-variables-15)
   - [Behaviour](#behaviour-29)
+- [`<session-keep-alive>`](#session-keep-alive)
+  - [Attributes](#attributes-26)
+  - [Events](#events-11)
+  - [Example](#example-29)
+  - [CSS Variables](#css-variables-16)
+  - [Behaviour](#behaviour-30)
 
 
 # Helpers
@@ -394,7 +401,7 @@ On connect, issues `GET /api/time?ts=<unix>` and uses the response to
 compute a clock offset (factoring in the round-trip latency). After that
 the time ticks every second from the local clock plus that offset.
 Falls back to the local clock if the sync request fails or the global
-`window.mdclock_skip_sync_time` is truthy.
+`window.closure_clock_skip_sync_time` is truthy.
 
 The displayed time uses the **server's** timezone, not the browser's.
 
@@ -440,7 +447,7 @@ Consumed (with fallbacks):
 > connect). To force a resync, remove and re-insert the element. There is
 > no public re-sync method.
 
-> **Note:** set `window.mdclock_skip_sync_time = 1` early (before the
+> **Note:** set `window.closure_clock_skip_sync_time = 1` early (before the
 > element connects) to disable the network call entirely — useful in
 > mockups and in tests where `/api/time` is not served.
 
@@ -448,7 +455,7 @@ Consumed (with fallbacks):
 > sync resolves. If the sync **fails**, `_syncTime` still resolves (falling
 > back to the local clock), so the clock starts then — `no-local` only
 > suppresses the transient local-time flash on a successful sync, it does
-> not leave a permanently dead clock. With `mdclock_skip_sync_time` it
+> not leave a permanently dead clock. With `closure_clock_skip_sync_time` it
 > starts immediately (there is no round-trip to wait for).
 
 > **Note:** font sizes also break responsively at viewport widths of
@@ -1564,6 +1571,108 @@ Consumed (with fallbacks):
 > **Note:** Esc fires the dialog's `cancel` event which the lightbox
 > intercepts and closes with `action: "cancel"`. The browser's default
 > Esc-closes-dialog behaviour is suppressed so the close path is uniform.
+
+---
+
+# `<closure-lazy-iframe>`
+
+Collapsible iframe panel. Renders a header with a label and an
+expand/collapse chevron button; the body hosts an `<iframe>` whose
+`src` is **only assigned the first time the panel is expanded** — until
+then no frame exists and the embedded page costs nothing. The panel
+starts collapsed unless the `expanded` attribute is present.
+
+The iframe stretches to the panel body: give the host (or its
+container) a height and the frame fills it; with no explicit height the
+body falls back to `--lazy-iframe-height` (320px). Collapsing only
+hides the body — the loaded document stays alive, so re-expanding is
+instant. Call `unload()` to actually drop the frame.
+
+Light-DOM children are slotted into the body as a placeholder and stay
+visible until the iframe fires its first `load` (default placeholder:
+"Loading…").
+
+## Attributes
+
+| Attribute | Description |
+|---|---|
+| `label="x"`   | header label |
+| `src="url"`   | iframe URL — assigned on first expand |
+| `expanded`    | boolean; present = open. Reflected: toggle it to open/close |
+| `iframe-title="x"` | copied to the iframe's `title` (accessibility) |
+| `name`, `allow`, `sandbox`, `referrerpolicy`, `allowfullscreen` | copied verbatim to the iframe when it is created |
+
+## Methods / properties
+
+| Member | Description |
+|---|---|
+| `expand()` / `collapse()` / `toggle()` | change panel state (sets/removes `expanded`) |
+| `unload()`          | collapse and remove the iframe; the next expand re-creates it and reloads `src` |
+| `expanded` (getter) | `true` while expanded |
+| `loaded` (getter)   | `true` once the iframe exists (src assigned) |
+| `iframe` (getter)   | the inner `<iframe>` element, or `null` before first expand / after `unload()` |
+
+## Events
+
+| Event | Bubbles | Cancelable | Detail |
+|---|---|---|---|
+| `lzi-toggle` | no | no  | `{ expanded }` |
+| `lzi-load`   | no | yes | `{ src }` — fired before the iframe is created; `preventDefault()` expands the panel without loading (the next expand retries) |
+| `lzi-loaded` | no | no  | `{ src }` — the iframe fired its `load` event |
+
+## Example
+
+```html
+<!-- collapsed by default: the report only loads when the user expands -->
+<closure-lazy-iframe label="Sales report" src="/reports/sales.html">
+  <p>The report loads when you expand this panel.</p>  <!-- placeholder -->
+</closure-lazy-iframe>
+
+<!-- starts open, loads immediately -->
+<closure-lazy-iframe label="Map" src="https://maps.example.com/embed" expanded></closure-lazy-iframe>
+
+<script>
+  var panel = document.querySelector('closure-lazy-iframe');
+  panel.addEventListener('lzi-loaded', function(e) {
+    console.log('frame ready:', e.detail.src);
+  });
+  panel.expand();   // same as panel.setAttribute('expanded', '')
+</script>
+```
+
+## CSS Variables
+
+Consumed (with fallbacks):
+
+| Variable | Default |
+|---|---|
+| `--lazy-iframe-height` | `320px` (body height when the host has none) |
+| `--border`     | `#e5e7eb` |
+| `--bg`         | `#f9fafb` |
+| `--text`       | `#111827` |
+| `--text-muted` | `#6b7280` |
+| `--font`       | `sans-serif` |
+| `--radius`     | `8px` |
+
+## Behaviour
+
+> **Note:** the `expanded` attribute is the single source of truth:
+> `expand()` / `collapse()` / the header click only set or remove it and
+> the attribute callback does the work (show/hide via `:host([expanded])`
+> CSS, lazy load, events). Server-rendered markup can therefore open the
+> panel by simply including the attribute.
+
+> **Note:** the host is a flex column: when the container gives it a
+> height, the body (and iframe) stretch to fill it; otherwise the body
+> takes `--lazy-iframe-height`. The frame always fills the body 100%.
+
+> **Note:** changing `src` after the iframe exists writes through and
+> navigates the frame; changing it before first expand just updates
+> what will be loaded.
+
+> **Note:** an initial `expanded` set in markup fires its `lzi-*` events
+> during upgrade, before page scripts can typically listen — read the
+> `expanded` / `loaded` properties instead of relying on those events.
 
 ---
 

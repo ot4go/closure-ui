@@ -8,7 +8,7 @@
   // Without a server there is no /api/time: we disable the sync call so
   // <clock-display> uses the LOCAL clock directly (the documented
   // fallback when synchronisation fails).
-  window.mdclock_skip_sync_time = 1;
+  window.closure_clock_skip_sync_time = 1;
 </script>
 <script src="closure-ui.js"></script>
 </head>
@@ -211,7 +211,7 @@
   <code>GET /api/time</code>; since this demo has no server, it uses the
   <strong>browser's LOCAL clock</strong> — the documented fallback when
   synchronisation fails (here we additionally set
-  <code>window.mdclock_skip_sync_time = 1</code> to skip the network call
+  <code>window.closure_clock_skip_sync_time = 1</code> to skip the network call
   entirely, as the doc recommends for mockups). That is also why the
   &laquo;Server Time&raquo; / ● label does not appear: it is only painted after a
   successful sync.</p>
@@ -229,7 +229,7 @@
 
 <pre>&lt;script&gt;
   // Mockups / tests without /api/time: skip the sync (local fallback)
-  window.mdclock_skip_sync_time = 1;
+  window.closure_clock_skip_sync_time = 1;
 &lt;/script&gt;
 
 &lt;clock-display&gt;&lt;/clock-display&gt;                 &lt;!-- hero --&gt;

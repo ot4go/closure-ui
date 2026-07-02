@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>closure-ui — Lazy iframe panel</title>
+<script src="closure-ui.js"></script>
+</head>
+<body>
+
+<h1>closure-ui — &lt;closure-lazy-iframe&gt;</h1>
+<p>Self-contained demo (works from <code>file://</code>) of
+  <code>&lt;closure-lazy-iframe&gt;</code>: a collapsible panel with a header
+  (label + expand/collapse chevron) and a body hosting an
+  <code>&lt;iframe&gt;</code> whose <code>src</code> is <strong>only assigned the
+  first time the panel is expanded</strong> — until then no frame exists and
+  the embedded page costs nothing. The frames here point at the sibling
+  example pages, so no server is needed.</p>
+<p>This page is deliberately <strong>pure HTML</strong> — it has no stylesheet at
+  all, so everything you see is the component's built-in default styling.
+  For restyling via CSS variables see <a href="theming.html">theming.html</a>.</p>
+
+<!-- ============================================================ -->
+<!-- 1. Collapsed by default -->
+<!-- ============================================================ -->
+<h2>1. Collapsed by default — expand to load</h2>
+<p>The panel starts collapsed (no <code>expanded</code> attribute). Open the
+  network tab before expanding: <code>buttons-actions.html</code> is only
+  requested on the first expand. Light-DOM children are slotted into the
+  body as a placeholder and stay visible until the frame's first
+  <code>load</code>. The iframe stretches to fill the body; without an
+  explicit host height the body falls back to
+  <code>--lazy-iframe-height</code> (320px).</p>
+
+<closure-lazy-iframe id="demo-lzi" label="Buttons &amp; actions demo"
+                     src="buttons-actions.html"
+                     iframe-title="Buttons and actions demo page">
+  <p>The buttons demo page loads here the first time you expand the panel.</p>
+</closure-lazy-iframe>
+
+<h3>Programmatic control + events</h3>
+<p>Collapsing only hides the body — the loaded document stays alive, so
+  re-expanding is instant and fires no <code>lzi-load</code>.
+  <code>unload()</code> collapses and drops the frame: the next expand
+  reloads <code>src</code> from scratch.</p>
+<p>
+  <button id="btn-lzi-toggle" type="button">toggle()</button>
+  <button id="btn-lzi-unload" type="button">unload()</button>
+</p>
+<pre id="out-lzi">(lzi-toggle / lzi-load / lzi-loaded events will appear here)</pre>
+
+<!-- ============================================================ -->
+<!-- 2. Starts expanded -->
+<!-- ============================================================ -->
+<h2>2. Starts expanded (loads immediately)</h2>
+<p>With the <code>expanded</code> attribute in the markup the panel opens —
+  and therefore loads — right away. The attribute is the single source of
+  truth: server-rendered HTML can open a panel by simply including it, and
+  <code>expand()</code> / <code>collapse()</code> / <code>toggle()</code> just
+  set or remove it.</p>
+
+<closure-lazy-iframe label="Theming demo" src="theming.html" expanded></closure-lazy-iframe>
+
+<!-- ============================================================ -->
+<!-- Markup reference -->
+<!-- ============================================================ -->
+<h2>Markup</h2>
+<pre>&lt;closure-lazy-iframe label="Buttons &amp;amp; actions demo"
+                     src="buttons-actions.html"
+                     iframe-title="Buttons and actions demo page"&gt;
+  &lt;p&gt;Placeholder shown until the frame's first load.&lt;/p&gt;
+&lt;/closure-lazy-iframe&gt;
+
+&lt;closure-lazy-iframe label="Theming demo" src="theming.html" expanded&gt;&lt;/closure-lazy-iframe&gt;
+
+&lt;script&gt;
+  const panel = document.querySelector('closure-lazy-iframe');
+  panel.addEventListener('lzi-toggle', e =&gt; console.log('expanded:', e.detail.expanded));
+  panel.addEventListener('lzi-load',   e =&gt; console.log('loading:', e.detail.src)); // cancelable
+  panel.addEventListener('lzi-loaded', e =&gt; console.log('ready:', e.detail.src));
+  panel.expand();     // collapse() / toggle() / unload() also available
+&lt;/script&gt;</pre>
+
+<p><a href="index.html">&larr; Back to index</a></p>
+
+<script>
+  // --- logging helper ------------------------------------------------------
+  function logTo(id, msg) {
+    var out = document.getElementById(id);
+    var time = new Date().toLocaleTimeString();
+    out.textContent = '[' + time + '] ' + msg + '\n' + out.textContent;
+    // Keep at most 6 lines
+    out.textContent = out.textContent.split('\n').slice(0, 6).join('\n');
+  }
+
+  // --- 1. events + programmatic control ------------------------------------
+  var lzi = document.getElementById('demo-lzi');
+  lzi.addEventListener('lzi-toggle', function(e) {
+    logTo('out-lzi', 'lzi-toggle → expanded=' + e.detail.expanded);
+  });
+  lzi.addEventListener('lzi-load', function(e) {
+    logTo('out-lzi', 'lzi-load → src="' + e.detail.src + '" (iframe about to be created)');
+  });
+  lzi.addEventListener('lzi-loaded', function(e) {
+    logTo('out-lzi', 'lzi-loaded → frame document ready');
+  });
+  document.getElementById('btn-lzi-toggle').addEventListener('click', function() {
+    lzi.toggle();
+  });
+  document.getElementById('btn-lzi-unload').addEventListener('click', function() {
+    lzi.unload();
+    logTo('out-lzi', 'unload() → iframe removed, next expand reloads');
+  });
+</script>
+</body>
+</html>

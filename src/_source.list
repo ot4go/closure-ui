@@ -11,6 +11,7 @@
 /* <%% include:closure_btn.js%%> */
 /* <%% include:closure_btn_item.js%%> */
 /* <%% include:closure_lightbox.js%%> */
+/* <%% include:closure_lazy_iframe.js%%> */
 /* <%% include:closure_status_bar.js%%> */
 /* <%% include:status_msg.js%%> */
 /* <%% include:status_part.js%%> */

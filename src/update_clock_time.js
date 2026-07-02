@@ -7,7 +7,7 @@ On connect, issues `GET /api/time?ts=<unix>` and uses the response to
 compute a clock offset (factoring in the round-trip latency). After that
 the time ticks every second from the local clock plus that offset.
 Falls back to the local clock if the sync request fails or the global
-`window.mdclock_skip_sync_time` is truthy.
+`window.closure_clock_skip_sync_time` is truthy.
 
 The displayed time uses the **server's** timezone, not the browser's.
 
@@ -53,7 +53,7 @@ Consumed (with fallbacks):
 > connect). To force a resync, remove and re-insert the element. There is
 > no public re-sync method.
 
-> **Note:** set `window.mdclock_skip_sync_time = 1` early (before the
+> **Note:** set `window.closure_clock_skip_sync_time = 1` early (before the
 > element connects) to disable the network call entirely — useful in
 > mockups and in tests where `/api/time` is not served.
 
@@ -61,7 +61,7 @@ Consumed (with fallbacks):
 > sync resolves. If the sync **fails**, `_syncTime` still resolves (falling
 > back to the local clock), so the clock starts then — `no-local` only
 > suppresses the transient local-time flash on a successful sync, it does
-> not leave a permanently dead clock. With `mdclock_skip_sync_time` it
+> not leave a permanently dead clock. With `closure_clock_skip_sync_time` it
 > starts immediately (there is no round-trip to wait for).
 
 > **Note:** font sizes also break responsively at viewport widths of
@@ -207,7 +207,7 @@ class ClockDisplay extends HTMLElement {
   }
 
   async _syncTime() {
-    if (window.mdclock_skip_sync_time || 0) { return; }
+    if (window.closure_clock_skip_sync_time || 0) { return; }
 
     try {
       const t0 = Date.now();

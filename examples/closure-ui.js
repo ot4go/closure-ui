@@ -217,7 +217,7 @@ class ClockDisplay extends HTMLElement {
   }
 
   async _syncTime() {
-    if (window.mdclock_skip_sync_time || 0) { return; }
+    if (window.closure_clock_skip_sync_time || 0) { return; }
 
     try {
       const t0 = Date.now();
@@ -2787,6 +2787,146 @@ class ClosureLightbox extends HTMLElement {
 }
 
 customElements.define('closure-lightbox', ClosureLightbox);
+
+
+class ClosureLazyIframe extends HTMLElement {
+  static _style = [
+    ':host { display: flex; flex-direction: column; border: 1px solid var(--border, #e5e7eb); border-radius: var(--radius, 8px); overflow: hidden; background: var(--bg, #f9fafb); font-family: var(--font, sans-serif); }',
+    '.lzi-header { display: flex; align-items: center; padding: 8px 12px; cursor: pointer; user-select: none; }',
+    '.lzi-label { flex: 1; font-weight: 600; font-size: 14px; color: var(--text, #111827); }',
+    '.lzi-toggle { border: none; background: none; cursor: pointer; font-size: 14px; color: var(--text-muted, #6b7280); padding: 0 0 0 12px; line-height: 1; }',
+    '.lzi-toggle:hover { color: var(--text, #111827); }',
+    '.lzi-body { display: none; position: relative; flex: 1 1 auto; height: var(--lazy-iframe-height, 320px); border-top: 1px solid var(--border, #e5e7eb); background: #fff; }',
+    ':host([expanded]) .lzi-body { display: block; }',
+    'iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block; }',
+    '.lzi-ph { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; overflow: auto; color: var(--text-muted, #6b7280); font-size: 13px; }',
+  ].join('\n');
+
+  // host attributes copied verbatim to the iframe at creation time
+  static _passthrough = ['name', 'allow', 'sandbox', 'referrerpolicy', 'allowfullscreen'];
+
+  static get observedAttributes() { return ['label', 'src', 'expanded']; }
+
+  // ---
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
+    var style = document.createElement('style');
+    style.textContent = ClosureLazyIframe._style;
+
+    var header = document.createElement('div');
+    header.className = 'lzi-header';
+    this._labelEl = document.createElement('span');
+    this._labelEl.className = 'lzi-label';
+    this._toggleBtn = document.createElement('button');
+    this._toggleBtn.type = 'button';
+    this._toggleBtn.className = 'lzi-toggle';
+    header.appendChild(this._labelEl);
+    header.appendChild(this._toggleBtn);
+
+    this._body = document.createElement('div');
+    this._body.className = 'lzi-body';
+    this._ph = document.createElement('div');
+    this._ph.className = 'lzi-ph';
+    var slot = document.createElement('slot');
+    slot.textContent = 'Loading…'; // fallback when there are no light children
+    this._ph.appendChild(slot);
+    this._body.appendChild(this._ph);
+
+    this.shadowRoot.appendChild(style);
+    this.shadowRoot.appendChild(header);
+    this.shadowRoot.appendChild(this._body);
+
+    this._iframe = null;
+    var self = this;
+    // the button click bubbles up to the header, one handler covers both
+    header.addEventListener('click', function() { self.toggle(); });
+    this._syncHeader();
+  }
+
+  attributeChangedCallback(attr, oldVal, val) {
+    switch (attr) {
+    case 'label':
+      this._labelEl.textContent = val || '';
+      break;
+    case 'src':
+      // write-through once the frame exists; before that the attribute
+      // is simply what the first expand will load
+      if (this._iframe) this._iframe.src = val || '';
+      break;
+    case 'expanded':
+      if (oldVal === val) return; // e.g. expand() while already expanded
+      this._syncHeader();
+      var expanded = val !== null;
+      // state change first, lazy load second — a lzi-toggle listener can
+      // still cancel the lzi-load that follows
+      this.dispatchEvent(new CustomEvent('lzi-toggle', {
+        detail: { expanded: expanded },
+        bubbles: false,
+      }));
+      if (expanded && !this._iframe) this._load();
+      break;
+    }
+  }
+
+  _syncHeader() {
+    var open = this.hasAttribute('expanded');
+    this._toggleBtn.textContent = open ? '▾' : '▸';
+    this._toggleBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    this._toggleBtn.setAttribute('aria-label', open ? 'Collapse' : 'Expand');
+  }
+
+  _load() {
+    var src = this.getAttribute('src');
+    if (!src) return;
+    var e = new CustomEvent('lzi-load', {
+      detail: { src: src },
+      bubbles: false,
+      cancelable: true,
+    });
+    if (!this.dispatchEvent(e)) return; // cancelled — the next expand retries
+
+    var f = document.createElement('iframe');
+    if (this.hasAttribute('iframe-title')) {
+      f.title = this.getAttribute('iframe-title');
+    }
+    var self = this;
+    ClosureLazyIframe._passthrough.forEach(function(a) {
+      if (self.hasAttribute(a)) f.setAttribute(a, self.getAttribute(a));
+    });
+    f.addEventListener('load', function() {
+      self._ph.style.display = 'none';
+      self.dispatchEvent(new CustomEvent('lzi-loaded', {
+        detail: { src: f.src },
+        bubbles: false,
+      }));
+    });
+    f.src = src;
+    this._body.appendChild(f);
+    this._iframe = f;
+  }
+
+  get expanded() { return this.hasAttribute('expanded'); }
+  get loaded() { return !!this._iframe; }
+  get iframe() { return this._iframe; }
+
+  expand() { this.setAttribute('expanded', ''); }
+  collapse() { this.removeAttribute('expanded'); }
+  toggle() {
+    if (this.expanded) this.collapse();
+    else this.expand();
+  }
+
+  unload() {
+    this.collapse();
+    if (!this._iframe) return;
+    this._iframe.remove();
+    this._iframe = null;
+    this._ph.style.display = ''; // placeholder returns for the reload
+  }
+}
+
+customElements.define('closure-lazy-iframe', ClosureLazyIframe);
 
 
 class ClosureStatusBar extends HTMLElement {
