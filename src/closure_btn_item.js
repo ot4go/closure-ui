@@ -13,7 +13,7 @@ override.
 | `ct-role="x"`   | role for template matching (overrides the parent button's `ct-role`) |
 | `icon="x"`      | icon text rendered before the label |
 | `disabled`      | disabled visual + skips focus |
-| `url="x"`       | when set, click POSTs the merged `data-*` to this URL instead of dispatching the event |
+| `url="x"`       | when set, click submits the merged `data-*` to this URL (shared `closureFreeSubmit()` form) instead of dispatching the event. Default method: **POST**; `get`/`post`/`method=` pick another, as on `<closure-btn free>` |
 | `event="x"`     | event name to dispatch (defaults to parent's `event` then to `btn-action`) |
 | `target-id="x"` | element to receive the dispatched event (defaults to parent's `target-id` then to the parent button) |
 | `section="x"`   | section key when packaging `data-*` (defaults to parent's `section`) |
@@ -143,26 +143,8 @@ class ClosureBtnItem extends HTMLElement {
       a.addEventListener('click', (e) => {
         e.preventDefault();
         if (self.hasAttribute('disabled')) return;
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = url;
-        form.style.display = 'none';
-        // Reuse the same merging logic as the btn-action path.
-        const data = self.getBtnData();
-        for (const section in data.sections) {
-          const fields = data.sections[section];
-          for (const name in fields) {
-            const hidden = document.createElement('input');
-            hidden.type = 'hidden';
-            hidden.name = section ? section + '_' + name : name;
-            hidden.value = fields[name];
-            form.appendChild(hidden);
-          }
-        }
-        document.body.appendChild(form);
-        form.submit();
-        form.remove(); // drop the node post-submit so it can't orphan in
-                       // <body> on a download / new-tab action
+        // Shared free-mode form; getBtnData() keeps the parent-menu merge
+        closureFreeSubmit(self, url, 'post');
       });
     } else {
       a.addEventListener('click', (e) => {

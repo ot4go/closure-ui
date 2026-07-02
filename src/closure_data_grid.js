@@ -800,22 +800,12 @@ class ClosureDataGrid extends HTMLElement {
   // ---
   _navigateWithParams() {
     const qd = this._queryDef;
-    const params = this._resolveParams();
-    const form = document.createElement('form');
-    form.method = qd.method;
-    form.action = qd.url;
-    form.target = qd.target || '_self';
-    form.style.display = 'none';
-    for (const [k, v] of Object.entries(params)) {
-      const input = document.createElement('input');
-      input.type = 'hidden'; input.name = k; input.value = v;
-      form.appendChild(input);
-    }
-    document.body.appendChild(form);
-    form.submit();
-    form.remove(); // submit is already initiated; drop the node so it
-                   // can't orphan in <body> — this path may set
-                   // form.target="_blank", which never navigates the page
+    // Shared encapsulated form; qd.target may be "_blank" (never navigates
+    // the current page)
+    closureFreeSubmit(null, qd.url, qd.method, {
+      fields: this._resolveParams(),
+      target: qd.target || '_self',
+    });
   }
 
   // ---
@@ -1807,9 +1797,8 @@ class ClosureDataGrid extends HTMLElement {
         // leftover pixels) so the sum never exceeds the available width.
         // Math.ceil on every column could overshoot by up to (n-1)px and
         // trigger a spurious horizontal scrollbar in auto-fit mode.
-        // TODO: a separate ~2px horizontal overflow remains even when the fill
-        // sum is exact — it comes from the .dg-wrap / cell borders, which the
-        // available-width calc doesn't subtract. Minor; not the rounding bug.
+        // (A separate ~2-3px overflow from cell/wrap borders is absorbed by
+        // the chrome-compensation pass after the widths are applied, below.)
         const total = Math.max(fillContentWidth, fillAvailable);
         const base = Math.floor(total / fillIdxs.length);
         let extra = total - base * fillIdxs.length;
@@ -1834,6 +1823,37 @@ class ClosureDataGrid extends HTMLElement {
       }
       this._headTable.style.tableLayout = 'fixed';
       this._bodyTable.style.tableLayout = 'fixed';
+      // Chrome compensation: cell/wrap borders add a couple of px the width
+      // math above can't see, which used to leave a permanent 2-3px
+      // horizontal scrollbar on every auto-fit grid. Measure the real
+      // overflow once (one extra reflow) and absorb a SMALL one — border
+      // chrome, never legitimate content scroll — by shrinking the fill
+      // columns (or the widest column when there are none).
+      if (tableWidth > 0) {
+        const chrome = this._bodyWrap.scrollWidth - this._bodyWrap.clientWidth;
+        if (chrome > 0 && chrome <= 4 && tableWidth > chrome) {
+          let targetIdxs = fillIdxs;
+          if (!targetIdxs.length) {
+            let maxIdx = -1, maxW = -1;
+            widths.forEach((w, idx) => {
+              if (w && w.endsWith('px') && parseFloat(w) > maxW) { maxW = parseFloat(w); maxIdx = idx; }
+            });
+            targetIdxs = maxIdx >= 0 ? [maxIdx] : [];
+          }
+          if (targetIdxs.length) {
+            let remaining = chrome;
+            targetIdxs.forEach((idx, n) => {
+              const cut = Math.ceil(remaining / (targetIdxs.length - n));
+              remaining -= cut;
+              widths[idx] = Math.max(10, parseFloat(widths[idx]) - cut) + 'px';
+              headCg.children[idx].style.width = widths[idx];
+              bodyCg.children[idx].style.width = widths[idx];
+            });
+            this._headTable.style.width = (tableWidth - chrome) + 'px';
+            this._bodyTable.style.width = (tableWidth - chrome) + 'px';
+          }
+        }
+      }
     } else {
       this._headTable.style.tableLayout = '';
       this._bodyTable.style.tableLayout = '';
@@ -1851,6 +1871,23 @@ class ClosureDataGrid extends HTMLElement {
         col.style.width = th.offsetWidth + 'px';
         bodyCg.appendChild(col);
       });
+      // Chrome compensation (same rationale as in auto-fit): th.offsetWidth
+      // includes collapsed borders, so the copied sum leaves the fixed-layout
+      // body table 2-3px wider than the wrap — a permanent spurious
+      // horizontal scrollbar. Measure the real overflow once and shave 1px
+      // off the widest columns (spread, so column lines stay visually
+      // aligned with the header). Small overflows only: legitimate content
+      // scroll is untouched.
+      const chrome = this._bodyWrap.scrollWidth - this._bodyWrap.clientWidth;
+      if (chrome > 0 && chrome <= 5) {
+        const cols = Array.from(bodyCg.children);
+        const byWidth = cols.map((c, idx) => idx).sort((a, b) =>
+          parseFloat(cols[b].style.width) - parseFloat(cols[a].style.width));
+        for (let n = 0; n < chrome && cols.length; n++) {
+          const c = cols[byWidth[n % cols.length]];
+          c.style.width = Math.max(10, parseFloat(c.style.width) - 1) + 'px';
+        }
+      }
     }
   }
 
@@ -2162,19 +2199,9 @@ class ClosureDataGrid extends HTMLElement {
 
     switch (mode) {
       case 'navigate': {
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.style.display = 'none';
-        if (url) form.action = url;
-        for (const [k, v] of Object.entries(params)) {
-          const input = document.createElement('input');
-          input.type = 'hidden'; input.name = k; input.value = v;
-          form.appendChild(input);
-        }
-        document.body.appendChild(form);
-        form.submit();
-        form.remove(); // drop the node post-submit so it can't orphan in
-                       // <body> on a download / new-tab action
+        // Shared encapsulated form: POST the computed params (data-* + bound
+        // row fields) and navigate to the response
+        closureFreeSubmit(null, url, 'post', { fields: params });
         break;
       }
       case 'dialog': {

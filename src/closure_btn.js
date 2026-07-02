@@ -30,7 +30,8 @@ them); button state and form validation stay with the surrounding closure / form
 | `readonly`              | rendered but hidden (used to keep grid alignment) |
 | `class="primary\|red\|green\|gray\|small"` | colour / size variants |
 | `free`                  | bypass target-closure: click POSTs to `url` (or fires the event itself) |
-| `url="x"`               | (with `free`) destination URL of the auto-generated POST form |
+| `url="x"`               | (with `free`) destination URL of the auto-generated form |
+| `get` / `post` / `method="get\|post"` | (with `free`) pick the submit method — quick boolean attributes win over `method=`. Default: **POST** (an action button). On GET the `data-*` fields become the query string, replacing any query on `url` (add `preserve` to keep it) |
 | `event="x"`             | event name to dispatch (default `btn-action`) |
 | `target-id="x"`         | element to receive the dispatched event (default: self) |
 | `target-selector="css"` | selector target for local client actions |
@@ -430,27 +431,7 @@ class ClosureBtn extends HTMLElement {
           a.addEventListener('click', (e) => {
             e.preventDefault();
             if (disabled || readonly) return;
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = url;
-            form.style.display = 'none';
-            const section = self.getAttribute('section') || '';
-            for (const attr of self.attributes) {
-              if (attr.name.startsWith('data-')) {
-                const fname = attr.name.slice(5);
-                const hidden = document.createElement('input');
-                hidden.type = 'hidden';
-                // Honour `section` like <closure-btn-item> does — otherwise the
-                // same free action sends unprefixed names as a main button.
-                hidden.name = section ? section + '_' + fname : fname;
-                hidden.value = attr.value;
-                form.appendChild(hidden);
-              }
-            }
-            document.body.appendChild(form);
-            form.submit();
-            form.remove(); // drop the node post-submit so it can't orphan
-                           // in <body> on a download / new-tab action
+            closureFreeSubmit(self, url, 'post');
           });
         } else {
           a.addEventListener('click', (e) => {

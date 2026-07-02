@@ -1,5 +1,74 @@
 
 
+function closureFreeSubmit(el, url, defaultMethod, opts) {
+  opts = opts || {};
+  var method = defaultMethod || 'post';
+  if (el) {
+    method = el.hasAttribute('post') ? 'post'
+      : el.hasAttribute('get') ? 'get'
+      : (el.getAttribute('method') || method);
+  }
+  var isGet = String(method).toLowerCase() === 'get';
+  var form = document.createElement('form');
+  form.method = isGet ? 'GET' : 'POST';
+  if (url) form.action = url;
+  if (opts.target) form.target = opts.target;
+  form.style.display = 'none';
+
+  var addField = function(name, value) {
+    var hidden = document.createElement('input');
+    hidden.type = 'hidden';
+    hidden.name = name;
+    hidden.value = value;
+    form.appendChild(hidden);
+  };
+
+  // `preserve`: a native GET submit REPLACES the url's query string — fold
+  // the existing query params in as leading fields so they survive (same
+  // semantics as the `preserve` opt-in on captured GET forms)
+  if (isGet && (opts.preserve || (el && el.hasAttribute('preserve')))) {
+    var qi = (url || '').indexOf('?');
+    if (qi >= 0) {
+      new URLSearchParams(url.slice(qi + 1)).forEach(function(v, k) { addField(k, v); });
+    }
+  }
+
+  if (opts.fields) {
+    // Caller-computed payload (grid query params, server-sent payloads…):
+    // names are final, no section prefixing
+    for (var k in opts.fields) addField(k, opts.fields[k]);
+  } else if (el && typeof el.getBtnData === 'function') {
+    // Sources with the closure-btn contract keep their own payload
+    // semantics — e.g. <closure-btn-item> merges the parent menu's data-*
+    var sections = el.getBtnData().sections;
+    for (var section in sections) {
+      var fields = sections[section];
+      for (var name in fields) {
+        addField(section ? section + '_' + name : name, fields[name]);
+      }
+    }
+  } else if (el) {
+    // Plain elements: one field per data-* attribute, `section`-prefixed
+    var sec = el.getAttribute('section') || '';
+    Array.prototype.forEach.call(el.attributes, function(attr) {
+      if (attr.name.indexOf('data-') !== 0) return;
+      addField(sec ? sec + '_' + attr.name.slice(5) : attr.name.slice(5), attr.value);
+    });
+  }
+
+  // GET with no fields at all: don't build a form — a fieldless GET submit
+  // would append a bare "?" to the url. Plain navigation instead.
+  if (isGet && !form.children.length && !opts.target) {
+    window.location.href = url;
+    return;
+  }
+
+  document.body.appendChild(form);
+  form.submit();
+  form.remove(); // drop the node post-submit so it can't orphan
+                 // in <body> on a download / new-tab action
+}
+
 function applyWidthRange(el) {
   var wr = el.getAttribute('wr');
   if (!wr) return;
@@ -2206,27 +2275,7 @@ class ClosureBtn extends HTMLElement {
           a.addEventListener('click', (e) => {
             e.preventDefault();
             if (disabled || readonly) return;
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = url;
-            form.style.display = 'none';
-            const section = self.getAttribute('section') || '';
-            for (const attr of self.attributes) {
-              if (attr.name.startsWith('data-')) {
-                const fname = attr.name.slice(5);
-                const hidden = document.createElement('input');
-                hidden.type = 'hidden';
-                // Honour `section` like <closure-btn-item> does — otherwise the
-                // same free action sends unprefixed names as a main button.
-                hidden.name = section ? section + '_' + fname : fname;
-                hidden.value = attr.value;
-                form.appendChild(hidden);
-              }
-            }
-            document.body.appendChild(form);
-            form.submit();
-            form.remove(); // drop the node post-submit so it can't orphan
-                           // in <body> on a download / new-tab action
+            closureFreeSubmit(self, url, 'post');
           });
         } else {
           a.addEventListener('click', (e) => {
@@ -2446,26 +2495,8 @@ class ClosureBtnItem extends HTMLElement {
       a.addEventListener('click', (e) => {
         e.preventDefault();
         if (self.hasAttribute('disabled')) return;
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = url;
-        form.style.display = 'none';
-        // Reuse the same merging logic as the btn-action path.
-        const data = self.getBtnData();
-        for (const section in data.sections) {
-          const fields = data.sections[section];
-          for (const name in fields) {
-            const hidden = document.createElement('input');
-            hidden.type = 'hidden';
-            hidden.name = section ? section + '_' + name : name;
-            hidden.value = fields[name];
-            form.appendChild(hidden);
-          }
-        }
-        document.body.appendChild(form);
-        form.submit();
-        form.remove(); // drop the node post-submit so it can't orphan in
-                       // <body> on a download / new-tab action
+        // Shared free-mode form; getBtnData() keeps the parent-menu merge
+        closureFreeSubmit(self, url, 'post');
       });
     } else {
       a.addEventListener('click', (e) => {
@@ -2805,6 +2836,8 @@ class ClosureLazyIframe extends HTMLElement {
   // host attributes copied verbatim to the iframe at creation time
   static _passthrough = ['name', 'allow', 'sandbox', 'referrerpolicy', 'allowfullscreen'];
 
+  static _seq = 0; // for generated frame names in post mode
+
   static get observedAttributes() { return ['label', 'src', 'expanded']; }
 
   // ---
@@ -2852,7 +2885,7 @@ class ClosureLazyIframe extends HTMLElement {
     case 'src':
       // write-through once the frame exists; before that the attribute
       // is simply what the first expand will load
-      if (this._iframe) this._iframe.src = val || '';
+      if (this._iframe && val) this._navigateFrame(val);
       break;
     case 'expanded':
       if (oldVal === val) return; // e.g. expand() while already expanded
@@ -2895,15 +2928,61 @@ class ClosureLazyIframe extends HTMLElement {
       if (self.hasAttribute(a)) f.setAttribute(a, self.getAttribute(a));
     });
     f.addEventListener('load', function() {
+      // In post mode the frame is inserted src-less, so its initial
+      // about:blank commit also fires `load` — ignore it (about:blank is
+      // always same-origin readable; a real cross-origin response throws
+      // on the access and is treated as loaded)
+      try {
+        if (f.contentWindow.location.href === 'about:blank') return;
+      } catch (e) { /* cross-origin: a real document loaded */ }
       self._ph.style.display = 'none';
       self.dispatchEvent(new CustomEvent('lzi-loaded', {
-        detail: { src: f.src },
+        // f.src is empty in post mode — report the requested url instead
+        detail: { src: f.src || self._loadedUrl || '' },
         bubbles: false,
       }));
     });
-    f.src = src;
-    this._body.appendChild(f);
     this._iframe = f;
+    if (this._viaForm()) {
+      // Form loads submit INTO the frame: it must be named and connected
+      // before the submit
+      if (!f.name) f.name = 'lzi-frame-' + (++ClosureLazyIframe._seq);
+      this._body.appendChild(f);
+      this._navigateFrame(src);
+    } else {
+      // fieldless GET: assign src before insertion — no about:blank phase
+      this._navigateFrame(src);
+      this._body.appendChild(f);
+    }
+  }
+
+  _isPost() {
+    return this.hasAttribute('post') ||
+      (this.getAttribute('method') || '').toLowerCase() === 'post';
+  }
+
+  _hasFields() {
+    return Array.prototype.some.call(this.attributes, function(a) {
+      return a.name.indexOf('data-') === 0;
+    });
+  }
+
+  // With fields (data-*) — or with `post` — loading always goes through the
+  // shared hidden form submitted INTO the named frame, with whichever
+  // method applies (GET: fields → the frame url's query; POST: fields →
+  // body). A fieldless GET is a plain src assignment.
+  _viaForm() {
+    return this._isPost() || this._hasFields();
+  }
+
+  _navigateFrame(url) {
+    this._loadedUrl = url;
+    if (this._viaForm()) {
+      closureFreeSubmit(this, url, this._isPost() ? 'post' : 'get',
+        { target: this._iframe.name });
+    } else {
+      this._iframe.src = url;
+    }
   }
 
   get expanded() { return this.hasAttribute('expanded'); }
@@ -2927,6 +3006,510 @@ class ClosureLazyIframe extends HTMLElement {
 }
 
 customElements.define('closure-lazy-iframe', ClosureLazyIframe);
+
+
+class ClosureDashboard extends HTMLElement {
+  static _styleId = 'closure-dashboard-default-style';
+  static _style = [
+    'closure-dashboard { display: flex; flex-direction: column; height: var(--dash-height, 100dvh); overflow: hidden; background: #fff; font-family: var(--font, sans-serif); }',
+    'closure-dashboard .dsh-bar { display: flex; align-items: center; gap: 10px; height: var(--dash-header-height, 48px); padding: 0 12px; flex: none; position: relative; background: var(--dash-header-bg, var(--bg, #f9fafb)); border-bottom: 1px solid var(--border, #e5e7eb); }',
+    'closure-dashboard .dsh-burger { border: none; background: none; cursor: pointer; font-size: 18px; line-height: 1; padding: 4px 6px; color: var(--text-muted, #6b7280); border-radius: var(--radius, 8px); }',
+    'closure-dashboard .dsh-burger:hover { color: var(--text, #111827); background: rgba(0,0,0,0.06); }',
+    'closure-dashboard .dsh-title { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; color: var(--text, #111827); text-decoration: none; }',
+    'closure-dashboard a.dsh-title:hover { color: var(--primary, #4f46e5); }',
+    'closure-dashboard .dsh-logo { display: block; height: var(--dash-logo-height, 24px); }',
+    'closure-dashboard[title-align="center"] .dsh-title { position: absolute; left: 50%; transform: translateX(-50%); }',
+    'closure-dashboard dash-header { margin-left: auto; display: flex; align-items: center; gap: 10px; }',
+    'closure-dashboard .dsh-row { flex: 1; display: flex; min-height: 0; position: relative; }',
+    'closure-dashboard dash-nav { width: var(--dash-nav-width, 220px); flex: none; overflow: auto; padding: 8px; display: flex; flex-direction: column; gap: 2px; background: var(--dash-nav-bg, var(--bg, #f9fafb)); border-right: 1px solid var(--border, #e5e7eb); box-sizing: border-box; }',
+    'closure-dashboard[collapsed] dash-nav { display: none; }',
+    'closure-dashboard dash-client { flex: 1; min-width: 0; overflow: auto; display: block; padding: var(--dash-client-padding, 16px); font-size: 14px; color: var(--text, #111827); }',
+    'closure-dashboard dash-nav-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--radius, 8px); cursor: pointer; user-select: none; font-size: 14px; color: var(--text, #111827); }',
+    'closure-dashboard dash-nav-item:hover { background: rgba(0,0,0,0.06); }',
+    'closure-dashboard dash-nav-item[selected] { background: var(--dash-selected-bg, var(--primary, #4f46e5)); color: var(--dash-selected-text, #fff); }',
+    'closure-dashboard dash-nav-item[badge]::after { content: attr(badge); margin-left: auto; font-size: 11px; line-height: 1; padding: 3px 7px; border-radius: 999px; background: var(--primary, #4f46e5); color: #fff; }',
+    'closure-dashboard dash-nav-item[selected][badge]::after { background: rgba(255,255,255,0.25); }',
+    'closure-dashboard dash-nav-group { display: block; margin-top: 8px; }',
+    'closure-dashboard dash-nav-group::before { content: attr(label); display: block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted, #6b7280); padding: 6px 10px 4px; cursor: pointer; }',
+    'closure-dashboard dash-nav-group[collapsed] > * { display: none; }',
+    'closure-dashboard dash-nav hr { border: none; border-top: 1px solid var(--border, #e5e7eb); margin: 8px 4px; width: auto; }',
+    'closure-dashboard dash-nav form { display: block; padding: 4px 2px; }',
+    'closure-dashboard dash-nav input { width: 100%; box-sizing: border-box; padding: 6px 8px; border: 1px solid var(--border, #e5e7eb); border-radius: var(--radius, 8px); font-family: var(--font, sans-serif); font-size: 13px; }',
+    'closure-dashboard dash-panel { display: none; }',
+    'closure-dashboard dash-panel[active] { display: block; }',
+    'closure-dashboard .dsh-scrim { display: none; }',
+    '@media (max-width: 880px) {',
+    '  closure-dashboard dash-nav { position: absolute; top: 0; bottom: 0; left: 0; z-index: 20; box-shadow: 4px 0 16px rgba(0,0,0,0.15); }',
+    '  closure-dashboard:not([collapsed]) .dsh-scrim { display: block; position: absolute; inset: 0; z-index: 10; background: rgba(0,0,0,0.3); }',
+    '}',
+  ].join('\n');
+
+  static get observedAttributes() { return ['label', 'collapsed']; }
+
+  attributeChangedCallback(attr, oldVal, val) {
+    if (attr === 'label') {
+      if (this._labelEl) this._labelEl.textContent = val || '';
+    } else if (attr === 'collapsed') {
+      if (oldVal === val) return;
+      if (this._burger) {
+        this._burger.setAttribute('aria-expanded', val === null ? 'true' : 'false');
+      }
+      if (this._domReady) {
+        this.dispatchEvent(new CustomEvent('dash-toggle', {
+          detail: { collapsed: val !== null },
+          bubbles: false,
+        }));
+      }
+    }
+  }
+
+  connectedCallback() {
+    if (this._initialized) return;
+    this._initialized = true;
+    if (!document.getElementById(ClosureDashboard._styleId)) {
+      var s = document.createElement('style');
+      s.id = ClosureDashboard._styleId;
+      s.textContent = ClosureDashboard._style;
+      document.head.appendChild(s);
+    }
+    var self = this;
+    var init = function() { self._initDom(); };
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', init, { once: true });
+    } else {
+      requestAnimationFrame(init);
+    }
+  }
+
+  _initDom() {
+    if (this._domReady) return;
+    var self = this;
+
+    var navEl = this.querySelector('dash-nav');
+    var clientEl = this.querySelector('dash-client');
+    var headerEl = this.querySelector('dash-header');
+
+    // Header bar: hamburger + title + free tools
+    var bar = document.createElement('div');
+    bar.className = 'dsh-bar';
+    this._burger = document.createElement('button');
+    this._burger.type = 'button';
+    this._burger.className = 'dsh-burger';
+    this._burger.textContent = '☰';
+    this._burger.setAttribute('aria-label', 'Toggle navigation');
+    this._burger.addEventListener('click', function() { self.toggle(); });
+    bar.appendChild(this._burger);
+    var logoHref = this.getAttribute('logo-href');
+    this._titleEl = document.createElement(logoHref ? 'a' : 'span');
+    this._titleEl.className = 'dsh-title';
+    if (logoHref) this._titleEl.href = logoHref;
+    var logoSrc = this.getAttribute('logo-src');
+    if (logoSrc) {
+      var logo = document.createElement('img');
+      logo.className = 'dsh-logo';
+      logo.src = logoSrc;
+      logo.alt = this.getAttribute('label') || '';
+      this._titleEl.appendChild(logo);
+    }
+    this._labelEl = document.createElement('span');
+    this._labelEl.textContent = this.getAttribute('label') || '';
+    this._titleEl.appendChild(this._labelEl);
+    bar.appendChild(this._titleEl);
+    if (headerEl) bar.appendChild(headerEl);
+
+    // Content row: nav + scrim + client
+    var row = document.createElement('div');
+    row.className = 'dsh-row';
+    this._nav = navEl;
+    if (navEl) row.appendChild(navEl);
+    var scrim = document.createElement('div');
+    scrim.className = 'dsh-scrim';
+    scrim.addEventListener('click', function() { self.collapse(); });
+    row.appendChild(scrim);
+    if (!clientEl) {
+      clientEl = document.createElement('dash-client');
+    }
+    row.appendChild(clientEl);
+    this._client = clientEl;
+
+    // Default region: gather the client's non-panel children
+    this._region = document.createElement('div');
+    this._region.className = 'dsh-region';
+    var kids = Array.prototype.slice.call(clientEl.childNodes);
+    clientEl.insertBefore(this._region, clientEl.firstChild);
+    kids.forEach(function(n) {
+      if (n.nodeType === 1 && n.tagName === 'DASH-PANEL') return;
+      self._region.appendChild(n);
+    });
+
+    // Rebuild the host: bar + row (drop stray text nodes, keep panels via clientEl)
+    this.innerHTML = '';
+    this.appendChild(bar);
+    this.appendChild(row);
+
+    // Nav interaction: click + keyboard delegation
+    if (navEl) {
+      navEl.addEventListener('click', function(e) { self._onNavClick(e); });
+      navEl.addEventListener('keydown', function(e) {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        var item = e.target.closest && e.target.closest('dash-nav-item');
+        if (item) { e.preventDefault(); self._activate(item); }
+      });
+      this._items().forEach(function(item) {
+        if (!item.hasAttribute('tabindex')) item.setAttribute('tabindex', '0');
+        var ev = item.getAttribute('activate-on');
+        if (ev) {
+          document.addEventListener(ev, function() { self._activate(item); });
+        }
+        // closure-btn contract by duck typing: any btn-action source with a
+        // getBtnData() is a valid closure button (see target-closure)
+        item.getBtnData = function() {
+          var section = item.getAttribute('section') || '';
+          var fields = {};
+          Array.prototype.forEach.call(item.attributes, function(a) {
+            if (a.name.indexOf('data-') === 0) fields[a.name.slice(5)] = a.value;
+          });
+          var sections = {};
+          sections[section] = fields;
+          return {
+            ctRole: item.getAttribute('ct-role') || '',
+            closureTemplate: item.getAttribute('closure-template') || '',
+            sections: sections,
+          };
+        };
+      });
+    }
+
+    // Well-known signal: <signal-event name="dash-select" data-item="x">
+    document.addEventListener('dash-select', function(e) {
+      if (e.detail && e.detail.item) self.select(e.detail.item);
+    });
+
+    // Narrow screens start collapsed (set before _domReady: no event)
+    this._mq = window.matchMedia('(max-width: 880px)');
+    if (this._mq.matches) this.setAttribute('collapsed', '');
+    this._burger.setAttribute('aria-expanded', this.hasAttribute('collapsed') ? 'false' : 'true');
+
+    this._domReady = true;
+
+    // Panels / region that carry server-rendered markup content start as
+    // "loaded": they are neither refetched on load nor on first activation
+    this._panels().forEach(function(p) {
+      if (self._hasContent(p)) p._dshLoaded = true;
+    });
+    if (this._hasContent(this._region)) this._region._dshLoaded = true;
+
+    // Apply the initial selection; its url is fetched only when the target
+    // is empty (or the item asks for `refresh`)
+    var initial = navEl && navEl.querySelector('dash-nav-item[selected]');
+    if (initial) {
+      var panel = this._applyPlace(initial);
+      var url = initial.getAttribute('url');
+      if (url && !initial.hasAttribute('lazy') &&
+          !initial.hasAttribute('lightbox') && !initial.hasAttribute('target')) {
+        var target = panel || this._region;
+        // `refresh` governs the SECOND and later activations only: markup
+        // content is fresh by definition at load, never refetched here
+        if (!target._dshLoaded) {
+          this._fetchInto(url, target, initial.getAttribute('name') || '', panel);
+        }
+      }
+    } else {
+      this._showPanel(null);
+    }
+
+    // Preload (the opposite of lazy): fetch url+panel items in the
+    // background at load, into their still-hidden panels
+    this._items().forEach(function(item) {
+      if (item === initial || !item.hasAttribute('preload')) return;
+      var u = item.getAttribute('url');
+      var pn = item.getAttribute('panel');
+      if (!u || !pn) return;
+      var p = self._ensurePanel(pn);
+      if (!p._dshLoaded) self._fetchInto(u, p, item.getAttribute('name') || '', p);
+    });
+
+    this._subscribeClosures();
+  }
+
+  _items() {
+    return this._nav
+      ? Array.prototype.slice.call(this._nav.querySelectorAll('dash-nav-item'))
+      : [];
+  }
+
+  _onNavClick(e) {
+    var item = e.target.closest && e.target.closest('dash-nav-item');
+    if (item) { this._activate(item); return; }
+    var group = e.target.closest && e.target.closest('dash-nav-group');
+    // only the group's own box (its ::before label / padding) toggles it
+    if (group && e.target === group) {
+      if (group.hasAttribute('collapsed')) group.removeAttribute('collapsed');
+      else group.setAttribute('collapsed', '');
+    }
+  }
+
+  // Full activation pipeline (click, select(), signals share this path)
+  _activate(item) {
+    var name = item.getAttribute('name') || '';
+    var url = item.getAttribute('url') || '';
+    var href = item.getAttribute('href');
+    var self = this;
+
+    if (href) { window.location.href = href; return; }
+
+    // Free mode: the same encapsulated form as <closure-btn free>, via the
+    // shared closureFreeSubmit() helper — but nav items default to GET
+    if (item.hasAttribute('free')) {
+      if (url) closureFreeSubmit(item, url, 'get');
+      return;
+    }
+
+    var e = new CustomEvent('dash-nav', {
+      detail: { name: name, url: url },
+      bubbles: false,
+      cancelable: true,
+    });
+    if (!this.dispatchEvent(e)) return;
+
+    // Dialog target: an action, not a place — selection untouched
+    if (item.hasAttribute('lightbox')) {
+      if (url) this._openLightbox(item, url);
+      return;
+    }
+
+    var panel = this._applyPlace(item);
+
+    // Routed closure action (inherited closure-btn behavior): fire
+    // btn-action at the place's closure (or the explicit target-id) and let
+    // the closure/template machinery do the POST + response processing
+    if (item.hasAttribute('ct-role') || item.hasAttribute('closure-template')) {
+      var destId = item.getAttribute('target-id');
+      var dest = destId ? document.getElementById(destId)
+        : this._resolveClosure(panel || this._region);
+      if (dest) {
+        dest.dispatchEvent(new CustomEvent('btn-action', {
+          bubbles: true,
+          detail: { source: item },
+        }));
+      }
+      if (this._mq && this._mq.matches) this.collapse();
+      return;
+    }
+
+    if (url) {
+      var explicit = item.getAttribute('target');
+      if (explicit) {
+        var t = (this._client && this._client.querySelector(explicit)) || document.querySelector(explicit);
+        if (t) this._fetchInto(url, t, name, null);
+      } else if (panel) {
+        if (!panel._dshLoaded || item.hasAttribute('refresh')) {
+          this._fetchInto(url, panel, name, panel);
+        }
+      } else {
+        this._fetchInto(url, this._region, name, null);
+      }
+    }
+
+    // Overlay mode: picking an item puts the nav away
+    if (this._mq && this._mq.matches) this.collapse();
+  }
+
+  // Selection + panel switching, no fetch. Returns the item's panel (or null).
+  _applyPlace(item) {
+    this._items().forEach(function(i) {
+      if (i === item) i.setAttribute('selected', '');
+      else i.removeAttribute('selected');
+    });
+    var panelName = item.getAttribute('panel');
+    var panel = panelName ? this._ensurePanel(panelName) : null;
+    this._showPanel(panel);
+    return panel;
+  }
+
+  _hasContent(el) {
+    return el.children.length > 0 || (el.textContent || '').trim() !== '';
+  }
+
+  // Only DIRECT children of <dash-client> are shell-managed panels, so
+  // panel-like content deeper in the tree (or inside loaded fragments)
+  // can never collide with the shell's switching.
+  _panels() {
+    if (!this._client) return [];
+    return Array.prototype.filter.call(this._client.children, function(c) {
+      return c.tagName === 'DASH-PANEL';
+    });
+  }
+
+  _ensurePanel(name) {
+    var panel = null;
+    this._panels().forEach(function(p) {
+      if (p.getAttribute('name') === name) panel = p;
+    });
+    if (!panel) {
+      panel = document.createElement('dash-panel');
+      panel.setAttribute('name', name);
+      this._client.appendChild(panel);
+    }
+    return panel;
+  }
+
+  _showPanel(panel) {
+    this._panels().forEach(function(p) {
+      var on = (p === panel);
+      if (on === p.hasAttribute('active')) return;
+      if (on) {
+        p.setAttribute('active', '');
+        p.dispatchEvent(new CustomEvent('panel-show', { detail: { name: p.getAttribute('name') } }));
+      } else {
+        p.removeAttribute('active');
+        p.dispatchEvent(new CustomEvent('panel-hide', { detail: { name: p.getAttribute('name') } }));
+      }
+    });
+    if (this._region) this._region.style.display = panel ? 'none' : '';
+  }
+
+  _fetch(url, cb) {
+    var self = this;
+    fetch(url).then(function(r) { return r.text(); }).then(cb).catch(function(err) {
+      var e = new CustomEvent('dash-fetch-error', {
+        detail: { url: url, error: err, message: String(err && err.message || err) },
+        bubbles: false,
+        cancelable: true,
+      });
+      if (self.dispatchEvent(e)) {
+        console.error('closure-dashboard: fetch failed', url, err);
+      }
+    });
+  }
+
+  _fetchInto(url, container, name, panel) {
+    var self = this;
+    // Never clobber unsaved edits: a dirty closure in the target blocks the
+    // automatic (re)fetch. The app can listen, confirm, cleanDirty and
+    // re-select if it wants to force it.
+    var closure = this._resolveClosure(container);
+    if (closure && closure._isDirty && closure._isDirty()) {
+      this.dispatchEvent(new CustomEvent('dash-dirty-skip', {
+        detail: { name: name, url: url },
+        bubbles: false,
+      }));
+      return;
+    }
+    this._fetch(url, function(html) {
+      self._renderInto(container, html);
+      container._dshLoaded = true;
+      self._subscribeClosures();
+      if (panel) {
+        panel.dispatchEvent(new CustomEvent('panel-loaded', {
+          detail: { name: panel.getAttribute('name'), url: url },
+        }));
+      }
+      self.dispatchEvent(new CustomEvent('dash-loaded', {
+        detail: { name: name, url: url },
+        bubbles: false,
+      }));
+    });
+  }
+
+  _resolveClosure(container) {
+    var closure = null;
+    var wanted = this.getAttribute('closure');
+    if (wanted && container === this._region) {
+      closure = container.querySelector('target-closure[name="' + wanted + '"]');
+    }
+    if (!closure) closure = container.querySelector('target-closure');
+    return closure;
+  }
+
+  // Render through the container's closure when it has one (ladder rung 4).
+  // loadContent() runs the response through ClosureResponse.process(), so a
+  // <closure-response> document — directives, sections, subscribed tags —
+  // is executed, not dumped as markup.
+  _renderInto(container, html) {
+    var closure = this._resolveClosure(container);
+    if (closure && closure.loadContent) closure.loadContent(html);
+    else container.innerHTML = html;
+  }
+
+  _openLightbox(item, url) {
+    var self = this;
+    var id = item.getAttribute('lightbox');
+    this._fetch(url, function(html) {
+      var lb = id ? document.getElementById(id) : null;
+      var spawned = false;
+      if (!lb) {
+        lb = document.createElement('closure-lightbox');
+        lb.setAttribute('title', (item.textContent || '').trim());
+        document.body.appendChild(lb);
+        spawned = true;
+        lb.addEventListener('lb-close', function() { lb.remove(); }, { once: true });
+      }
+      if (!lb.showResponse(html) && spawned) lb.remove();
+      else self._subscribeClosures();
+    });
+  }
+
+  // Subscribe <dashboard-response-item> on every closure in the client area
+  _subscribeClosures() {
+    if (!this._client) return;
+    var self = this;
+    var closures = this._client.querySelectorAll('target-closure');
+    Array.prototype.forEach.call(closures, function(c) {
+      if (c._dshSubscribed || !c.subscribeTag) return;
+      c.subscribeTag('dashboard-response-item', self);
+      c._dshSubscribed = true;
+    });
+  }
+
+  onClosureTag(tag, el) {
+    if (tag !== 'dashboard-response-item') return;
+    if (el.hasAttribute('select')) this.select(el.getAttribute('select'));
+    if (el.hasAttribute('badge')) {
+      var spec = el.getAttribute('badge');
+      var i = spec.indexOf(':');
+      if (i > 0) {
+        var itemName = spec.slice(0, i);
+        var value = spec.slice(i + 1);
+        this._items().forEach(function(it) {
+          if (it.getAttribute('name') !== itemName) return;
+          if (value) it.setAttribute('badge', value);
+          else it.removeAttribute('badge');
+        });
+      }
+    }
+    if (el.hasAttribute('label')) this.setAttribute('label', el.getAttribute('label'));
+    switch (el.getAttribute('type') || '') {
+    case 'collapse': this.collapse(); break;
+    case 'expand': this.expand(); break;
+    }
+  }
+
+  select(name) {
+    var found = null;
+    this._items().forEach(function(i) {
+      if (i.getAttribute('name') === name) found = i;
+    });
+    if (found) this._activate(found);
+  }
+
+  get selected() {
+    var sel = null;
+    this._items().forEach(function(i) {
+      if (i.hasAttribute('selected')) sel = i;
+    });
+    return sel ? (sel.getAttribute('name') || '') : '';
+  }
+
+  collapse() { this.setAttribute('collapsed', ''); }
+  expand() { this.removeAttribute('collapsed'); }
+  toggle() {
+    if (this.hasAttribute('collapsed')) this.expand();
+    else this.collapse();
+  }
+}
+
+customElements.define('closure-dashboard', ClosureDashboard);
 
 
 class ClosureStatusBar extends HTMLElement {
@@ -4245,22 +4828,12 @@ class ClosureDataGrid extends HTMLElement {
   // ---
   _navigateWithParams() {
     const qd = this._queryDef;
-    const params = this._resolveParams();
-    const form = document.createElement('form');
-    form.method = qd.method;
-    form.action = qd.url;
-    form.target = qd.target || '_self';
-    form.style.display = 'none';
-    for (const [k, v] of Object.entries(params)) {
-      const input = document.createElement('input');
-      input.type = 'hidden'; input.name = k; input.value = v;
-      form.appendChild(input);
-    }
-    document.body.appendChild(form);
-    form.submit();
-    form.remove(); // submit is already initiated; drop the node so it
-                   // can't orphan in <body> — this path may set
-                   // form.target="_blank", which never navigates the page
+    // Shared encapsulated form; qd.target may be "_blank" (never navigates
+    // the current page)
+    closureFreeSubmit(null, qd.url, qd.method, {
+      fields: this._resolveParams(),
+      target: qd.target || '_self',
+    });
   }
 
   // ---
@@ -5252,9 +5825,8 @@ class ClosureDataGrid extends HTMLElement {
         // leftover pixels) so the sum never exceeds the available width.
         // Math.ceil on every column could overshoot by up to (n-1)px and
         // trigger a spurious horizontal scrollbar in auto-fit mode.
-        // TODO: a separate ~2px horizontal overflow remains even when the fill
-        // sum is exact — it comes from the .dg-wrap / cell borders, which the
-        // available-width calc doesn't subtract. Minor; not the rounding bug.
+        // (A separate ~2-3px overflow from cell/wrap borders is absorbed by
+        // the chrome-compensation pass after the widths are applied, below.)
         const total = Math.max(fillContentWidth, fillAvailable);
         const base = Math.floor(total / fillIdxs.length);
         let extra = total - base * fillIdxs.length;
@@ -5279,6 +5851,37 @@ class ClosureDataGrid extends HTMLElement {
       }
       this._headTable.style.tableLayout = 'fixed';
       this._bodyTable.style.tableLayout = 'fixed';
+      // Chrome compensation: cell/wrap borders add a couple of px the width
+      // math above can't see, which used to leave a permanent 2-3px
+      // horizontal scrollbar on every auto-fit grid. Measure the real
+      // overflow once (one extra reflow) and absorb a SMALL one — border
+      // chrome, never legitimate content scroll — by shrinking the fill
+      // columns (or the widest column when there are none).
+      if (tableWidth > 0) {
+        const chrome = this._bodyWrap.scrollWidth - this._bodyWrap.clientWidth;
+        if (chrome > 0 && chrome <= 4 && tableWidth > chrome) {
+          let targetIdxs = fillIdxs;
+          if (!targetIdxs.length) {
+            let maxIdx = -1, maxW = -1;
+            widths.forEach((w, idx) => {
+              if (w && w.endsWith('px') && parseFloat(w) > maxW) { maxW = parseFloat(w); maxIdx = idx; }
+            });
+            targetIdxs = maxIdx >= 0 ? [maxIdx] : [];
+          }
+          if (targetIdxs.length) {
+            let remaining = chrome;
+            targetIdxs.forEach((idx, n) => {
+              const cut = Math.ceil(remaining / (targetIdxs.length - n));
+              remaining -= cut;
+              widths[idx] = Math.max(10, parseFloat(widths[idx]) - cut) + 'px';
+              headCg.children[idx].style.width = widths[idx];
+              bodyCg.children[idx].style.width = widths[idx];
+            });
+            this._headTable.style.width = (tableWidth - chrome) + 'px';
+            this._bodyTable.style.width = (tableWidth - chrome) + 'px';
+          }
+        }
+      }
     } else {
       this._headTable.style.tableLayout = '';
       this._bodyTable.style.tableLayout = '';
@@ -5296,6 +5899,23 @@ class ClosureDataGrid extends HTMLElement {
         col.style.width = th.offsetWidth + 'px';
         bodyCg.appendChild(col);
       });
+      // Chrome compensation (same rationale as in auto-fit): th.offsetWidth
+      // includes collapsed borders, so the copied sum leaves the fixed-layout
+      // body table 2-3px wider than the wrap — a permanent spurious
+      // horizontal scrollbar. Measure the real overflow once and shave 1px
+      // off the widest columns (spread, so column lines stay visually
+      // aligned with the header). Small overflows only: legitimate content
+      // scroll is untouched.
+      const chrome = this._bodyWrap.scrollWidth - this._bodyWrap.clientWidth;
+      if (chrome > 0 && chrome <= 5) {
+        const cols = Array.from(bodyCg.children);
+        const byWidth = cols.map((c, idx) => idx).sort((a, b) =>
+          parseFloat(cols[b].style.width) - parseFloat(cols[a].style.width));
+        for (let n = 0; n < chrome && cols.length; n++) {
+          const c = cols[byWidth[n % cols.length]];
+          c.style.width = Math.max(10, parseFloat(c.style.width) - 1) + 'px';
+        }
+      }
     }
   }
 
@@ -5607,19 +6227,9 @@ class ClosureDataGrid extends HTMLElement {
 
     switch (mode) {
       case 'navigate': {
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.style.display = 'none';
-        if (url) form.action = url;
-        for (const [k, v] of Object.entries(params)) {
-          const input = document.createElement('input');
-          input.type = 'hidden'; input.name = k; input.value = v;
-          form.appendChild(input);
-        }
-        document.body.appendChild(form);
-        form.submit();
-        form.remove(); // drop the node post-submit so it can't orphan in
-                       // <body> on a download / new-tab action
+        // Shared encapsulated form: POST the computed params (data-* + bound
+        // row fields) and navigate to the response
+        closureFreeSubmit(null, url, 'post', { fields: params });
         break;
       }
       case 'dialog': {
@@ -7799,23 +8409,8 @@ class SessionKeepAlive extends HTMLElement {
 
   _logoff() {
     if (!this._expireUrl) return;
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = this._expireUrl;
-    form.style.display = 'none';
-    for (const attr of this.attributes) {
-      if (attr.name.startsWith('data-')) {
-        const hidden = document.createElement('input');
-        hidden.type = 'hidden';
-        hidden.name = attr.name.slice(5);
-        hidden.value = attr.value;
-        form.appendChild(hidden);
-      }
-    }
-    document.body.appendChild(form);
-    form.submit();
-    form.remove(); // drop the node post-submit so it can't orphan in
-                   // <body> if the POST doesn't navigate the page away
+    // Shared encapsulated form: POST this element's data-* to expire-url
+    closureFreeSubmit(this, this._expireUrl, 'post');
   }
 
   _reset() {
@@ -7888,29 +8483,9 @@ class SessionKeepAlive extends HTMLElement {
   }
 
   _navigate(url, method, payload) {
-    if (String(method).toUpperCase() === 'GET') {
-      const qs = new URLSearchParams(payload || {}).toString();
-      // Respect a query string the server already put on the URL (e.g.
-      // "/login?reason=timeout") instead of appending a second "?".
-      const sep = url.includes('?') ? '&' : '?';
-      window.location.href = qs ? url + sep + qs : url;
-      return;
-    }
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = url;
-    form.style.display = 'none';
-    for (const k in (payload || {})) {
-      const hidden = document.createElement('input');
-      hidden.type = 'hidden';
-      hidden.name = k;
-      hidden.value = payload[k];
-      form.appendChild(hidden);
-    }
-    document.body.appendChild(form);
-    form.submit();
-    form.remove(); // drop the node post-submit so it can't orphan in
-                   // <body> if the POST doesn't navigate the page away
+    // Shared encapsulated form. `preserve` keeps a query string the server
+    // already put on the URL (e.g. "/login?reason=timeout") on GET submits.
+    closureFreeSubmit(null, url, method, { fields: payload || {}, preserve: true });
   }
 }
 

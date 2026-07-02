@@ -1,0 +1,8 @@
+<h2>Form panel with dirty guard <span dirty-show="show">— ● unsaved changes</span></h2>
+<p>Fresh copy fetched by <code>refresh</code> (the closure was clean). Type in
+  the field, switch away and back: the refetch is skipped and your text
+  survives — a dirty closure blocks the automatic reload
+  (<code>dash-dirty-skip</code>).</p>
+<form closure>
+  <p><input name="note" placeholder="Type here to make the closure dirty…" size="40"></p>
+</form>

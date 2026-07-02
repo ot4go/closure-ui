@@ -27,6 +27,8 @@
 
 <%% include-notes:closure_lazy_iframe.js %%>
 
+<%% include-notes:closure_dashboard.js %%>
+
 <%% include-notes:closure_status_bar.js %%>
 
 <%% include-notes:status_msg.js %%>

@@ -25,7 +25,9 @@ visible until the iframe fires its first `load` (default placeholder:
 | `src="url"`   | iframe URL — assigned on first expand |
 | `expanded`    | boolean; present = open. Reflected: toggle it to open/close |
 | `iframe-title="x"` | copied to the iframe's `title` (accessibility) |
-| `name`, `allow`, `sandbox`, `referrerpolicy`, `allowfullscreen` | copied verbatim to the iframe when it is created |
+| `data-*` / `section="x"` | form fields (`section_`-prefixed when `section` is set): when present, loading goes through a hidden form (shared `closureFreeSubmit()`) submitted **into** the named frame with the applicable method — GET (default): the fields become the frame url's query string; POST: they travel in the body. Without fields (and without `post`) the `src` is simply assigned |
+| `post` / `method="post"` | use **POST** for the frame-targeted form. For heavy server-generated reports whose parameters don't belong in a URL |
+| `name`, `allow`, `sandbox`, `referrerpolicy`, `allowfullscreen` | copied verbatim to the iframe when it is created. In `post` mode the frame needs a `name` — an internal one is generated if the attribute is absent |
 
 ## Methods / properties
 
@@ -55,6 +57,10 @@ visible until the iframe fires its first `load` (default placeholder:
 
 <!-- starts open, loads immediately -->
 <closure-lazy-iframe label="Map" src="https://maps.example.com/embed" expanded></closure-lazy-iframe>
+
+<!-- POST-loaded report: params travel as form fields, not in the URL -->
+<closure-lazy-iframe label="Annual report" src="/reports/annual"
+                     post data-year="2026" data-scope="all"></closure-lazy-iframe>
 
 <script>
   var panel = document.querySelector('closure-lazy-iframe');
@@ -93,7 +99,11 @@ Consumed (with fallbacks):
 
 > **Note:** changing `src` after the iframe exists writes through and
 > navigates the frame; changing it before first expand just updates
-> what will be loaded.
+> what will be loaded. When loading goes through the form (fields
+> present, or `post`), the write-through **re-submits** with the
+> current `data-*` values; on POST, `unload()` + expand re-POSTs —
+> inherent to POST navigation, as is the browser's confirm on a manual
+> frame reload.
 
 > **Note:** an initial `expanded` set in markup fires its `lzi-*` events
 > during upgrade, before page scripts can typically listen — read the
@@ -117,6 +127,8 @@ class ClosureLazyIframe extends HTMLElement {
 
   // host attributes copied verbatim to the iframe at creation time
   static _passthrough = ['name', 'allow', 'sandbox', 'referrerpolicy', 'allowfullscreen'];
+
+  static _seq = 0; // for generated frame names in post mode
 
   static get observedAttributes() { return ['label', 'src', 'expanded']; }
 
@@ -165,7 +177,7 @@ class ClosureLazyIframe extends HTMLElement {
     case 'src':
       // write-through once the frame exists; before that the attribute
       // is simply what the first expand will load
-      if (this._iframe) this._iframe.src = val || '';
+      if (this._iframe && val) this._navigateFrame(val);
       break;
     case 'expanded':
       if (oldVal === val) return; // e.g. expand() while already expanded
@@ -208,15 +220,61 @@ class ClosureLazyIframe extends HTMLElement {
       if (self.hasAttribute(a)) f.setAttribute(a, self.getAttribute(a));
     });
     f.addEventListener('load', function() {
+      // In post mode the frame is inserted src-less, so its initial
+      // about:blank commit also fires `load` — ignore it (about:blank is
+      // always same-origin readable; a real cross-origin response throws
+      // on the access and is treated as loaded)
+      try {
+        if (f.contentWindow.location.href === 'about:blank') return;
+      } catch (e) { /* cross-origin: a real document loaded */ }
       self._ph.style.display = 'none';
       self.dispatchEvent(new CustomEvent('lzi-loaded', {
-        detail: { src: f.src },
+        // f.src is empty in post mode — report the requested url instead
+        detail: { src: f.src || self._loadedUrl || '' },
         bubbles: false,
       }));
     });
-    f.src = src;
-    this._body.appendChild(f);
     this._iframe = f;
+    if (this._viaForm()) {
+      // Form loads submit INTO the frame: it must be named and connected
+      // before the submit
+      if (!f.name) f.name = 'lzi-frame-' + (++ClosureLazyIframe._seq);
+      this._body.appendChild(f);
+      this._navigateFrame(src);
+    } else {
+      // fieldless GET: assign src before insertion — no about:blank phase
+      this._navigateFrame(src);
+      this._body.appendChild(f);
+    }
+  }
+
+  _isPost() {
+    return this.hasAttribute('post') ||
+      (this.getAttribute('method') || '').toLowerCase() === 'post';
+  }
+
+  _hasFields() {
+    return Array.prototype.some.call(this.attributes, function(a) {
+      return a.name.indexOf('data-') === 0;
+    });
+  }
+
+  // With fields (data-*) — or with `post` — loading always goes through the
+  // shared hidden form submitted INTO the named frame, with whichever
+  // method applies (GET: fields → the frame url's query; POST: fields →
+  // body). A fieldless GET is a plain src assignment.
+  _viaForm() {
+    return this._isPost() || this._hasFields();
+  }
+
+  _navigateFrame(url) {
+    this._loadedUrl = url;
+    if (this._viaForm()) {
+      closureFreeSubmit(this, url, this._isPost() ? 'post' : 'get',
+        { target: this._iframe.name });
+    } else {
+      this._iframe.src = url;
+    }
   }
 
   get expanded() { return this.hasAttribute('expanded'); }

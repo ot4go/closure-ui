@@ -135,10 +135,58 @@ or by fetching content (`url`). The three modes mix freely in one nav.
 | `name="x"`   | identity for selection / `select(name)` / server directives |
 | `url="x"`    | **fetch mode (in)**: GET the url, render the response into the client area (through its closure when present, §4), mark selected — no page reload |
 | `panel="x"`  | **panel mode (in)**: show the `<dash-panel name="x">` in the client area, hide the other panels — no fetch at all, tab-bar style but vertical |
+| `url` + `panel` | **fetch-into-panel mode (in)**: first selection GETs the url into that panel (created automatically if absent from the markup); later selections just switch panels, keeping DOM state. The `<closure-lazy-iframe>` doctrine applied to panels: load on first visit, alive thereafter |
+| `refresh`    | with `url`+`panel`: re-fetch on **every** selection instead of only the first (for always-fresh sections) |
+| `target="sel"` | with `url`: render into an arbitrary **container** matched by the CSS selector (resolved inside `<dash-client>` first, then document-wide) instead of the default region — same `target-selector` spirit as `closure-btn` client actions |
+| `lightbox` / `lightbox="id"` | with `url`: render into a **dialog** — the referenced `<closure-lightbox>` (or a spawned throw-away one) via its existing `showResponse()`. The item does not change the selection: it is an action, not a place |
 | `href="x"`   | **link mode (out)**: plain full navigation (server re-renders the shell with the new `selected`) |
+| `activate-on="event"` | activate this item when that `<signal-event>` name fires on `document` (see "The dialog answers back", §3.3) — combined with `refresh`, activation re-fetches |
 | `selected`   | boolean, reflected — the active item |
 | `badge="x"`  | small counter/pill at the item's right edge |
 | `icon` slot  | optional leading icon |
+
+`url` **without** `panel` targets the shared default region (§ below) and
+replaces its content on each navigation — the right shape when sections are
+cheap server renders and holding N loaded sections in the DOM isn't wanted.
+With `panel`, each section gets its own preserved region. Both shapes mix in
+one nav.
+
+**The render target generalizes to dialogs and containers.** A fetched
+response can land in: the default region (`url` alone), a preserved panel
+(`url`+`panel`), an arbitrary container (`url`+`target="sel"`), or a dialog
+(`url`+`lightbox`). The dialog path reuses what the library already has —
+`<closure-lightbox>.showResponse()` and the same philosophy as the
+`response-lightbox` attribute on captured forms/anchors — the shell adds no
+new dialog machinery. In every case the container/dialog resolves its own
+closure if it has one (ladder, §4).
+
+**The dialog answers back with `<signal-event>`.** A lightbox hosting a
+closure is a self-contained action; when it completes, the server's response
+can carry a `<signal-event>` — the existing one-shot dispatcher that fires
+its `CustomEvent` on `document` when parsed and removes itself. That is the
+decoupled return channel from dialog to dashboard: the shell, a panel, or a
+grid subscribes by event name and reacts — refresh a panel (`refresh` on a
+grid already works this way), update state, re-fetch a section — without the
+dialog knowing anything about who listens. Combined with
+`<dashboard-response-item>` (§3.4) for shell-directed effects, a "New entry"
+dialog flow is: item opens lightbox → form posts through the lightbox's
+closure → response says `<signal-event name="entry-created" data-id="42">` +
+`<lightbox-response-item type="close">` → the Reports panel hears
+`entry-created` and refreshes. Every piece of that chain already exists.
+
+A signal must also be able to **activate a selector item**. Two declarative
+paths, both cheap:
+
+- **Well-known signal, handled by the shell**: the shell registers (on
+  connect, so before any response parses) a `document` listener for
+  `dash-select`; `<signal-event name="dash-select" data-item="reports">` in
+  any response — dialog or panel — runs the same pipeline as a click on
+  `select("reports")`, including the item's fetch/refresh semantics.
+- **Per-item subscription (sugar)**: `<dash-nav-item activate-on="entry-created">`
+  activates itself when that domain event fires — the server emits its
+  domain signal and doesn't need to know nav item names. With `refresh`, the
+  activation re-fetches, so "dialog saved → Reports selected and fresh" is
+  pure markup.
 
 ### `<dash-panel>`
 
@@ -149,6 +197,22 @@ keep their DOM state while hidden (a form mid-edit survives switching away
 and back). Content that is *not* inside any `<dash-panel>` behaves as the
 default region: visible when no panel item is selected, and the render target
 for `url` items.
+
+**Panel events** — the piece that makes signal-driven flows work. Fired on
+the `<dash-panel>` element itself, so inner content subscribes on its own
+ancestor without knowing any names:
+
+| Event | Bubbles | Cancelable | Detail |
+|---|---|---|---|
+| `panel-show`   | no | no | `{ name }` — the panel just became the visible one |
+| `panel-hide`   | no | no | `{ name }` — the panel was switched away from |
+| `panel-loaded` | no | no | `{ name, url }` — a `url`+`panel` fetch just rendered into it |
+
+Typical wiring: a grid inside the Reports panel listens for `panel-show` on
+its enclosing panel and refreshes if a domain signal was heard while hidden —
+or simply always. No new event *mechanism* anywhere: `<signal-event>` already
+delivers server pushes on `document`; panel events are just the local
+lifecycle hooks content needs to react at the right moment.
 
 `<dash-nav-group label="x" collapsed?>` — titled, optionally collapsible
 section of items. Presentation only.
@@ -220,6 +284,38 @@ click → dash-nav (cancelable) → fetch GET url
 - The render target is resolved like `<closure-lightbox>` does: the
   `<target-closure>` inside `<dash-client>` (or the one named by the
   `closure` attribute) if present, otherwise the client area directly.
+- With `url`+`panel` (§3.3), the render target is **that panel** instead of
+  the default region — through the panel's own `<target-closure>` when it has
+  one, innerHTML otherwise. Same ladder, scoped per panel.
+
+### Panel-scoped actions
+
+Actions living inside a panel will very likely want to be **scoped to that
+panel**: a form submitted in "Reports" must render its response in Reports —
+not in the default region, not in another panel, and it must not disturb
+them. The design leans on `<target-closure>` semantics, which already provide
+exactly this boundary:
+
+- **A panel with its own `<target-closure>` is a self-contained world.**
+  Nearest-closure association means every `<form closure>`, `<closure-btn
+  ct-role>` and template inside belongs to the panel's closure; responses
+  land in the panel, dirty state is tracked per panel, and sibling panels
+  (whose DOM is merely hidden, §3.3) are untouched.
+- **Server fragments can ship their scope with them**: a fragment loaded via
+  `url`+`panel` may itself contain a `<target-closure>` + templates, and
+  `loadContent()` re-arms it — so per-panel scoping needs nothing from the
+  shell beyond rendering into the right panel.
+- **Closures per panel are still opt-in** (§4 ladder): a panel of static
+  content, or one whose forms submit natively, needs no closure at all.
+- **Shell directives keep working from inside panels**: the shell subscribes
+  `<dashboard-response-item>` on the panel closures it knows about (same
+  mechanism `<closure-lightbox>` uses on its inner closure), so a panel's
+  response can still move the selection or update badges — the *shell* is the
+  one thing a panel is allowed to steer.
+- Open question (added to §9): should the shell offer an optional **dirty
+  guard** — refuse/confirm switching away from a panel whose closure is dirty?
+  DOM state already survives the switch, so nothing is lost either way; a
+  guard would only make the pending edit visible.
 - Network errors follow the house policy already defined for captured
   fetches: leave the DOM untouched, dispatch a cancelable
   `closure-fetch-error`-style event, console fallback if unhandled. The
@@ -314,3 +410,8 @@ Each step ships independently; 1+2 already cover the classic dashboard.
 - **Where does `<breadcrumb-trail>` live** (tt4 proposal §4.4) — inside the
   fixed header, or at the top of the client content? Leaning client content
   (it changes with each loaded fragment anyway).
+- **Dirty guard on panel switch** (§4 "Panel-scoped actions") — optional
+  `guard-dirty` on the shell (or per item) that intercepts `dash-nav` when
+  the current panel's closure is dirty and asks via
+  `ClosureLightbox.MsgConfirm`? Or leave it entirely to apps, which can
+  already implement it by listening to the cancelable `dash-nav`?

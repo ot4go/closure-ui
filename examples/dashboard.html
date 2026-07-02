@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>closure-ui — Dashboard shell</title>
+<script>
+  // No /api/time without the demo server: skip the clock sync (local fallback)
+  window.closure_clock_skip_sync_time = 1;
+</script>
+<script src="closure-ui.js"></script>
+</head>
+<body>
+
+<closure-dashboard label="closure-ui — dashboard demo" logo-href="index.html">
+
+  <dash-header>
+    <clock-display small dot></clock-display>
+  </dash-header>
+
+  <dash-nav>
+    <dash-nav-group label="Local (works from file://)">
+      <dash-nav-item name="home" panel="home" selected>🏠 Home</dash-nav-item>
+      <dash-nav-item name="tabs" panel="tabs" badge="tabs!">🗂️ Tabs in a panel</dash-nav-item>
+      <dash-nav-item name="events" panel="events">📶 Events &amp; signals</dash-nav-item>
+    </dash-nav-group>
+
+    <dash-nav-group label="Fetch (needs HTTP)">
+      <dash-nav-item name="report" url="fragments/report.html" panel="report">📈 Report → panel</dash-nav-item>
+      <dash-nav-item name="live" url="fragments/live.html" panel="live" refresh>🔄 Live → panel (refresh)</dash-nav-item>
+      <dash-nav-item name="form" url="fragments/form.html" panel="form" refresh>📝 Form (dirty guard)</dash-nav-item>
+      <dash-nav-item name="fragment" url="fragments/region.html">📄 Fragment → region</dash-nav-item>
+      <dash-nav-item name="about" url="fragments/about.html" lightbox>ℹ️ About → dialog</dash-nav-item>
+    </dash-nav-group>
+
+    <hr>
+    <!-- free content in the side nav: a native mini form and a button -->
+    <form action="index.html" method="GET">
+      <input name="q" placeholder="Native mini form…">
+    </form>
+    <button id="btn-badge" type="button">Badge +1 on Tabs</button>
+  </dash-nav>
+
+  <dash-client>
+    <!-- non-panel content = the default region (target of "Fragment → region") -->
+    <p><strong>Default region.</strong> This is the client-area content that
+      lives outside every panel: visible when no panel item is selected, and
+      the render target of plain <code>url</code> items.</p>
+
+    <dash-panel name="home">
+      <h2>Dashboard shell demo</h2>
+      <p>A fixed header with a hamburger and free tools, a collapsible side
+        nav (collapse it with ☰ — below 880px wide it overlays with a scrim),
+        and this scrollable client area. The whole page is
+        <strong>pure HTML</strong>: everything you see is the component's
+        built-in default styling.</p>
+      <p>The first nav group works fully offline: those items switch local
+        <code>&lt;dash-panel&gt;</code> regions, preserving their DOM state.
+        The second group fetches content, so it needs the page served over
+        HTTP: run <code>go run .</code> in <code>examples/server</code> and
+        open <code>http://localhost:8099/dashboard.html</code> (from
+        <code>file://</code> those items fire <code>dash-fetch-error</code>,
+        logged in the Events panel).</p>
+      <p>The side nav also carries <em>free content</em>: a native mini form
+        (submits like any form — the closure machinery is opt-in, not
+        assumed) and a plain button that sets a <code>badge</code> on the
+        Tabs item.</p>
+    </dash-panel>
+
+    <dash-panel name="tabs">
+      <h2>Tabs inside a panel</h2>
+      <p>The typical composition: a <code>&lt;closure-tab-bar&gt;</code>
+        living inside a <code>&lt;dash-panel&gt;</code>. Switch to another
+        panel and come back — the active tab and the text you type below are
+        preserved (panels hide, they don't die).</p>
+      <closure-tab-bar active="one">
+        <closure-tab name="one" label="Tab one" icon="1️⃣">
+          <p>First tab. Type something:
+            <input placeholder="state survives panel switches"></p>
+        </closure-tab>
+        <closure-tab name="two" label="Tab two" icon="2️⃣">
+          <p>Second tab — <code>tab-change</code> events keep working
+            normally; they don't collide with <code>panel-*</code> events.</p>
+        </closure-tab>
+      </closure-tab-bar>
+    </dash-panel>
+
+    <dash-panel name="form">
+      <target-closure name="dirty-demo">
+        <h2>Form panel with dirty guard <span dirty-show="show">— ● unsaved changes</span></h2>
+        <p>This panel holds a <code>&lt;target-closure&gt;</code> with a form.
+          Its nav item has <code>refresh</code>, so re-entering normally
+          re-fetches <code>fragments/form.html</code> (resetting the form) —
+          <strong>unless the closure is dirty</strong>: type something below,
+          switch to another section and come back. The refetch is skipped
+          (<code>dash-dirty-skip</code> in the Events panel), your text is
+          still here, and the &laquo;unsaved changes&raquo; badge
+          (<code>dirty-show</code>) stays on. Leave the field untouched and
+          every visit resets the panel.</p>
+        <form closure>
+          <p><input name="note" placeholder="Type here to make the closure dirty…" size="40"></p>
+        </form>
+      </target-closure>
+    </dash-panel>
+
+    <dash-panel name="events">
+      <h2>Events &amp; signals</h2>
+      <p>Shell events (<code>dash-nav</code>, <code>dash-loaded</code>,
+        <code>dash-toggle</code>, <code>dash-fetch-error</code>) and panel
+        events (<code>panel-show</code> / <code>panel-hide</code> /
+        <code>panel-loaded</code>, fired on each
+        <code>&lt;dash-panel&gt;</code>) appear below.</p>
+      <p>
+        <button id="btn-signal-home" type="button">
+          Inject &lt;signal-event name="dash-select" data-item="home"&gt;
+        </button>
+        — the server-push way to activate a selector item.
+      </p>
+      <pre id="out-dash">(events will appear here)</pre>
+    </dash-panel>
+  </dash-client>
+
+</closure-dashboard>
+
+<script>
+  function logTo(id, msg) {
+    var out = document.getElementById(id);
+    var time = new Date().toLocaleTimeString();
+    out.textContent = '[' + time + '] ' + msg + '\n' + out.textContent;
+    out.textContent = out.textContent.split('\n').slice(0, 10).join('\n');
+  }
+
+  var dash = document.querySelector('closure-dashboard');
+  dash.addEventListener('dash-nav', function(e) {
+    logTo('out-dash', 'dash-nav → name="' + e.detail.name + '" url="' + e.detail.url + '"');
+  });
+  dash.addEventListener('dash-loaded', function(e) {
+    logTo('out-dash', 'dash-loaded → "' + e.detail.name + '" from ' + e.detail.url);
+  });
+  dash.addEventListener('dash-toggle', function(e) {
+    logTo('out-dash', 'dash-toggle → collapsed=' + e.detail.collapsed);
+  });
+  dash.addEventListener('dash-fetch-error', function(e) {
+    e.preventDefault();
+    logTo('out-dash', 'dash-fetch-error → ' + e.detail.url + ' (serve over HTTP for fetch items)');
+  });
+  dash.addEventListener('dash-dirty-skip', function(e) {
+    logTo('out-dash', 'dash-dirty-skip → "' + e.detail.name + '" has unsaved edits, refetch skipped');
+  });
+  // Panel events fire on each <dash-panel> — subscribe per panel
+  ['home', 'tabs', 'events'].forEach(function(n) {
+    var p = document.querySelector('dash-panel[name="' + n + '"]');
+    p.addEventListener('panel-show', function(e) { logTo('out-dash', 'panel-show → ' + e.detail.name); });
+    p.addEventListener('panel-hide', function(e) { logTo('out-dash', 'panel-hide → ' + e.detail.name); });
+  });
+
+  // A server response would carry this tag; the button simulates it arriving
+  document.getElementById('btn-signal-home').addEventListener('click', function() {
+    var se = document.createElement('signal-event');
+    se.setAttribute('name', 'dash-select');
+    se.setAttribute('data-item', 'home');
+    document.body.appendChild(se); // fires and removes itself on connect
+  });
+
+  // Badges are normally server-driven (<dashboard-response-item badge="tabs:3">);
+  // here a plain button pokes the attribute to show the CSS pill
+  var nBadge = 0;
+  document.getElementById('btn-badge').addEventListener('click', function() {
+    nBadge++;
+    document.querySelector('dash-nav-item[name="tabs"]').setAttribute('badge', String(nBadge));
+  });
+</script>
+</body>
+</html>

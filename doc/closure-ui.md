@@ -1,5 +1,6 @@
 - [Helpers](#helpers)
   - [`applyWidthRange(el)`](#applywidthrangeel)
+  - [`closureFreeSubmit(el, url, defaultMethod, opts?)`](#closurefreesubmitel-url-defaultmethod-opts)
 - [`<signal-event>`](#signal-event)
   - [Attributes](#attributes)
   - [Example](#example)
@@ -78,38 +79,50 @@
   - [Example](#example-10)
   - [CSS Variables](#css-variables-6)
   - [Behaviour](#behaviour-11)
-- [`<closure-status-bar>`](#closure-status-bar)
-  - [Attributes](#attributes-10)
-  - [Children](#children-2)
+- [`<closure-dashboard>`](#closure-dashboard)
+  - [Tags](#tags)
+  - [`<closure-dashboard>` attributes](#closure-dashboard-attributes)
+  - [`<dash-nav-item>` — navigation out and in](#dash-nav-item-navigation-out-and-in)
+  - [Render targets and the opt-in ladder](#render-targets-and-the-opt-in-ladder)
+  - [Methods / properties](#methods-properties-1)
+  - [Events](#events-5)
+  - [Signals (server → shell)](#signals-server-shell)
+  - [`<dashboard-response-item>` (subscribed closure tag)](#dashboard-response-item-subscribed-closure-tag)
   - [Example](#example-11)
   - [CSS Variables](#css-variables-7)
   - [Behaviour](#behaviour-12)
-- [`<status-msg>`](#status-msg)
+- [`<closure-status-bar>`](#closure-status-bar)
+  - [Attributes](#attributes-10)
+  - [Children](#children-2)
   - [Example](#example-12)
+  - [CSS Variables](#css-variables-8)
+  - [Behaviour](#behaviour-13)
+- [`<status-msg>`](#status-msg)
+  - [Example](#example-13)
 - [`<status-part>`](#status-part)
   - [Attributes](#attributes-11)
-  - [Example](#example-13)
-  - [Behaviour](#behaviour-13)
+  - [Example](#example-14)
+  - [Behaviour](#behaviour-14)
 - [`<status-buttons>`](#status-buttons)
   - [Attributes](#attributes-12)
   - [Children](#children-3)
-  - [Example](#example-14)
-  - [CSS Variables](#css-variables-8)
-  - [Behaviour](#behaviour-14)
-- [`<status-kv>`](#status-kv)
-  - [Attributes](#attributes-13)
-  - [Properties](#properties-1)
   - [Example](#example-15)
   - [CSS Variables](#css-variables-9)
   - [Behaviour](#behaviour-15)
-- [`<closure-filter-bar>`](#closure-filter-bar)
-  - [Attributes](#attributes-14)
-  - [Children](#children-4)
-  - [Events](#events-5)
-  - [Properties / Methods](#properties-methods)
+- [`<status-kv>`](#status-kv)
+  - [Attributes](#attributes-13)
+  - [Properties](#properties-1)
   - [Example](#example-16)
   - [CSS Variables](#css-variables-10)
   - [Behaviour](#behaviour-16)
+- [`<closure-filter-bar>`](#closure-filter-bar)
+  - [Attributes](#attributes-14)
+  - [Children](#children-4)
+  - [Events](#events-6)
+  - [Properties / Methods](#properties-methods)
+  - [Example](#example-17)
+  - [CSS Variables](#css-variables-11)
+  - [Behaviour](#behaviour-17)
 - [`<closure-data-grid>`](#closure-data-grid)
   - [Data sources](#data-sources)
   - [Children (configuration)](#children-configuration)
@@ -117,98 +130,98 @@
   - [Master/detail](#masterdetail)
   - [Selection vs focus](#selection-vs-focus)
   - [Methods](#methods-4)
-  - [Events](#events-6)
+  - [Events](#events-7)
   - [Refreshing after an edit](#refreshing-after-an-edit)
   - [Cell buttons](#cell-buttons)
   - [Action menu columns](#action-menu-columns)
   - [Tag columns](#tag-columns)
   - [Footer buttons](#footer-buttons)
-  - [Example](#example-17)
-  - [Column sizing](#column-sizing)
-  - [CSS Variables](#css-variables-11)
-  - [Behaviour](#behaviour-17)
-- [`<closure-data-grid>` children](#closure-data-grid-children)
-  - [Tags](#tags)
   - [Example](#example-18)
-  - [`<grid-col>` sizing attributes](#grid-col-sizing-attributes)
+  - [Column sizing](#column-sizing)
+  - [CSS Variables](#css-variables-12)
   - [Behaviour](#behaviour-18)
+- [`<closure-data-grid>` children](#closure-data-grid-children)
+  - [Tags](#tags-1)
+  - [Example](#example-19)
+  - [`<grid-col>` sizing attributes](#grid-col-sizing-attributes)
+  - [Behaviour](#behaviour-19)
 - [`<closure-row-viewer>`](#closure-row-viewer)
   - [Attributes](#attributes-15)
   - [Per-child binding attributes](#per-child-binding-attributes)
   - [Properties](#properties-2)
-  - [Example](#example-19)
-  - [Behaviour](#behaviour-19)
+  - [Example](#example-20)
+  - [Behaviour](#behaviour-20)
 - [`<closure-checkbox-tree>`](#closure-checkbox-tree)
   - [Attributes](#attributes-16)
   - [Children](#children-5)
   - [Form value](#form-value)
   - [Properties](#properties-3)
   - [Methods](#methods-5)
-  - [Events](#events-7)
-  - [Example](#example-20)
-  - [Behaviour](#behaviour-20)
-- [`<cbt-item>`](#cbt-item)
-  - [Attributes](#attributes-17)
+  - [Events](#events-8)
   - [Example](#example-21)
   - [Behaviour](#behaviour-21)
+- [`<cbt-item>`](#cbt-item)
+  - [Attributes](#attributes-17)
+  - [Example](#example-22)
+  - [Behaviour](#behaviour-22)
 - [`<closure-checkbox-group>`](#closure-checkbox-group)
   - [Attributes](#attributes-18)
   - [Children](#children-6)
   - [Form value](#form-value-1)
   - [Properties](#properties-4)
   - [Methods](#methods-6)
-  - [Events](#events-8)
-  - [Example](#example-22)
-  - [Behaviour](#behaviour-22)
+  - [Events](#events-9)
+  - [Example](#example-23)
+  - [Behaviour](#behaviour-23)
 - [`<closure-tab-bar>`](#closure-tab-bar)
   - [Attributes](#attributes-19)
   - [Children](#children-7)
   - [Methods](#methods-7)
-  - [Events](#events-9)
-  - [Example](#example-23)
-  - [CSS Variables](#css-variables-12)
-  - [Behaviour](#behaviour-23)
+  - [Events](#events-10)
+  - [Example](#example-24)
+  - [CSS Variables](#css-variables-13)
+  - [Behaviour](#behaviour-24)
 - [`<closure-tab>`](#closure-tab)
   - [Attributes](#attributes-20)
-  - [Example](#example-24)
-  - [Behaviour](#behaviour-24)
+  - [Example](#example-25)
+  - [Behaviour](#behaviour-25)
 - [`<closure-summary>`](#closure-summary)
   - [Pairing](#pairing)
   - [Attributes](#attributes-21)
   - [Methods](#methods-8)
-  - [CSS Variables](#css-variables-13)
-  - [Behaviour](#behaviour-25)
+  - [CSS Variables](#css-variables-14)
+  - [Behaviour](#behaviour-26)
 - [`<closure-form-row>`](#closure-form-row)
   - [Attributes](#attributes-22)
   - [Children](#children-8)
   - [Density](#density)
-  - [Example](#example-25)
-  - [CSS Variables](#css-variables-14)
-  - [Behaviour](#behaviour-26)
+  - [Example](#example-26)
+  - [CSS Variables](#css-variables-15)
+  - [Behaviour](#behaviour-27)
 - [`<closure-form-field>`](#closure-form-field)
   - [Attributes](#attributes-23)
   - [Children](#children-9)
-  - [Example](#example-26)
-  - [Behaviour](#behaviour-27)
+  - [Example](#example-27)
+  - [Behaviour](#behaviour-28)
 - [`<closure-data-source>`](#closure-data-source)
   - [Attributes](#attributes-24)
   - [Children](#children-10)
-  - [Example](#example-27)
-  - [Behaviour](#behaviour-28)
+  - [Example](#example-28)
+  - [Behaviour](#behaviour-29)
 - [`<fingerprint-hands>`](#fingerprint-hands)
   - [Attributes](#attributes-25)
   - [Form value](#form-value-2)
   - [Properties](#properties-5)
-  - [Events](#events-10)
-  - [Example](#example-28)
-  - [CSS Variables](#css-variables-15)
-  - [Behaviour](#behaviour-29)
-- [`<session-keep-alive>`](#session-keep-alive)
-  - [Attributes](#attributes-26)
   - [Events](#events-11)
   - [Example](#example-29)
   - [CSS Variables](#css-variables-16)
   - [Behaviour](#behaviour-30)
+- [`<session-keep-alive>`](#session-keep-alive)
+  - [Attributes](#attributes-26)
+  - [Events](#events-12)
+  - [Example](#example-30)
+  - [CSS Variables](#css-variables-17)
+  - [Behaviour](#behaviour-31)
 
 
 # Helpers
@@ -232,6 +245,44 @@ duplicating the parser.
 | `*,300px` or `-,300px`          | only `max-width` |
 
 `*` and `-` are interchangeable as "unset / unbounded" sentinels.
+
+## `closureFreeSubmit(el, url, defaultMethod, opts?)`
+
+The one encapsulated hidden-form submit of the library: builds a hidden
+form targeting `url`, fills its fields, submits it — a full navigation to
+the response — and removes the form node so it can't orphan in `<body>`
+on a download / new-tab action.
+
+Callers: `<closure-btn free url>` (default **POST** — an action button),
+`<closure-btn-item url>` (POST, payload via its parent-merging
+`getBtnData()`), `<dash-nav-item free url>` (default **GET** —
+navigation), `<session-keep-alive>` (logoff POST and server-instructed
+redirects), `<closure-data-grid>` (query-definition navigation and row
+`navigate` actions) and `<closure-lazy-iframe post>` (form submitted
+**into** the named frame via `opts.target`).
+
+Method resolution, in precedence order (attribute steps need `el`):
+
+1. boolean quick attributes on `el`: `post`, then `get`
+2. `method="get|post"` on `el`
+3. the caller's `defaultMethod`
+
+Fields, first match wins:
+
+1. `opts.fields` — caller-computed payload, names used as-is
+2. `el.getBtnData()` when present — the closure-btn contract, keeping
+   the source's own payload semantics (e.g. parent-menu merge),
+   `section_`-prefixed
+3. `el`'s `data-*` attributes, `section_`-prefixed when `el` has `section`
+
+Extras: `el` may be `null` (pure caller-driven submit);
+`opts.target` sets `form.target` (e.g. `_blank`); a GET submit is native
+— the fields **replace** any query already on `url` — unless `preserve`
+(the `opts.preserve` flag or a `preserve` attribute on `el`, mirroring
+captured GET forms) folds the url's existing query params in as leading
+fields so they survive. A GET with **no fields at all** (and no
+`opts.target`) skips the form entirely and navigates plainly — no bare
+`?` is appended to the url.
 
 ---
 
@@ -1302,7 +1353,8 @@ them); button state and form validation stay with the surrounding closure / form
 | `readonly`              | rendered but hidden (used to keep grid alignment) |
 | `class="primary\|red\|green\|gray\|small"` | colour / size variants |
 | `free`                  | bypass target-closure: click POSTs to `url` (or fires the event itself) |
-| `url="x"`               | (with `free`) destination URL of the auto-generated POST form |
+| `url="x"`               | (with `free`) destination URL of the auto-generated form |
+| `get` / `post` / `method="get\|post"` | (with `free`) pick the submit method — quick boolean attributes win over `method=`. Default: **POST** (an action button). On GET the `data-*` fields become the query string, replacing any query on `url` (add `preserve` to keep it) |
 | `event="x"`             | event name to dispatch (default `btn-action`) |
 | `target-id="x"`         | element to receive the dispatched event (default: self) |
 | `target-selector="css"` | selector target for local client actions |
@@ -1420,7 +1472,7 @@ override.
 | `ct-role="x"`   | role for template matching (overrides the parent button's `ct-role`) |
 | `icon="x"`      | icon text rendered before the label |
 | `disabled`      | disabled visual + skips focus |
-| `url="x"`       | when set, click POSTs the merged `data-*` to this URL instead of dispatching the event |
+| `url="x"`       | when set, click submits the merged `data-*` to this URL (shared `closureFreeSubmit()` form) instead of dispatching the event. Default method: **POST**; `get`/`post`/`method=` pick another, as on `<closure-btn free>` |
 | `event="x"`     | event name to dispatch (defaults to parent's `event` then to `btn-action`) |
 | `target-id="x"` | element to receive the dispatched event (defaults to parent's `target-id` then to the parent button) |
 | `section="x"`   | section key when packaging `data-*` (defaults to parent's `section`) |
@@ -1600,7 +1652,9 @@ visible until the iframe fires its first `load` (default placeholder:
 | `src="url"`   | iframe URL — assigned on first expand |
 | `expanded`    | boolean; present = open. Reflected: toggle it to open/close |
 | `iframe-title="x"` | copied to the iframe's `title` (accessibility) |
-| `name`, `allow`, `sandbox`, `referrerpolicy`, `allowfullscreen` | copied verbatim to the iframe when it is created |
+| `data-*` / `section="x"` | form fields (`section_`-prefixed when `section` is set): when present, loading goes through a hidden form (shared `closureFreeSubmit()`) submitted **into** the named frame with the applicable method — GET (default): the fields become the frame url's query string; POST: they travel in the body. Without fields (and without `post`) the `src` is simply assigned |
+| `post` / `method="post"` | use **POST** for the frame-targeted form. For heavy server-generated reports whose parameters don't belong in a URL |
+| `name`, `allow`, `sandbox`, `referrerpolicy`, `allowfullscreen` | copied verbatim to the iframe when it is created. In `post` mode the frame needs a `name` — an internal one is generated if the attribute is absent |
 
 ## Methods / properties
 
@@ -1630,6 +1684,10 @@ visible until the iframe fires its first `load` (default placeholder:
 
 <!-- starts open, loads immediately -->
 <closure-lazy-iframe label="Map" src="https://maps.example.com/embed" expanded></closure-lazy-iframe>
+
+<!-- POST-loaded report: params travel as form fields, not in the URL -->
+<closure-lazy-iframe label="Annual report" src="/reports/annual"
+                     post data-year="2026" data-scope="all"></closure-lazy-iframe>
 
 <script>
   var panel = document.querySelector('closure-lazy-iframe');
@@ -1668,11 +1726,268 @@ Consumed (with fallbacks):
 
 > **Note:** changing `src` after the iframe exists writes through and
 > navigates the frame; changing it before first expand just updates
-> what will be loaded.
+> what will be loaded. When loading goes through the form (fields
+> present, or `post`), the write-through **re-submits** with the
+> current `data-*` values; on POST, `unload()` + expand re-POSTs —
+> inherent to POST navigation, as is the browser's confirm on a manual
+> frame reload.
 
 > **Note:** an initial `expanded` set in markup fires its `lzi-*` events
 > during upgrade, before page scripts can typically listen — read the
 > `expanded` / `loaded` properties instead of relying on those events.
+
+---
+
+# `<closure-dashboard>`
+
+Dashboard shell: a fixed header (hamburger + linked title + free tool
+area), a collapsible side navigation panel, and a client area that is
+the only scroll container. One global control, declarative child tags:
+
+```html
+<closure-dashboard label="My App" logo-href="/">
+  <dash-header>
+    <clock-display small dot></clock-display>
+  </dash-header>
+  <dash-nav>
+    <dash-nav-group label="Tracking">
+      <dash-nav-item name="home" panel="home" selected>Home</dash-nav-item>
+      <dash-nav-item name="reports" url="/dash/reports" panel="reports" badge="3">Reports</dash-nav-item>
+    </dash-nav-group>
+    <dash-nav-item name="about" url="/dash/about" lightbox>About</dash-nav-item>
+    <dash-nav-item href="/help">Help</dash-nav-item>
+    <hr>
+    <form action="/search"><input name="q" placeholder="Search…"></form>
+  </dash-nav>
+  <dash-client>
+    <p>Default region — shown when no panel item is selected.</p>
+    <dash-panel name="home">…</dash-panel>
+  </dash-client>
+</closure-dashboard>
+```
+
+The layout is self-contained: the host is a flex column
+(`--dash-height`, default `100dvh`), the header row never scrolls, and
+`<dash-client>` scrolls on its own. No page CSS is ever needed; CSS
+variables are optional restyling hooks.
+
+**The closure machinery is opt-in, never required** (see the ladder
+below): a dashboard of plain links, or of local panels, works with zero
+`<target-closure>` involvement.
+
+## Tags
+
+| Tag | Role |
+|---|---|
+| `<closure-dashboard>` | the shell: layout, selection, fetch pipeline |
+| `<dash-header>`       | free content, right-aligned in the fixed header |
+| `<dash-nav>`          | the side panel: items, groups and free content (buttons, mini forms, `<hr>`…) |
+| `<dash-nav-group>`    | titled, collapsible section of items (`label`, `collapsed`) |
+| `<dash-nav-item>`     | a navigation entry (see modes below) |
+| `<dash-client>`       | the client area; non-panel children form the *default region* |
+| `<dash-panel>`        | named, state-preserving region of the client area |
+
+`<dash-header>`, `<dash-nav>`, `<dash-client>` and `<dash-panel>` are
+plain declarative tags — the shell wires them; only
+`<closure-dashboard>` is a custom element.
+
+## `<closure-dashboard>` attributes
+
+| Attribute | Description |
+|---|---|
+| `label="x"`      | app title in the header |
+| `logo-src="x"`   | logo image rendered before the label (or alone, with no `label`); height via `--dash-logo-height` |
+| `logo-href="x"`  | make the title (logo + label) a link |
+| `title-align="center"` | center the title/logo in the bar (absolute centering — unaffected by the hamburger or the `<dash-header>` tools). Default: left, after the hamburger |
+| `collapsed`      | boolean, reflected — side nav hidden. Toggled by the hamburger; the single source of truth |
+| `closure="name"` | optional: name of the `<target-closure>` that receives default-region loads (default: first one found in the region) |
+
+## `<dash-nav-item>` — navigation out and in
+
+| Attribute | Description |
+|---|---|
+| `name="x"`   | identity for selection, `select(name)` and server directives |
+| `href="x"`   | **out**: plain full navigation (GET) |
+| `free`       | **out, form submit**: with `url`, the `<closure-btn free>` mode via the shared `closureFreeSubmit()` helper — the click builds a hidden form from the item's `data-*` (names prefixed by `section` when present), submits it and navigates to the response. Default method: **GET** (a nav item is navigation; fields → query string); write `post` for POST — `<dash-nav-item free post url="/logout">Sign out</dash-nav-item>`. `get`/`post`/`method=` as on `<closure-btn>` |
+| `panel="x"`  | **in, no fetch**: show `<dash-panel name="x">`, hide the others; DOM state is preserved across switches |
+| `url="x"`    | **in, fetch**: GET the url and render it — into the default region, or into the item's `panel` (first activation only; created if absent), or into `target`/`lightbox` below |
+| `refresh`    | with `url`+`panel`: re-fetch on every activation, not just the first |
+| `lazy`       | with `url`+`selected`: don't fetch on page load even if the target is empty — wait for the first real activation |
+| `preload`    | with `url`+`panel`: the opposite of `lazy` — fetch at page load, in the background, into the still-hidden panel, so entering the section is instant |
+| `target="sel"` | with `url`: render into the container matched by the CSS selector (looked up inside `<dash-client>` first, then document-wide) |
+| `lightbox` / `lightbox="id"` | with `url`: show the response in a `<closure-lightbox>` (referenced by id, or a spawned throw-away one). Does **not** change the selection — it is an action, not a place |
+| `selected`   | boolean, reflected — the active item |
+| `badge="x"`  | counter/pill at the item's right edge (CSS-rendered) |
+| `activate-on="event"` | activate this item whenever that `<signal-event>` name fires on `document` |
+| `ct-role="x"` / `closure-template="x"` | **routed action mode** — the item inherits the `<closure-btn>` contract by duck typing: it switches place normally, then dispatches `btn-action` (itself as `detail.source`, exposing the standard `getBtnData()`) at the place's closure, which routes the POST through its `<closure-template>` and processes the response. The closure-native alternative to `url` — don't combine both on one item |
+| `target-id="x"` | with `ct-role`: dispatch the `btn-action` at that element instead of the place's closure |
+| `section="x"` / `data-*` | with `ct-role`: payload fields packaged by `getBtnData()`, exactly as on `<closure-btn>` |
+
+Item content is light-DOM markup (text, an emoji/svg icon, `<b>`…).
+Everything else inside `<dash-nav>` (buttons, forms, separators) is
+rendered as free content: nav behavior applies only to items, and the
+existing button/form machinery composes untouched:
+
+- `<closure-btn free url="/x">` — the encapsulated POST form: click
+  posts its `data-*` to the url (full navigation, "out").
+- `<closure-btn ct-role="x" target-id="main">` — routed action "in":
+  the `btn-action` is dispatched at a `<target-closure>` living in a
+  panel/region, which posts through its template and processes the
+  response there (directives, `<dashboard-response-item>`, signals).
+- `<form closure="name">` — a mini form associated by name to a closure
+  anywhere in the document; a plain `<form>` submits natively.
+
+## Render targets and the opt-in ladder
+
+Every rung is first-class; the next adds only what it names:
+
+1. **Links only** (`href` items): classic multi-page app, zero JS semantics.
+2. **Local panels** (`panel` items): everything travels in the initial
+   page; switching preserves DOM state. Fully offline-capable.
+3. **Fetch without closures** (`url` items): responses land via
+   `innerHTML` in the default region / panel / `target` container.
+4. **Closure mode**: if the receiving region, panel or container holds a
+   `<target-closure>`, the response goes through `loadContent()` —
+   templates, form association, dirty tracking and response directives
+   come alive. Actions inside a panel scope to that panel's closure by
+   plain nearest-closure association.
+
+`url` **without** `panel` always re-fetches into the shared default
+region. With `panel`, the fetch is lazy (first activation) and the
+panel keeps its state; `refresh` re-fetches every time.
+
+**When urls load** — a three-step eagerness scale, per item:
+
+- **`preload`** (eager): fetched at page load, in the background, into
+  its hidden panel. Requires `url`+`panel`.
+- **default** (lazy): fetched on first activation. Exception: the
+  initially `selected` item fetches at load when its target is empty
+  (an auto-created panel) — a selected-but-empty landing would be
+  useless. A panel (or the region) that carries server-rendered markup
+  content counts as **loaded** and is not refetched, neither at load
+  nor on first activation.
+- **`lazy`** (explicit): suppresses even the selected-item exception —
+  nothing loads until a real activation.
+
+`refresh` is orthogonal and governs the **second and later**
+activations: the first render (markup or first fetch) is fresh by
+definition — `refresh` never causes a load-time refetch; it re-fetches
+on every activation after that.
+
+**Dirty protection:** an automatic (re)fetch never clobbers unsaved
+edits. If the target's closure reports dirty state, the fetch is
+skipped, the panel shows as-is (the edit lives), and `dash-dirty-skip`
+fires — the app decides (ignore, confirm via `MsgConfirm`, or
+`closure.cleanDirty('*')` + `select(name)` to force). The next
+activation with a clean closure fetches normally.
+
+**Closure responses:** rendering through a closure means
+`loadContent()`, which runs `ClosureResponse.process()` — a fetched
+`<closure-response>` document (directives, sections, subscribed tags)
+is executed, not dumped as markup. In closure-less targets (ladder
+rung 3) the response is plain HTML by design.
+
+## Methods / properties
+
+| Member | Description |
+|---|---|
+| `select(name)` | activate the item programmatically (same pipeline as a click) |
+| `collapse()` / `expand()` / `toggle()` | side nav visibility (sets/removes `collapsed`) |
+| `selected` (getter) | `name` of the active item, or `''` |
+
+## Events
+
+| Event | Bubbles | Cancelable | Detail |
+|---|---|---|---|
+| `dash-nav`    | no | yes | `{ name, url }` — before activation; `preventDefault()` blocks it |
+| `dash-loaded` | no | no  | `{ name, url }` — a fetch was rendered |
+| `dash-toggle` | no | no  | `{ collapsed }` |
+| `dash-fetch-error` | no | yes | `{ url, error, message }` — network-level fetch failure; DOM untouched; `preventDefault()` to suppress the console fallback |
+| `dash-dirty-skip` | no | no | `{ name, url }` — a (re)fetch was skipped because the target's closure is dirty (unsaved edits). Confirm + `cleanDirty()` + `select(name)` to force |
+
+**Panel events**, fired on the `<dash-panel>` element itself so inner
+content subscribes to its own ancestor without knowing names:
+
+| Event | Detail |
+|---|---|
+| `panel-show`   | `{ name }` — the panel just became visible |
+| `panel-hide`   | `{ name }` — the panel was switched away from |
+| `panel-loaded` | `{ name, url }` — a `url`+`panel` fetch rendered into it |
+
+## Signals (server → shell)
+
+The shell listens on `document` for the well-known
+`<signal-event name="dash-select" data-item="reports">` and runs the
+full activation pipeline for that item. Additionally any item may
+subscribe to a domain event via `activate-on="entry-created"` — the
+server emits its domain signal without knowing item names; combined
+with `refresh`, "dialog saved → section selected and fresh" is pure
+markup. Listeners are armed at the deferred init (after
+`DOMContentLoaded`), so signals arriving in server responses always
+find them; a `<signal-event>` in the *initial static markup* may fire
+too early to be heard.
+
+## `<dashboard-response-item>` (subscribed closure tag)
+
+When regions/panels hold closures, the shell subscribes this tag on
+every closure it renders into — so any response can steer the shell:
+
+| Attribute | Effect |
+|---|---|
+| `select="name"` | activate that item |
+| `badge="name:value"` | set an item's badge (`value` empty ⇒ remove it) |
+| `label="x"` | replace the header title |
+| `type="collapse"` / `type="expand"` | drive the side nav |
+
+## Example
+
+See `examples/dashboard.html`. `url` items need the page served over
+HTTP (`fetch` is blocked on `file://`); everything else works offline.
+
+## CSS Variables
+
+Premise: **CSS can be used, never needed.** Consumed (with fallbacks):
+shared tokens `--border`, `--bg`, `--text`, `--text-muted`,
+`--primary`, `--font`, `--radius`, plus:
+
+| Variable | Default |
+|---|---|
+| `--dash-height`         | `100dvh` |
+| `--dash-header-height`  | `48px` |
+| `--dash-logo-height`    | `24px` |
+| `--dash-nav-width`      | `220px` |
+| `--dash-client-padding` | `16px` |
+| `--dash-header-bg` / `--dash-nav-bg` | `var(--bg)` |
+| `--dash-selected-bg`    | `var(--primary)` |
+| `--dash-selected-text`  | `#fff` |
+
+## Behaviour
+
+> **Note:** `collapsed` is the single source of truth for the side nav
+> (like `expanded` on `<closure-lazy-iframe>`): the hamburger, the
+> scrim and `collapse()`/`expand()` only set or remove the attribute.
+
+> **Note:** below 880px (fixed breakpoint — CSS variables cannot drive
+> media queries) the nav starts collapsed; expanded, it overlays the
+> client area with a scrim, and picking an item auto-collapses it.
+
+> **Note:** the shell moves `<dash-header>` into the header bar and
+> wraps the non-panel children of `<dash-client>` in an internal
+> default-region container at init (the same move-on-connect approach
+> as `<closure-lightbox>`). Panels stay where they are.
+
+> **Note:** panels and tabs compose — putting a `<closure-tab-bar>`
+> inside a `<dash-panel>` is the expected pattern. The two mechanisms
+> cannot collide: different tags (`dash-panel[active]` vs
+> `closure-tab[active]`), tag-scoped CSS and distinct events
+> (`panel-*` vs `tab-change`). Tabs initialize normally inside a hidden
+> panel and keep their active tab across panel switches. The shell only
+> manages `<dash-panel>` elements that are **direct children** of
+> `<dash-client>` — nested or fragment-delivered lookalikes are content.
+
+> **Note:** an HTTP error response (4xx/5xx) with a body is rendered
+> like any other (matching `<target-closure>`); only network-level
+> failures leave the DOM untouched and fire `dash-fetch-error`.
 
 ---
 

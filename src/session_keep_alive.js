@@ -199,23 +199,8 @@ class SessionKeepAlive extends HTMLElement {
 
   _logoff() {
     if (!this._expireUrl) return;
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = this._expireUrl;
-    form.style.display = 'none';
-    for (const attr of this.attributes) {
-      if (attr.name.startsWith('data-')) {
-        const hidden = document.createElement('input');
-        hidden.type = 'hidden';
-        hidden.name = attr.name.slice(5);
-        hidden.value = attr.value;
-        form.appendChild(hidden);
-      }
-    }
-    document.body.appendChild(form);
-    form.submit();
-    form.remove(); // drop the node post-submit so it can't orphan in
-                   // <body> if the POST doesn't navigate the page away
+    // Shared encapsulated form: POST this element's data-* to expire-url
+    closureFreeSubmit(this, this._expireUrl, 'post');
   }
 
   _reset() {
@@ -288,29 +273,9 @@ class SessionKeepAlive extends HTMLElement {
   }
 
   _navigate(url, method, payload) {
-    if (String(method).toUpperCase() === 'GET') {
-      const qs = new URLSearchParams(payload || {}).toString();
-      // Respect a query string the server already put on the URL (e.g.
-      // "/login?reason=timeout") instead of appending a second "?".
-      const sep = url.includes('?') ? '&' : '?';
-      window.location.href = qs ? url + sep + qs : url;
-      return;
-    }
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = url;
-    form.style.display = 'none';
-    for (const k in (payload || {})) {
-      const hidden = document.createElement('input');
-      hidden.type = 'hidden';
-      hidden.name = k;
-      hidden.value = payload[k];
-      form.appendChild(hidden);
-    }
-    document.body.appendChild(form);
-    form.submit();
-    form.remove(); // drop the node post-submit so it can't orphan in
-                   // <body> if the POST doesn't navigate the page away
+    // Shared encapsulated form. `preserve` keeps a query string the server
+    // already put on the URL (e.g. "/login?reason=timeout") on GET submits.
+    closureFreeSubmit(null, url, method, { fields: payload || {}, preserve: true });
   }
 }
 
