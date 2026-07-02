@@ -1,4 +1,3 @@
-
 - [Helpers](#helpers)
   - [`applyWidthRange(el)`](#applywidthrangeel)
 - [`<signal-event>`](#signal-event)

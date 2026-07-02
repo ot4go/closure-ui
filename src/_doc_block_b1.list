@@ -1,0 +1,68 @@
+<%% doc-block-begin: b1  %%>
+<%% include-notes:closure_helper_functions.js %%>
+
+<%% include-notes:signal_event.js %%>
+
+<%% include-notes:btn_grid.js %%>
+
+<%% include-notes:update_clock_time.js %%>
+
+<%% include-notes:credential_password.js %%>
+
+<%% include-notes:data_map.js %%>
+
+<%% include-notes:map_item.js %%>
+
+<%% include-notes:closure_response.js %%>
+
+<%% include-notes:target_closure.js %%>
+
+<%% include-notes:closure_template.js %%>
+
+<%% include-notes:closure_btn.js %%>
+
+<%% include-notes:closure_btn_item.js %%>
+
+<%% include-notes:closure_lightbox.js %%>
+
+<%% include-notes:closure_status_bar.js %%>
+
+<%% include-notes:status_msg.js %%>
+
+<%% include-notes:status_part.js %%>
+
+<%% include-notes:status_buttons.js %%>
+
+<%% include-notes:status_kv.js %%>
+
+<%% include-notes:closure_filter_bar.js %%>
+
+<%% include-notes:closure_data_grid.js %%>
+
+<%% include-notes:closure_data_grid_children.js %%>
+
+<%% include-notes:closure_row_viewer.js %%>
+
+<%% include-notes:closure_checkbox_tree.js %%>
+
+<%% include-notes:cbt_item.js %%>
+
+<%% include-notes:closure_checkbox_group.js %%>
+
+<%% include-notes:closure_tab_bar.js %%>
+
+<%% include-notes:closure_tab.js %%>
+
+<%% include-notes:closure_summary.js %%>
+
+<%% include-notes:closure_form_row.js %%>
+
+<%% include-notes:closure_form_field.js %%>
+
+<%% include-notes:closure_data_source.js %%>
+
+<%% include-notes:fingerprint_hands.js %%>
+
+<%% include-notes:session_keep_alive.js %%>
+<%% doc-block-end: b1  %%>
+

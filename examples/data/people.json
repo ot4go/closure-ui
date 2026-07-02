@@ -1,0 +1,86 @@
+[
+  {
+    "id": 1,
+    "name": "Ana Torres",
+    "city": "Madrid",
+    "role": "Analyst",
+    "active": false
+  },
+  {
+    "id": 2,
+    "name": "Luis Pérez",
+    "city": "Sevilla",
+    "role": "Analyst",
+    "active": true
+  },
+  {
+    "id": 3,
+    "name": "Marta Gil",
+    "city": "Valencia",
+    "role": "Developer",
+    "active": true
+  },
+  {
+    "id": 4,
+    "name": "Jorge Ruiz",
+    "city": "Bilbao",
+    "role": "Developer",
+    "active": false
+  },
+  {
+    "id": 5,
+    "name": "Lucía Mora",
+    "city": "Zaragoza",
+    "role": "Designer",
+    "active": true
+  },
+  {
+    "id": 6,
+    "name": "Pablo Sanz",
+    "city": "Madrid",
+    "role": "Designer",
+    "active": true
+  },
+  {
+    "id": 7,
+    "name": "Elena Díaz",
+    "city": "Sevilla",
+    "role": "Manager",
+    "active": false
+  },
+  {
+    "id": 8,
+    "name": "Raúl Vega",
+    "city": "Valencia",
+    "role": "Manager",
+    "active": true
+  },
+  {
+    "id": 9,
+    "name": "Sara León",
+    "city": "Bilbao",
+    "role": "Support",
+    "active": true
+  },
+  {
+    "id": 10,
+    "name": "Iván Cano",
+    "city": "Zaragoza",
+    "role": "Support",
+    "active": false
+  },
+  {
+    "id": 11,
+    "name": "Nuria Paz",
+    "city": "Madrid",
+    "role": "Analyst",
+    "active": true
+  },
+  {
+    "id": 12,
+    "name": "Óscar Rey",
+    "city": "Sevilla",
+    "role": "Analyst",
+    "active": true
+  }
+]

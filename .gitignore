@@ -3,3 +3,5 @@
 /release/
 /src/generated/
 *.bak
+go.work
+go.work.sum

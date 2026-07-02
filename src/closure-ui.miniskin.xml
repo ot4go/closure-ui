@@ -4,8 +4,13 @@
   <bucket-list omit="embed,module">
     <bucket src=".">
       <resource-list urlbase="/closure-ui">
-        <item type="static,parse" src="./_source.list" file="./generated/closure-ui.js"/>
-        <item type="static,parse" src="./_doc.list" file="./generated/closure-ui.md"/>
+
+        <item type="static,parse" src="./_source.list" file="./generated/closure-ui.js"   role="bundle"  release="true" />1
+        
+        <item type="block,parse" src="./_doc_block_b1.list" />
+        <item type="static,parse" src="./_doc_body.list" file="./generated/doc-body.md" 
+              mkskill-copy="./src/closure-ui-content.md"  mkskill-in="*" mkskill-weight="20" />
+        <item type="static,parse" src="./_doc.list" file="./generated/closure-ui.md" role ="doc" release="true" />
       </resource-list>
     </bucket>
   </bucket-list>
