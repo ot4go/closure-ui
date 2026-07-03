@@ -1,8 +1,3 @@
-go -C .build run .
-
-
-
-
-
+go -C .build run ./build
 
 

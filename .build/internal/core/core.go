@@ -1,4 +1,7 @@
-package main
+// Package core holds the logic shared by the .build action commands
+// (build, release, cut-release): the asset build itself, the release
+// manifest, and the release packaging.
+package core
 
 import (
 	"crypto/sha256"
@@ -7,8 +10,8 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
@@ -19,20 +22,26 @@ import (
 	"github.com/tdewolff/minify/v2/js"
 )
 
-func main() {
-	if err := run(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-}
+// ManifestPath is the release manifest, the single source of truth for the
+// next release's tag and title.
+const ManifestPath = ".build/next-release.json"
 
-func run() error {
+// ChdirRoot moves the process to the repository root (this file lives at
+// .build/internal/core), so every action command works with the same
+// root-relative paths.
+func ChdirRoot() error {
 	_, file, _, _ := runtime.Caller(0)
-	root := filepath.Join(filepath.Dir(file), "..")
+	root := filepath.Join(filepath.Dir(file), "..", "..", "..")
 	if err := os.Chdir(root); err != nil {
 		return fmt.Errorf("chdir to project root: %w", err)
 	}
+	return nil
+}
 
+// BuildAll runs the miniskin pipeline and produces the stable artifacts:
+// generated bundle + doc, the git-tracked copies (doc/, examples/) and the
+// release/ trio (js, md, min.js).
+func BuildAll() error {
 	if err := os.MkdirAll("src/generated", 0o755); err != nil {
 		return err
 	}
@@ -54,39 +63,41 @@ func run() error {
 	if err := copyFile("src/generated/closure-ui.js", "release/closure-ui.js"); err != nil {
 		return err
 	}
-	if err := minifyJS("release/closure-ui.js", "release/closure-ui.min.js"); err != nil {
-		return err
-	}
-	// Versioned artifacts are only born where their tag is about to be
-	// created: the release workflow passes `release`. Every other build —
-	// local, PR check — still VALIDATES the manifest (a broken one must
-	// fail the PR, not the release) but emits nothing versioned, and cleans
-	// stale packaging leftovers so release/ stays deterministic.
-	if len(os.Args) > 1 && os.Args[1] == "release" {
-		return packageRelease()
-	}
-	if _, err := readManifest(".build/next-release.json"); err != nil {
-		return err
-	}
-	return cleanReleasePackaging()
+	return minifyJS("release/closure-ui.js", "release/closure-ui.min.js")
 }
 
-// packageRelease builds the release-only artifacts, driven by the manifest
-// (.build/next-release.json): every base artifact gets a versioned twin
-// with the tag glued into the name (distinct, self-describing,
-// cacheable-forever URLs), plus verifiable sha256 checksums and a small
-// human-readable info txt.
-func packageRelease() error {
-	man, err := readManifest(".build/next-release.json")
+// PackageRelease builds the release-only artifacts, driven by the manifest:
+// every base artifact gets a versioned twin with the tag glued into the name
+// (distinct, self-describing, cacheable-forever URLs), plus verifiable
+// sha256 checksums and a small human-readable info txt.
+func PackageRelease() error {
+	man, err := ReadManifest(ManifestPath)
 	if err != nil {
 		return err
 	}
-	// Versioned artifacts are only legitimate for a tag that EXISTS: the
-	// release workflow creates it right before this build (and deletes it
-	// again if anything downstream fails), and a local rehearsal without
-	// the tag fails here instead of minting impostor files.
-	if err := exec.Command("git", "rev-parse", "-q", "--verify", "refs/tags/"+man.Tag).Run(); err != nil {
+	// Versioned artifacts are only legitimate when built from EXACTLY the
+	// tagged commit: the tag must exist, point at HEAD, and the tree must be
+	// clean. In CI this is trivially true (the workflow tags HEAD right
+	// before this build, and deletes the tag again if anything downstream
+	// fails). Locally it means a rehearsal can never mint impostor files —
+	// version-named artifacts whose bytes don't match the tag.
+	tagCommit, err := gitOut("rev-parse", "-q", "--verify", man.Tag+"^{commit}")
+	if err != nil {
 		return fmt.Errorf("release packaging: tag %q does not exist", man.Tag)
+	}
+	head, err := gitOut("rev-parse", "HEAD")
+	if err != nil {
+		return err
+	}
+	if tagCommit != head {
+		return fmt.Errorf("release packaging: tag %q does not point at HEAD — the artifacts would not match the tag", man.Tag)
+	}
+	dirty, err := gitOut("status", "--porcelain")
+	if err != nil {
+		return err
+	}
+	if dirty != "" {
+		return fmt.Errorf("release packaging: working tree is not clean — the artifacts would not match tag %q", man.Tag)
 	}
 	pairs := [][2]string{
 		{"release/closure-ui.js", "release/closure-ui-" + man.Tag + ".js"},
@@ -107,7 +118,9 @@ func packageRelease() error {
 	return writeReleaseInfo("release/release-info.txt", man, files)
 }
 
-func cleanReleasePackaging() error {
+// CleanPackaging removes stale release-packaging outputs so a plain build
+// leaves release/ deterministic (stable artifacts only).
+func CleanPackaging() error {
 	var stale []string
 	for _, pattern := range []string{
 		"release/closure-ui-v*.js",
@@ -129,26 +142,49 @@ func cleanReleasePackaging() error {
 	return nil
 }
 
-type manifest struct {
+// Manifest is the release manifest (.build/next-release.json).
+type Manifest struct {
 	Tag   string `json:"tag"`
 	Title string `json:"title"`
 }
 
-// readManifest loads the release manifest. The manifest is a required repo
+var tagRe = regexp.MustCompile(`^v\d+\.\d+\.\d+$`)
+
+// ValidTag reports whether tag is a plain vMAJOR.MINOR.PATCH.
+func ValidTag(tag string) bool { return tagRe.MatchString(tag) }
+
+// ReadManifest loads the release manifest. The manifest is a required repo
 // file: missing or invalid, the build fails — in every mode.
-func readManifest(path string) (*manifest, error) {
+func ReadManifest(path string) (*Manifest, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("release manifest: %w", err)
 	}
-	var man manifest
+	var man Manifest
 	if err := json.Unmarshal(data, &man); err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
-	if !regexp.MustCompile(`^v\d+\.\d+\.\d+$`).MatchString(man.Tag) {
+	if !ValidTag(man.Tag) {
 		return nil, fmt.Errorf("%s: tag %q is not vMAJOR.MINOR.PATCH", path, man.Tag)
 	}
 	return &man, nil
+}
+
+// WriteManifest writes the release manifest (pretty-printed, trailing newline).
+func WriteManifest(path string, man *Manifest) error {
+	data, err := json.MarshalIndent(man, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, append(data, '\n'), 0o644)
+}
+
+func gitOut(args ...string) (string, error) {
+	out, err := exec.Command("git", args...).Output()
+	if err != nil {
+		return "", fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
+	}
+	return strings.TrimSpace(string(out)), nil
 }
 
 func fileSha256(path string) (string, error) {
@@ -175,7 +211,7 @@ func writeChecksums(dst string, files []string) error {
 // writeReleaseInfo emits the small "everything about this release" txt:
 // tag, title, links (when the GitHub env is present — i.e. in CI), build
 // time and the per-file sha256 list.
-func writeReleaseInfo(dst string, man *manifest, files []string) error {
+func writeReleaseInfo(dst string, man *Manifest, files []string) error {
 	var b strings.Builder
 	fmt.Fprintf(&b, "closure-ui %s — %s\n\n", man.Tag, man.Title)
 	if repo := os.Getenv("GITHUB_REPOSITORY"); repo != "" {

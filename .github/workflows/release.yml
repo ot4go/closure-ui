@@ -55,7 +55,7 @@ jobs:
 
       # `release` is the only mode that emits versioned artifacts; it
       # verifies the tag just created above.
-      - run: go -C .build run . release
+      - run: go -C .build run ./release
 
       - name: Create release
         env:
