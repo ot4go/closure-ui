@@ -1,9 +1,16 @@
 name: Release
 
+# Manifest-driven: pushing a change to .build/next-release.json on main IS
+# the release. The workflow reads tag+title from it, creates the tag, builds
+# and publishes. It FAILS if the manifest's tag already exists — bump the
+# manifest before releasing again.
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
+    paths:
+      - '.build/next-release.json'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -13,21 +20,60 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # tags are needed for the already-released check
+
+      - name: Read manifest
+        id: man
+        run: |
+          tag=$(jq -r .tag .build/next-release.json)
+          title=$(jq -r '.title // empty' .build/next-release.json)
+          [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::bad tag: $tag"; exit 1; }
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            echo "::error::$tag already exists — bump .build/next-release.json"
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "title=${title:-$tag}" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-go@v6
         with:
           go-version-file: .build/go.mod
           cache-dependency-path: .build/go.sum
 
-      - run: go -C .build run .
+      # Tag first: the release build REQUIRES the tag to exist (versioned
+      # artifacts are only legitimate for a real tag). A failure anywhere
+      # below deletes the tag again (cleanup step at the end), so nothing
+      # gets burnt and the run is retryable.
+      - name: Create tag
+        id: tagged
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "${{ steps.man.outputs.tag }}"
+          git push origin "${{ steps.man.outputs.tag }}"
+
+      # `release` is the only mode that emits versioned artifacts; it
+      # verifies the tag just created above.
+      - run: go -C .build run . release
 
       - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" \
-            --title "$GITHUB_REF_NAME" \
+          tag="${{ steps.man.outputs.tag }}"
+          gh release create "$tag" \
+            --title "${{ steps.man.outputs.title }}" \
             --generate-notes \
             release/closure-ui.js \
+            "release/closure-ui-$tag.js" \
             release/closure-ui.min.js \
-            release/closure-ui.md
+            "release/closure-ui-min-$tag.js" \
+            release/closure-ui.md \
+            "release/closure-ui-$tag.md" \
+            release/checksums.txt \
+            release/release-info.txt
+
+      - name: Clean up tag on failure
+        if: failure() && steps.tagged.outcome == 'success'
+        run: git push --delete origin "${{ steps.man.outputs.tag }}"
