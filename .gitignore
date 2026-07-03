@@ -5,3 +5,5 @@
 *.bak
 go.work
 go.work.sum
+_*.bat
+

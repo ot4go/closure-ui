@@ -3037,6 +3037,7 @@ class ClosureDashboard extends HTMLElement {
     'closure-dashboard dash-nav input { width: 100%; box-sizing: border-box; padding: 6px 8px; border: 1px solid var(--border, #e5e7eb); border-radius: var(--radius, 8px); font-family: var(--font, sans-serif); font-size: 13px; }',
     'closure-dashboard dash-panel { display: none; }',
     'closure-dashboard dash-panel[active] { display: block; }',
+    'closure-dashboard .dsh-fetch-notice { color: var(--text-muted, #6b7280); font-size: 13px; padding: 24px; text-align: center; }',
     'closure-dashboard .dsh-scrim { display: none; }',
     '@media (max-width: 880px) {',
     '  closure-dashboard dash-nav { position: absolute; top: 0; bottom: 0; left: 0; z-index: 20; box-shadow: 4px 0 16px rgba(0,0,0,0.15); }',
@@ -3131,6 +3132,28 @@ class ClosureDashboard extends HTMLElement {
     }
     row.appendChild(clientEl);
     this._client = clientEl;
+
+    // Declarative failure markup (grid vocabulary), most specific wins:
+    // a direct <on-fetch-error> child of each <dash-panel> (per-section UI),
+    // then one of <dash-client> (shell-wide). Captured and REMOVED at init —
+    // so a panel holding only its error template still counts as empty
+    // (and fetches), and later content replacements can't destroy them.
+    var self0 = this;
+    var extractOfe = function(parent) {
+      var found = null;
+      Array.prototype.forEach.call(parent.children, function(c) {
+        if (!found && c.tagName === 'ON-FETCH-ERROR') found = c;
+      });
+      if (!found) return null;
+      var html = found.innerHTML;
+      found.remove();
+      return html;
+    };
+    Array.prototype.forEach.call(clientEl.children, function(c) {
+      if (c.tagName !== 'DASH-PANEL') return;
+      c._dshOnFetchErrorHTML = extractOfe(c);
+    });
+    this._onFetchErrorHTML = extractOfe(clientEl);
 
     // Default region: gather the client's non-panel children
     this._region = document.createElement('div');
@@ -3301,7 +3324,13 @@ class ClosureDashboard extends HTMLElement {
       var explicit = item.getAttribute('target');
       if (explicit) {
         var t = (this._client && this._client.querySelector(explicit)) || document.querySelector(explicit);
-        if (t) this._fetchInto(url, t, name, null);
+        if (t) {
+          // arbitrary containers aren't seen by the init pass: mark their
+          // markup content as "loaded" on first touch, so all later
+          // decisions run on _dshLoaded alone
+          if (t._dshLoaded === undefined) t._dshLoaded = this._hasContent(t);
+          this._fetchInto(url, t, name, null);
+        }
       } else if (panel) {
         if (!panel._dshLoaded || item.hasAttribute('refresh')) {
           this._fetchInto(url, panel, name, panel);
@@ -3369,9 +3398,12 @@ class ClosureDashboard extends HTMLElement {
     if (this._region) this._region.style.display = panel ? 'none' : '';
   }
 
-  _fetch(url, cb) {
+  // Two-arg then(): a throw inside cb (render errors) propagates normally
+  // instead of being swallowed and misreported as a fetch failure — only
+  // network-level rejections take the error path.
+  _fetch(url, cb, onUnhandledFail) {
     var self = this;
-    fetch(url).then(function(r) { return r.text(); }).then(cb).catch(function(err) {
+    fetch(url).then(function(r) { return r.text(); }).then(cb, function(err) {
       var e = new CustomEvent('dash-fetch-error', {
         detail: { url: url, error: err, message: String(err && err.message || err) },
         bubbles: false,
@@ -3379,6 +3411,7 @@ class ClosureDashboard extends HTMLElement {
       });
       if (self.dispatchEvent(e)) {
         console.error('closure-dashboard: fetch failed', url, err);
+        if (onUnhandledFail) onUnhandledFail(err);
       }
     });
   }
@@ -3409,6 +3442,20 @@ class ClosureDashboard extends HTMLElement {
         detail: { name: name, url: url },
         bubbles: false,
       }));
+    }, function() {
+      // Unhandled failure: a blank selected panel with console-only feedback
+      // strands the user. The decision is purely `_dshLoaded` — markup
+      // content was converted into that state at init (or on first touch for
+      // `target=` containers), so a never-loaded target (auto-created panel,
+      // bare region, a previous failure notice) gets the declarative
+      // <on-fetch-error> markup or the built-in notice, while a loaded one
+      // is left untouched (house policy: never destroy good state on
+      // errors). Still not marked loaded: the next activation retries.
+      if (!container._dshLoaded) {
+        container.innerHTML = container._dshOnFetchErrorHTML ||
+          self._onFetchErrorHTML ||
+          '<p class="dsh-fetch-notice">⚠ This section could not be loaded. Select it again to retry.</p>';
+      }
     });
   }
 

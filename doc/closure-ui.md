@@ -1786,6 +1786,7 @@ below): a dashboard of plain links, or of local panels, works with zero
 | `<dash-nav-item>`     | a navigation entry (see modes below) |
 | `<dash-client>`       | the client area; non-panel children form the *default region* |
 | `<dash-panel>`        | named, state-preserving region of the client area |
+| `<on-fetch-error>`    | declarative markup rendered into a failed, empty target — same vocabulary as the grid. As a direct child of a `<dash-panel>`: per-section error UI; as a direct child of `<dash-client>`: shell-wide. The panel-level one wins. Extracted at init, so a panel holding only its error template still counts as empty and fetches |
 
 `<dash-header>`, `<dash-nav>`, `<dash-client>` and `<dash-panel>` are
 plain declarative tags — the shell wires them; only
@@ -1887,6 +1888,30 @@ activation with a clean closure fetches normally.
 is executed, not dumped as markup. In closure-less targets (ladder
 rung 3) the response is plain HTML by design.
 
+**Fetch failure handling** — the same ladder of options as the rest of
+the library, most specific wins:
+
+1. **Event** (programmatic): `dash-fetch-error` is cancelable —
+   `preventDefault()` takes over completely (toast, `MsgAlert`, retry
+   logic…) and suppresses everything below.
+2. **Declarative markup**: an `<on-fetch-error>` direct child of the
+   `<dash-panel>` (per-section), else of `<dash-client>` (shell-wide) —
+   same vocabulary as `<closure-data-grid>` — supplies the HTML
+   rendered into the failed target.
+3. **Built-in notice**: with neither of the above, a never-**loaded**
+   target (an auto-created panel, a bare region) shows a muted
+   retryable notice. "Loaded" is the durable state set once — markup
+   content counts at init; a successful fetch sets it — so the failure
+   decision never has to sniff the DOM.
+4. **Console**: the error is also logged (unless the event was
+   prevented).
+
+In every path the failed target is **not** marked loaded, so the next
+activation retries; and a target holding real content is never touched
+— an item with `refresh` whose re-fetches fail keeps showing the last
+good content (the failure surfaces via the event / console, not by
+destroying state).
+
 ## Methods / properties
 
 | Member | Description |
@@ -1902,7 +1927,7 @@ rung 3) the response is plain HTML by design.
 | `dash-nav`    | no | yes | `{ name, url }` — before activation; `preventDefault()` blocks it |
 | `dash-loaded` | no | no  | `{ name, url }` — a fetch was rendered |
 | `dash-toggle` | no | no  | `{ collapsed }` |
-| `dash-fetch-error` | no | yes | `{ url, error, message }` — network-level fetch failure; DOM untouched; `preventDefault()` to suppress the console fallback |
+| `dash-fetch-error` | no | yes | `{ url, error, message }` — network-level fetch failure; `preventDefault()` takes over (suppresses the declarative/built-in error rendering and the console fallback). See "Fetch failure handling" below |
 | `dash-dirty-skip` | no | no | `{ name, url }` — a (re)fetch was skipped because the target's closure is dirty (unsaved edits). Confirm + `cleanDirty()` + `select(name)` to force |
 
 **Panel events**, fired on the `<dash-panel>` element itself so inner

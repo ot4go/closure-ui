@@ -1,5 +1,7 @@
-github.com/ot4go/miniskin v0.3.8 h1:uTf/4TZTkg6x2vJNuBSkDt16Xn+tiEtwVY1J+vA3Qgs=
-github.com/ot4go/miniskin v0.3.8/go.mod h1:MTejnqxh5s8wY397ecAarWciCoBdHvAnFxkFRVdHjr0=
+github.com/ot4go/miniskin v0.3.12 h1:PVx0nGheEizirYDvKj4I6VVMUkrgGZzSRi0sGSfgq9g=
+github.com/ot4go/miniskin v0.3.12/go.mod h1:k0JK2OTSNQGPezX32H4676BOKPr30ZfhKGC7O1rrVO0=
+github.com/ot4go/mskblob v0.0.1 h1:CFtJ6T5jU/4nd4xnbOR4O1JWRJQ/iOfbaYMN5j3D2Qs=
+github.com/ot4go/mskblob v0.0.1/go.mod h1:bxnzo8TiqC/d+WwAz1p7wtKEtNPAw44211vFEmIdtAM=
 github.com/tdewolff/minify/v2 v2.24.13 h1:xrcF7gKDnUszseEY9WX9mUlZII2v2Go/QAcAwRASw58=
 github.com/tdewolff/minify/v2 v2.24.13/go.mod h1:emvwoYeIl8bfAKqRU5ww95LX9Gpggpqv/naal9a8Yq0=
 github.com/tdewolff/parse/v2 v2.8.12 h1:5BBjfaCv482v3nltlS0u6wH1xJaxjR6ofDrWttNvROg=

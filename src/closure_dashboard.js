@@ -47,6 +47,7 @@ below): a dashboard of plain links, or of local panels, works with zero
 | `<dash-nav-item>`     | a navigation entry (see modes below) |
 | `<dash-client>`       | the client area; non-panel children form the *default region* |
 | `<dash-panel>`        | named, state-preserving region of the client area |
+| `<on-fetch-error>`    | declarative markup rendered into a failed, empty target — same vocabulary as the grid. As a direct child of a `<dash-panel>`: per-section error UI; as a direct child of `<dash-client>`: shell-wide. The panel-level one wins. Extracted at init, so a panel holding only its error template still counts as empty and fetches |
 
 `<dash-header>`, `<dash-nav>`, `<dash-client>` and `<dash-panel>` are
 plain declarative tags — the shell wires them; only
@@ -148,6 +149,30 @@ activation with a clean closure fetches normally.
 is executed, not dumped as markup. In closure-less targets (ladder
 rung 3) the response is plain HTML by design.
 
+**Fetch failure handling** — the same ladder of options as the rest of
+the library, most specific wins:
+
+1. **Event** (programmatic): `dash-fetch-error` is cancelable —
+   `preventDefault()` takes over completely (toast, `MsgAlert`, retry
+   logic…) and suppresses everything below.
+2. **Declarative markup**: an `<on-fetch-error>` direct child of the
+   `<dash-panel>` (per-section), else of `<dash-client>` (shell-wide) —
+   same vocabulary as `<closure-data-grid>` — supplies the HTML
+   rendered into the failed target.
+3. **Built-in notice**: with neither of the above, a never-**loaded**
+   target (an auto-created panel, a bare region) shows a muted
+   retryable notice. "Loaded" is the durable state set once — markup
+   content counts at init; a successful fetch sets it — so the failure
+   decision never has to sniff the DOM.
+4. **Console**: the error is also logged (unless the event was
+   prevented).
+
+In every path the failed target is **not** marked loaded, so the next
+activation retries; and a target holding real content is never touched
+— an item with `refresh` whose re-fetches fail keeps showing the last
+good content (the failure surfaces via the event / console, not by
+destroying state).
+
 ## Methods / properties
 
 | Member | Description |
@@ -163,7 +188,7 @@ rung 3) the response is plain HTML by design.
 | `dash-nav`    | no | yes | `{ name, url }` — before activation; `preventDefault()` blocks it |
 | `dash-loaded` | no | no  | `{ name, url }` — a fetch was rendered |
 | `dash-toggle` | no | no  | `{ collapsed }` |
-| `dash-fetch-error` | no | yes | `{ url, error, message }` — network-level fetch failure; DOM untouched; `preventDefault()` to suppress the console fallback |
+| `dash-fetch-error` | no | yes | `{ url, error, message }` — network-level fetch failure; `preventDefault()` takes over (suppresses the declarative/built-in error rendering and the console fallback). See "Fetch failure handling" below |
 | `dash-dirty-skip` | no | no | `{ name, url }` — a (re)fetch was skipped because the target's closure is dirty (unsaved edits). Confirm + `cleanDirty()` + `select(name)` to force |
 
 **Panel events**, fired on the `<dash-panel>` element itself so inner
@@ -282,6 +307,7 @@ class ClosureDashboard extends HTMLElement {
     'closure-dashboard dash-nav input { width: 100%; box-sizing: border-box; padding: 6px 8px; border: 1px solid var(--border, #e5e7eb); border-radius: var(--radius, 8px); font-family: var(--font, sans-serif); font-size: 13px; }',
     'closure-dashboard dash-panel { display: none; }',
     'closure-dashboard dash-panel[active] { display: block; }',
+    'closure-dashboard .dsh-fetch-notice { color: var(--text-muted, #6b7280); font-size: 13px; padding: 24px; text-align: center; }',
     'closure-dashboard .dsh-scrim { display: none; }',
     '@media (max-width: 880px) {',
     '  closure-dashboard dash-nav { position: absolute; top: 0; bottom: 0; left: 0; z-index: 20; box-shadow: 4px 0 16px rgba(0,0,0,0.15); }',
@@ -376,6 +402,28 @@ class ClosureDashboard extends HTMLElement {
     }
     row.appendChild(clientEl);
     this._client = clientEl;
+
+    // Declarative failure markup (grid vocabulary), most specific wins:
+    // a direct <on-fetch-error> child of each <dash-panel> (per-section UI),
+    // then one of <dash-client> (shell-wide). Captured and REMOVED at init —
+    // so a panel holding only its error template still counts as empty
+    // (and fetches), and later content replacements can't destroy them.
+    var self0 = this;
+    var extractOfe = function(parent) {
+      var found = null;
+      Array.prototype.forEach.call(parent.children, function(c) {
+        if (!found && c.tagName === 'ON-FETCH-ERROR') found = c;
+      });
+      if (!found) return null;
+      var html = found.innerHTML;
+      found.remove();
+      return html;
+    };
+    Array.prototype.forEach.call(clientEl.children, function(c) {
+      if (c.tagName !== 'DASH-PANEL') return;
+      c._dshOnFetchErrorHTML = extractOfe(c);
+    });
+    this._onFetchErrorHTML = extractOfe(clientEl);
 
     // Default region: gather the client's non-panel children
     this._region = document.createElement('div');
@@ -546,7 +594,13 @@ class ClosureDashboard extends HTMLElement {
       var explicit = item.getAttribute('target');
       if (explicit) {
         var t = (this._client && this._client.querySelector(explicit)) || document.querySelector(explicit);
-        if (t) this._fetchInto(url, t, name, null);
+        if (t) {
+          // arbitrary containers aren't seen by the init pass: mark their
+          // markup content as "loaded" on first touch, so all later
+          // decisions run on _dshLoaded alone
+          if (t._dshLoaded === undefined) t._dshLoaded = this._hasContent(t);
+          this._fetchInto(url, t, name, null);
+        }
       } else if (panel) {
         if (!panel._dshLoaded || item.hasAttribute('refresh')) {
           this._fetchInto(url, panel, name, panel);
@@ -614,9 +668,12 @@ class ClosureDashboard extends HTMLElement {
     if (this._region) this._region.style.display = panel ? 'none' : '';
   }
 
-  _fetch(url, cb) {
+  // Two-arg then(): a throw inside cb (render errors) propagates normally
+  // instead of being swallowed and misreported as a fetch failure — only
+  // network-level rejections take the error path.
+  _fetch(url, cb, onUnhandledFail) {
     var self = this;
-    fetch(url).then(function(r) { return r.text(); }).then(cb).catch(function(err) {
+    fetch(url).then(function(r) { return r.text(); }).then(cb, function(err) {
       var e = new CustomEvent('dash-fetch-error', {
         detail: { url: url, error: err, message: String(err && err.message || err) },
         bubbles: false,
@@ -624,6 +681,7 @@ class ClosureDashboard extends HTMLElement {
       });
       if (self.dispatchEvent(e)) {
         console.error('closure-dashboard: fetch failed', url, err);
+        if (onUnhandledFail) onUnhandledFail(err);
       }
     });
   }
@@ -654,6 +712,20 @@ class ClosureDashboard extends HTMLElement {
         detail: { name: name, url: url },
         bubbles: false,
       }));
+    }, function() {
+      // Unhandled failure: a blank selected panel with console-only feedback
+      // strands the user. The decision is purely `_dshLoaded` — markup
+      // content was converted into that state at init (or on first touch for
+      // `target=` containers), so a never-loaded target (auto-created panel,
+      // bare region, a previous failure notice) gets the declarative
+      // <on-fetch-error> markup or the built-in notice, while a loaded one
+      // is left untouched (house policy: never destroy good state on
+      // errors). Still not marked loaded: the next activation retries.
+      if (!container._dshLoaded) {
+        container.innerHTML = container._dshOnFetchErrorHTML ||
+          self._onFetchErrorHTML ||
+          '<p class="dsh-fetch-notice">⚠ This section could not be loaded. Select it again to retry.</p>';
+      }
     });
   }
 
