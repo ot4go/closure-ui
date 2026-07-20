@@ -73,8 +73,8 @@ The row both **declares defaults** for its density tokens and
 | `--cfr-ro-color`    | `#666`       |        |        |        |
 | `--cfr-ro-border`   | `#e5e5e5`    |        |        |        |
 | `--cfr-ro-label`    | `#999`       |        |        |        |
-| `--text-muted`      | `#555`       |        |        |        |
-| `--red`             | `#c00`       |        |        |        |
+| `--text-muted`      | `#6b7280`       |        |        |        |
+| `--red`             | `#dc2626`       |        |        |        |
 | `--warning`         | `#d97706`    |        |        |        |
 
 ## Behaviour
@@ -113,11 +113,11 @@ class ClosureFormRow extends HTMLElement {
     'closure-form-row[cfr-collapsed] closure-form-field[hide-on-collapse] { display: none; }',
     'closure-form-field { display: flex; flex-direction: column; min-width: 0; }',
     'closure-form-field[labels-side] { flex-direction: row; align-items: center; gap: var(--cfr-gap, 6px); }',
-    'closure-form-field .cfr-label { font-size: var(--cfr-label-font, 11px); font-weight: bold; margin-bottom: 2px; color: var(--text-muted, #555); }',
+    'closure-form-field .cfr-label { font-size: var(--cfr-label-font, 11px); font-weight: bold; margin-bottom: 2px; color: var(--text-muted, #6b7280); }',
     'closure-form-field[labels-side] .cfr-label { margin-bottom: 0; min-width: var(--cfr-label-width, 80px); }',
     'closure-form-field[labels-right] { flex-direction: row-reverse; align-items: center; gap: var(--cfr-gap, 6px); }',
     'closure-form-field[labels-right] .cfr-label { margin-bottom: 0; }',
-    'closure-form-field .cfr-required::after { content: " *"; color: var(--red, #c00); }',
+    'closure-form-field .cfr-required::after { content: " *"; color: var(--red, #dc2626); }',
     'closure-form-field .cfr-body { flex: 1; min-width: 0; }',
     'closure-form-field[labels-chk] { justify-content: flex-end; }',
     'closure-form-field[labels-chk] .cfr-body { flex: none; }',
@@ -127,10 +127,10 @@ class ClosureFormRow extends HTMLElement {
     'closure-form-field .cfr-body credential-pwd { margin-bottom: 0; padding: var(--cfr-padding, 4px 6px); min-height: 0; height: var(--cfr-pwd-h, 23px); box-sizing: border-box; border-radius: 3px; font-size: var(--cfr-font, 13px); overflow: hidden; white-space: nowrap; line-height: var(--cfr-pwd-lh, 15px); }',
     // States
     'closure-form-field[warning] .cfr-body input, closure-form-field[warning] .cfr-body select, closure-form-field[warning] .cfr-body textarea, closure-form-field[warning] .cfr-body credential-pwd { border-color: var(--warning, #d97706); }',
-    'closure-form-field[error] .cfr-body input, closure-form-field[error] .cfr-body select, closure-form-field[error] .cfr-body textarea, closure-form-field[error] .cfr-body credential-pwd { border-color: var(--red, #c00); }',
+    'closure-form-field[error] .cfr-body input, closure-form-field[error] .cfr-body select, closure-form-field[error] .cfr-body textarea, closure-form-field[error] .cfr-body credential-pwd { border-color: var(--red, #dc2626); }',
     'closure-form-field .cfr-msg { font-size: var(--cfr-msg-font, 10px); margin-top: 2px; display: none; }',
     'closure-form-field .cfr-warning-msg { color: var(--warning, #d97706); }',
-    'closure-form-field .cfr-error-msg { color: var(--red, #c00); }',
+    'closure-form-field .cfr-error-msg { color: var(--red, #dc2626); }',
     // Readonly mode
     'closure-form-field.cfr-ro .cfr-body input, closure-form-field.cfr-ro .cfr-body select, closure-form-field.cfr-ro .cfr-body textarea { background: var(--cfr-ro-bg, #f8f8f8); color: var(--cfr-ro-color, #666); border-color: var(--cfr-ro-border, #e5e5e5); cursor: default; }',
     'closure-form-field.cfr-ro .cfr-body credential-pwd { background: var(--cfr-ro-bg, #f8f8f8); color: var(--cfr-ro-color, #666); border-color: var(--cfr-ro-border, #e5e5e5); cursor: default; }',

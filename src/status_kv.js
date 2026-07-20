@@ -43,7 +43,7 @@ for free-form content use `<status-part>`.
 |---|---|
 | `--text-muted` | `#6b7280` |
 | `--text`       | `#111827` |
-| `--border`     | `#d1d5db` |
+| `--border`     | `#e5e7eb` |
 
 ## Behaviour
 
@@ -65,7 +65,7 @@ class StatusKv extends HTMLElement {
     '  padding: 0 12px;',
     '  flex: 1;',
     '  overflow: hidden;',
-    '  border-right: 2px solid var(--border, #d1d5db);',
+    '  border-right: 2px solid var(--border, #e5e7eb);',
     '  align-self: stretch;',
     '}',
     'status-kv .kv-key {',

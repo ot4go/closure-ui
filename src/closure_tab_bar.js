@@ -56,7 +56,7 @@ fired when the user re-clicks the already-active tab.
 
 | Variable | Default | Used for |
 |---|---|---|
-| `--border`         | `#ccc`    | bar bottom + button border |
+| `--border`         | `#e5e7eb`    | bar bottom + button border |
 | `--font`           | `sans-serif` | button font |
 | `--text`           | `#111827` | active button text |
 | `--text-muted`     | `#6b7280` | inactive button text |
@@ -91,9 +91,9 @@ class ClosureTabBar extends HTMLElement {
   static _style = [
     'closure-tab-bar { display: block; }',
     'closure-tab { display: none; }',
-    'closure-tab[active] { display: block; padding: 14px 16px; border: 1px solid var(--border, #ccc); border-top: none; background: var(--tab-bg-active, #fff); border-radius: 0 0 4px 4px; }',
-    'closure-tab-bar .ctb-bar { display: flex; gap: 0; border-bottom: 1px solid var(--border, #ccc); margin-bottom: 0; }',
-    'closure-tab-bar .ctb-btn { padding: 6px 14px; border: 1px solid var(--border, #ccc); border-bottom: none; background: var(--tab-bg, #f5f5f5); cursor: pointer; font-family: var(--font, sans-serif); font-size: 13px; font-weight: 500; color: var(--text-muted, #6b7280); border-radius: 4px 4px 0 0; margin-right: -1px; position: relative; }',
+    'closure-tab[active] { display: block; padding: 14px 16px; border: 1px solid var(--border, #e5e7eb); border-top: none; background: var(--tab-bg-active, #fff); border-radius: 0 0 4px 4px; }',
+    'closure-tab-bar .ctb-bar { display: flex; gap: 0; border-bottom: 1px solid var(--border, #e5e7eb); margin-bottom: 0; }',
+    'closure-tab-bar .ctb-btn { padding: 6px 14px; border: 1px solid var(--border, #e5e7eb); border-bottom: none; background: var(--tab-bg, #f5f5f5); cursor: pointer; font-family: var(--font, sans-serif); font-size: 13px; font-weight: 500; color: var(--text-muted, #6b7280); border-radius: 4px 4px 0 0; margin-right: -1px; position: relative; }',
     'closure-tab-bar .ctb-btn:hover { background: var(--tab-bg-hover, #e8e8e8); }',
     'closure-tab-bar .ctb-btn.active { background: var(--tab-bg-active, #fff); color: var(--text, #111827); border-bottom: 1px solid var(--tab-bg-active, #fff); margin-bottom: -1px; z-index: 1; }',
     'closure-tab-bar .ctb-btn[disabled] { opacity: 0.4; cursor: default; }',
