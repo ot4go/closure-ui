@@ -75,6 +75,8 @@ jobs:
           node-version: 22
           registry-url: https://registry.npmjs.org
 
-      - run: npm publish release/npm --provenance --access public
+      # the ./ prefix is load-bearing: a bare release/npm reads as a
+      # GitHub owner/repo shorthand, not a folder
+      - run: npm publish ./release/npm --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
