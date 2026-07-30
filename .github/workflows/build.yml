@@ -19,6 +19,11 @@ jobs:
 
       - run: go -C .build run ./build
 
+      # The docs are not automatic — this makes them: the build regenerates
+      # README.md, AGENTS.md and doc/ from their sources; any drift means
+      # someone edited an artifact (or forgot to run the build) — fail here.
+      - run: git diff --exit-code
+
       - uses: actions/upload-artifact@v5
         with:
           name: closure-ui

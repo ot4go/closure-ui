@@ -2827,7 +2827,7 @@ class ClosureLazyIframe extends HTMLElement {
     '.lzi-label { flex: 1; font-weight: 600; font-size: 14px; color: var(--text, #111827); }',
     '.lzi-toggle { border: none; background: none; cursor: pointer; font-size: 14px; color: var(--text-muted, #6b7280); padding: 0 0 0 12px; line-height: 1; }',
     '.lzi-toggle:hover { color: var(--text, #111827); }',
-    '.lzi-body { display: none; position: relative; flex: 1 1 auto; height: var(--lazy-iframe-height, 320px); border-top: 1px solid var(--border, #e5e7eb); background: #fff; }',
+    '.lzi-body { display: none; position: relative; flex: 1 1 auto; height: var(--lazy-iframe-height, 320px); border-top: 1px solid var(--border, #e5e7eb); background: var(--lazy-iframe-bg, #fff); }',
     ':host([expanded]) .lzi-body { display: block; }',
     'iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block; }',
     '.lzi-ph { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; overflow: auto; color: var(--text-muted, #6b7280); font-size: 13px; }',
@@ -3011,7 +3011,7 @@ customElements.define('closure-lazy-iframe', ClosureLazyIframe);
 class ClosureDashboard extends HTMLElement {
   static _styleId = 'closure-dashboard-default-style';
   static _style = [
-    'closure-dashboard { display: flex; flex-direction: column; height: var(--dash-height, 100dvh); overflow: hidden; background: #fff; font-family: var(--font, sans-serif); }',
+    'closure-dashboard { display: flex; flex-direction: column; height: var(--dash-height, 100dvh); overflow: hidden; background: var(--dash-bg, #fff); font-family: var(--font, sans-serif); }',
     'closure-dashboard .dsh-bar { display: flex; align-items: center; gap: 10px; height: var(--dash-header-height, 48px); padding: 0 12px; flex: none; position: relative; background: var(--dash-header-bg, var(--bg, #f9fafb)); border-bottom: 1px solid var(--border, #e5e7eb); }',
     'closure-dashboard .dsh-burger { border: none; background: none; cursor: pointer; font-size: 18px; line-height: 1; padding: 4px 6px; color: var(--text-muted, #6b7280); border-radius: var(--radius, 8px); }',
     'closure-dashboard .dsh-burger:hover { color: var(--text, #111827); background: rgba(0,0,0,0.06); }',
@@ -3572,7 +3572,7 @@ class ClosureStatusBar extends HTMLElement {
     '  text-overflow: ellipsis;',
     '  white-space: nowrap;',
     '  padding: 0 16px;',
-    '  border-right: 2px solid var(--border, #d1d5db);',
+    '  border-right: 2px solid var(--border, #e5e7eb);',
     '  align-self: stretch;',
     '  display: flex;',
     '  align-items: center;',
@@ -3584,7 +3584,7 @@ class ClosureStatusBar extends HTMLElement {
     '  font-size: 14px;',
     '  color: var(--text, #111827);',
     '  padding: 8px 16px;',
-    '  border-right: 2px solid var(--border, #d1d5db);',
+    '  border-right: 2px solid var(--border, #e5e7eb);',
     '  align-self: stretch;',
     '  display: flex;',
     '  align-items: center;',
@@ -3600,7 +3600,7 @@ class ClosureStatusBar extends HTMLElement {
     '  align-items: stretch;',
     '  margin-bottom: 12px;',
     '  background: #f3f4f6;',
-    '  border: 1px solid #d1d5db;',
+    '  border: 1px solid var(--border, #e5e7eb);',
     '  border-radius: 6px;',
     '  overflow: hidden;',
     '  min-height: 40px;',
@@ -3693,7 +3693,7 @@ class StatusPart extends HTMLElement {
     '  overflow: hidden;',
     '  align-self: stretch;',
     '}',
-    'status-part[border] { border-right: 2px solid var(--border, #d1d5db); }',
+    'status-part[border] { border-right: 2px solid var(--border, #e5e7eb); }',
     'status-part[center] { justify-content: center; }',
     'status-part[right] { justify-content: flex-end; }',
     // layout="stack"
@@ -3875,7 +3875,7 @@ class StatusButtons extends HTMLElement {
     var children = Array.from(this.children);
     if (!children.length) { this._reflowing = false; return; }
     var n = children.length;
-    var borderColor = '1px solid var(--border, #d1d5db)';
+    var borderColor = '1px solid var(--border, #e5e7eb)';
 
     // Reset all styles
     children.forEach(function(c) {
@@ -4019,7 +4019,7 @@ class StatusKv extends HTMLElement {
     '  padding: 0 12px;',
     '  flex: 1;',
     '  overflow: hidden;',
-    '  border-right: 2px solid var(--border, #d1d5db);',
+    '  border-right: 2px solid var(--border, #e5e7eb);',
     '  align-self: stretch;',
     '}',
     'status-kv .kv-key {',
@@ -4479,7 +4479,7 @@ class ClosureDataGrid extends HTMLElement {
     'closure-data-grid .dg-cell-btn.plain:hover { background: transparent; border-color: transparent; color: var(--primary, #4f46e5); }',
     'closure-data-grid .dg-tags-cell { white-space: normal; vertical-align: top; }',
     'closure-data-grid .dg-tags { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 4px; width: 100%; min-width: 0; }',
-    'closure-data-grid .dg-tag { display: inline-flex; align-items: center; max-width: 100%; padding: 1px 7px; border: 1px solid #d1d5db; border-radius: 999px; font-size: 11px; line-height: 1.45; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: #f9fafb; color: #374151; }',
+    'closure-data-grid .dg-tag { display: inline-flex; align-items: center; max-width: 100%; padding: 1px 7px; border: 1px solid var(--dg-border, var(--border, #e5e7eb)); border-radius: 999px; font-size: 11px; line-height: 1.45; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: #f9fafb; color: #374151; }',
     'closure-data-grid .dg-tag-color-0, closure-data-grid .dg-tag-color-blue { background: #dbeafe; color: #1e3a8a; border-color: #bfdbfe; }',
     'closure-data-grid .dg-tag-color-1, closure-data-grid .dg-tag-color-green { background: #dcfce7; color: #166534; border-color: #bbf7d0; }',
     'closure-data-grid .dg-tag-color-2, closure-data-grid .dg-tag-color-yellow { background: #fef9c3; color: #854d0e; border-color: #fde68a; }',
@@ -5578,7 +5578,7 @@ class ClosureDataGrid extends HTMLElement {
         wrap.style.cssText = 'position:relative;display:inline-block;';
         const btn = document.createElement('button');
         btn.type = 'button'; btn.textContent = '☰'; btn.tabIndex = -1;
-        btn.style.cssText = 'border:1px solid var(--dg-border,#e5e7eb);border-radius:4px;background:#fff;cursor:pointer;font-size:14px;padding:2px 6px;';
+        btn.style.cssText = 'border:1px solid var(--dg-border, var(--border, #e5e7eb));border-radius:4px;background:#fff;cursor:pointer;font-size:14px;padding:2px 6px;';
         const panel = document.createElement('div');
         // The Popover API renders the menu in the top layer, so it escapes
         // the grid body's overflow:auto clipping — the menu on the last
@@ -5587,7 +5587,7 @@ class ClosureDataGrid extends HTMLElement {
         // the clipping — only the native light-dismiss niceties are lost.
         const usePopover = typeof panel.showPopover === 'function'
           && Object.prototype.hasOwnProperty.call(HTMLElement.prototype, 'popover');
-        const panelLook = 'background:#fff;border:1px solid var(--dg-border,#e5e7eb);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:100;overflow:hidden;';
+        const panelLook = 'background:#fff;border:1px solid var(--dg-border, var(--border, #e5e7eb));border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:100;overflow:hidden;';
         if (usePopover) {
           panel.popover = 'auto';
           // No inline display: the UA keeps [popover] hidden until open.
@@ -5623,7 +5623,7 @@ class ClosureDataGrid extends HTMLElement {
           mi.type = 'button'; mi.tabIndex = -1;
           mi.textContent = item.getAttribute('icon') || '•';
           mi.title = item.getAttribute('data-action') || '';
-          mi.style.cssText = 'display:flex;align-items:center;justify-content:center;padding:8px 12px;cursor:pointer;font-size:16px;border:none;border-bottom:1px solid var(--dg-border,#e5e7eb);background:none;width:100%;';
+          mi.style.cssText = 'display:flex;align-items:center;justify-content:center;padding:8px 12px;cursor:pointer;font-size:16px;border:none;border-bottom:1px solid var(--dg-border, var(--border, #e5e7eb));background:none;width:100%;';
           mi.addEventListener('click', (e) => {
             e.stopPropagation(); closePanel();
             this._selectRow(i);
@@ -6751,8 +6751,8 @@ class CheckboxTree extends HTMLElement {
       ':host { display: block; }',
       '.cbt-collapsed { display: inline-flex; align-items: center; gap: 0; padding: 2px 0; }',
       '.cbt-label { font-weight: 600; padding-right: 6px; font-size: 13px; }',
-      '.cbt-bar { display: inline-flex; border: 1px solid var(--border, #ccc); border-radius: 3px; overflow: hidden; gap: 0; }',
-      '.cbt-bar closure-btn-item { display: block; border-right: 1px solid var(--border, #ccc); --btn-item-padding: 2px 8px; --btn-item-font-size: 11px; --btn-item-gap: 4px; --primary-light: #d0d0d0; margin: 0; }',
+      '.cbt-bar { display: inline-flex; border: 1px solid var(--border, #e5e7eb); border-radius: 3px; overflow: hidden; gap: 0; }',
+      '.cbt-bar closure-btn-item { display: block; border-right: 1px solid var(--border, #e5e7eb); --btn-item-padding: 2px 8px; --btn-item-font-size: 11px; --btn-item-gap: 4px; --primary-light: #d0d0d0; margin: 0; }',
       '.cbt-bar closure-btn-item:last-child { border-right: none; }',
       'closure-btn-item[active] { background: #4a90d9; --text: #fff; --primary-light: #3a7bc8; }',
       'closure-btn-item:not([active]) { background: #f5f5f5; }',
@@ -7448,9 +7448,9 @@ class ClosureTabBar extends HTMLElement {
   static _style = [
     'closure-tab-bar { display: block; }',
     'closure-tab { display: none; }',
-    'closure-tab[active] { display: block; padding: 14px 16px; border: 1px solid var(--border, #ccc); border-top: none; background: var(--tab-bg-active, #fff); border-radius: 0 0 4px 4px; }',
-    'closure-tab-bar .ctb-bar { display: flex; gap: 0; border-bottom: 1px solid var(--border, #ccc); margin-bottom: 0; }',
-    'closure-tab-bar .ctb-btn { padding: 6px 14px; border: 1px solid var(--border, #ccc); border-bottom: none; background: var(--tab-bg, #f5f5f5); cursor: pointer; font-family: var(--font, sans-serif); font-size: 13px; font-weight: 500; color: var(--text-muted, #6b7280); border-radius: 4px 4px 0 0; margin-right: -1px; position: relative; }',
+    'closure-tab[active] { display: block; padding: 14px 16px; border: 1px solid var(--border, #e5e7eb); border-top: none; background: var(--tab-bg-active, #fff); border-radius: 0 0 4px 4px; }',
+    'closure-tab-bar .ctb-bar { display: flex; gap: 0; border-bottom: 1px solid var(--border, #e5e7eb); margin-bottom: 0; }',
+    'closure-tab-bar .ctb-btn { padding: 6px 14px; border: 1px solid var(--border, #e5e7eb); border-bottom: none; background: var(--tab-bg, #f5f5f5); cursor: pointer; font-family: var(--font, sans-serif); font-size: 13px; font-weight: 500; color: var(--text-muted, #6b7280); border-radius: 4px 4px 0 0; margin-right: -1px; position: relative; }',
     'closure-tab-bar .ctb-btn:hover { background: var(--tab-bg-hover, #e8e8e8); }',
     'closure-tab-bar .ctb-btn.active { background: var(--tab-bg-active, #fff); color: var(--text, #111827); border-bottom: 1px solid var(--tab-bg-active, #fff); margin-bottom: -1px; z-index: 1; }',
     'closure-tab-bar .ctb-btn[disabled] { opacity: 0.4; cursor: default; }',
@@ -7784,11 +7784,11 @@ class ClosureFormRow extends HTMLElement {
     'closure-form-row[cfr-collapsed] closure-form-field[hide-on-collapse] { display: none; }',
     'closure-form-field { display: flex; flex-direction: column; min-width: 0; }',
     'closure-form-field[labels-side] { flex-direction: row; align-items: center; gap: var(--cfr-gap, 6px); }',
-    'closure-form-field .cfr-label { font-size: var(--cfr-label-font, 11px); font-weight: bold; margin-bottom: 2px; color: var(--text-muted, #555); }',
+    'closure-form-field .cfr-label { font-size: var(--cfr-label-font, 11px); font-weight: bold; margin-bottom: 2px; color: var(--text-muted, #6b7280); }',
     'closure-form-field[labels-side] .cfr-label { margin-bottom: 0; min-width: var(--cfr-label-width, 80px); }',
     'closure-form-field[labels-right] { flex-direction: row-reverse; align-items: center; gap: var(--cfr-gap, 6px); }',
     'closure-form-field[labels-right] .cfr-label { margin-bottom: 0; }',
-    'closure-form-field .cfr-required::after { content: " *"; color: var(--red, #c00); }',
+    'closure-form-field .cfr-required::after { content: " *"; color: var(--red, #dc2626); }',
     'closure-form-field .cfr-body { flex: 1; min-width: 0; }',
     'closure-form-field[labels-chk] { justify-content: flex-end; }',
     'closure-form-field[labels-chk] .cfr-body { flex: none; }',
@@ -7798,10 +7798,10 @@ class ClosureFormRow extends HTMLElement {
     'closure-form-field .cfr-body credential-pwd { margin-bottom: 0; padding: var(--cfr-padding, 4px 6px); min-height: 0; height: var(--cfr-pwd-h, 23px); box-sizing: border-box; border-radius: 3px; font-size: var(--cfr-font, 13px); overflow: hidden; white-space: nowrap; line-height: var(--cfr-pwd-lh, 15px); }',
     // States
     'closure-form-field[warning] .cfr-body input, closure-form-field[warning] .cfr-body select, closure-form-field[warning] .cfr-body textarea, closure-form-field[warning] .cfr-body credential-pwd { border-color: var(--warning, #d97706); }',
-    'closure-form-field[error] .cfr-body input, closure-form-field[error] .cfr-body select, closure-form-field[error] .cfr-body textarea, closure-form-field[error] .cfr-body credential-pwd { border-color: var(--red, #c00); }',
+    'closure-form-field[error] .cfr-body input, closure-form-field[error] .cfr-body select, closure-form-field[error] .cfr-body textarea, closure-form-field[error] .cfr-body credential-pwd { border-color: var(--red, #dc2626); }',
     'closure-form-field .cfr-msg { font-size: var(--cfr-msg-font, 10px); margin-top: 2px; display: none; }',
     'closure-form-field .cfr-warning-msg { color: var(--warning, #d97706); }',
-    'closure-form-field .cfr-error-msg { color: var(--red, #c00); }',
+    'closure-form-field .cfr-error-msg { color: var(--red, #dc2626); }',
     // Readonly mode
     'closure-form-field.cfr-ro .cfr-body input, closure-form-field.cfr-ro .cfr-body select, closure-form-field.cfr-ro .cfr-body textarea { background: var(--cfr-ro-bg, #f8f8f8); color: var(--cfr-ro-color, #666); border-color: var(--cfr-ro-border, #e5e5e5); cursor: default; }',
     'closure-form-field.cfr-ro .cfr-body credential-pwd { background: var(--cfr-ro-bg, #f8f8f8); color: var(--cfr-ro-color, #666); border-color: var(--cfr-ro-border, #e5e5e5); cursor: default; }',
@@ -8112,7 +8112,7 @@ class FingerprintHands extends HTMLElement {
   static _style = [
     ':host { display: inline-flex; gap: 8px; outline: none; }',
     ':host(:focus-visible) { outline: 2px solid var(--fh-focus-ring, #3b82f6); outline-offset: 4px; border-radius: 4px; }',
-    '.fh-label { text-align: center; font-weight: bold; font-size: 10px; color: var(--text-muted, #888); }',
+    '.fh-label { text-align: center; font-weight: bold; font-size: 10px; color: var(--text-muted, #6b7280); }',
     '[data-finger].fh-focus { stroke: var(--fh-focus, #3b82f6); stroke-width: 3; }',
   ].join('\n');
 
@@ -8351,7 +8351,7 @@ class SessionKeepAlive extends HTMLElement {
     'session-keep-alive .ska-time { font-size: 14px; font-variant-numeric: tabular-nums; font-weight: 700; }',
     'session-keep-alive[warn] closure-btn {',
     '  --form-btn-bg: var(--ska-warn-bg, #fee2e2);',
-    '  --form-btn-color: var(--ska-warn-color, #c00);',
+    '  --form-btn-color: var(--ska-warn-color, var(--red, #dc2626));',
     '}',
   ].join('\n');
 

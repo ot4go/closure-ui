@@ -55,6 +55,22 @@
   .dark-tabs closure-tab[active] {
     color: #f1f5f9;
   }
+
+  /* --- 4. one palette, whole shell ----------------------------------- */
+  /* The shared tokens cascade into the dashboard shell AND the
+     components inside it; --dash-* / --lazy-iframe-* are the
+     component-specific extras. */
+  .slate-dash closure-dashboard {
+    --dash-height: 420px;      /* demo-sized instead of full viewport */
+    --dash-bg: #0f172a;
+    --bg: #1e293b;             /* header + nav via their var(--bg) default */
+    --border: #334155;
+    --text: #e2e8f0;
+    --text-muted: #94a3b8;
+    --primary: #38bdf8;
+    --dash-selected-text: #0f172a;
+    --lazy-iframe-bg: #1e293b;
+  }
 </style>
 </head>
 <body>
@@ -164,6 +180,52 @@
   --text-muted: #94a3b8;
 }
 .dark-tabs closure-tab[active] { color: #f1f5f9; }</pre>
+
+<!-- ============ 4. One palette, whole shell ============ -->
+<h2>4. One palette, whole shell: <code>&lt;closure-dashboard&gt;</code></h2>
+<p>Homogeneous theming: every component falls back to the <em>same</em>
+  canonical token values, so declaring the shared tokens once re-themes the
+  dashboard shell — header, nav, selection, panels — <em>and</em> the
+  components inside it (here a <code>&lt;closure-lazy-iframe&gt;</code>) in one
+  stroke. The component-specific hooks (<code>--dash-*</code>,
+  <code>--lazy-iframe-*</code>) cover the rest.</p>
+
+<div class="slate-dash">
+  <closure-dashboard label="Slate admin">
+    <dash-nav>
+      <dash-nav-group label="Sections">
+        <dash-nav-item name="home" panel="home" selected>🏠 Overview</dash-nav-item>
+        <dash-nav-item name="docs" panel="docs" badge="2">📄 Docs</dash-nav-item>
+      </dash-nav-group>
+    </dash-nav>
+    <dash-client>
+      <dash-panel name="home">
+        <h3>Dark slate, one declaration</h3>
+        <p>Everything you see — bar, nav, selected item, this text, the panel
+          below — comes from the shared tokens on the wrapper.</p>
+        <closure-lazy-iframe label="Embedded page (lazy)" src="lazy-iframe.html">
+          <p>Expands lazily; header, border and body follow the same palette.</p>
+        </closure-lazy-iframe>
+      </dash-panel>
+      <dash-panel name="docs">
+        <p>Second panel — the selected-item colors come from
+          <code>--primary</code> / <code>--dash-selected-text</code>.</p>
+      </dash-panel>
+    </dash-client>
+  </closure-dashboard>
+</div>
+
+<pre>.slate-dash closure-dashboard {
+  --dash-height: 420px;      /* demo-sized instead of full viewport */
+  --dash-bg: #0f172a;
+  --bg: #1e293b;             /* header + nav via their var(--bg) default */
+  --border: #334155;
+  --text: #e2e8f0;
+  --text-muted: #94a3b8;
+  --primary: #38bdf8;
+  --dash-selected-text: #0f172a;
+  --lazy-iframe-bg: #1e293b;
+}</pre>
 
 <p><a href="index.html">← Back to index</a></p>
 </body>

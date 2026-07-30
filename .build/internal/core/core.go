@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/ot4go/miniskin"
+	"github.com/ot4go/mkskill/compiler"
 	"github.com/tdewolff/minify/v2"
 	"github.com/tdewolff/minify/v2/js"
 )
@@ -38,15 +39,21 @@ func ChdirRoot() error {
 	return nil
 }
 
-// BuildAll runs the miniskin pipeline and produces the stable artifacts:
-// generated bundle + doc, the git-tracked copies (doc/, examples/) and the
-// release/ trio (js, md, min.js).
+// BuildAll runs the two engines and produces the stable artifacts: miniskin
+// assembles the bundle + component doc, mkskill composes the project docs
+// (README.md, AGENTS.md, the skill) from _mkskill/ — harvesting the
+// miniskin-generated doc body through the mkskill-* attributes riding the
+// catalog. Then the git-tracked copies (doc/, examples/) and the release/
+// trio (js, md, min.js).
 func BuildAll() error {
 	if err := os.MkdirAll("src/generated", 0o755); err != nil {
 		return err
 	}
 	if err := miniskin.MiniskinRun("./src", "."); err != nil {
 		return fmt.Errorf("miniskin: %w", err)
+	}
+	if err := buildDocs(); err != nil {
+		return fmt.Errorf("mkskill: %w", err)
 	}
 	if err := copyFile("src/generated/closure-ui.md", "release/closure-ui.md"); err != nil {
 		return err
@@ -64,6 +71,22 @@ func BuildAll() error {
 		return err
 	}
 	return minifyJS("release/closure-ui.js", "release/closure-ui.min.js")
+}
+
+// buildDocs runs the mkskill pipeline over the repo: scan (native sections
+// plus the miniskin harvest), prepare (materialize the harvested copy),
+// resolve and deploy every view.
+func buildDocs() error {
+	root := &compiler.Root{ProjectBase: "."}
+	if err := root.Load(); err != nil {
+		return err
+	}
+	for _, phase := range []func(w io.Writer) error{root.Scan, root.Prepare, root.Resolve, root.Deploy} {
+		if err := phase(os.Stdout); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // PackageRelease builds the release-only artifacts, driven by the manifest:
