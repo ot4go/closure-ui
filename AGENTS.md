@@ -3619,6 +3619,13 @@ Include the bundled script in your page:
 <script src="release/closure-ui.min.js"></script>
 ```
 
+Or take it from npm (`npm i closure-ui` — also pnpm/yarn/bun) or straight
+from a CDN — pin the exact version you tested:
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/closure-ui@0/closure-ui.min.js"></script>
+```
+
 Then use any of the elements:
 
 ```html

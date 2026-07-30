@@ -138,7 +138,59 @@ func PackageRelease() error {
 	if err := writeChecksums("release/checksums.txt", files); err != nil {
 		return err
 	}
-	return writeReleaseInfo("release/release-info.txt", man, files)
+	if err := writeReleaseInfo("release/release-info.txt", man, files); err != nil {
+		return err
+	}
+	return PackageNpm(man)
+}
+
+// PackageNpm stages the npm package under release/npm: the bundle pair,
+// the composed README, the LICENSE, and a package.json born here — the
+// manifest owns the version and mkskill's <meta> owns the description, so
+// nothing is written twice. release.yml publishes the folder as is.
+func PackageNpm(man *Manifest) error {
+	dir := filepath.Join("release", "npm")
+	if err := os.RemoveAll(dir); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	for _, f := range []string{"closure-ui.js", "closure-ui.min.js"} {
+		if err := copyFile("release/"+f, filepath.Join(dir, f)); err != nil {
+			return err
+		}
+	}
+	if err := copyFile("README.md", filepath.Join(dir, "README.md")); err != nil {
+		return err
+	}
+	if err := copyFile("LICENSE", filepath.Join(dir, "LICENSE")); err != nil {
+		return err
+	}
+
+	// the description is single-sourced from _mkskill's <meta> — the same
+	// text that fronts the skill and the npmjs.com page
+	root := &compiler.Root{ProjectBase: "."}
+	if err := root.Load(); err != nil {
+		return fmt.Errorf("reading _mkskill config for the npm description: %w", err)
+	}
+	pkg := map[string]any{
+		"name":        "closure-ui",
+		"version":     strings.TrimPrefix(man.Tag, "v"),
+		"description": root.Project.MetaValue("description"),
+		"license":     root.Project.MetaValue("license"),
+		"repository":  map[string]string{"type": "git", "url": "git+https://github.com/ot4go/closure-ui.git"},
+		"homepage":    "https://github.com/ot4go/closure-ui#readme",
+		"main":        "closure-ui.js",
+		"unpkg":       "closure-ui.min.js",
+		"jsdelivr":    "closure-ui.min.js",
+		"keywords":    []string{"web-components", "custom-elements", "vanilla-js", "ui"},
+	}
+	data, err := json.MarshalIndent(pkg, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(dir, "package.json"), append(data, '\n'), 0o644)
 }
 
 // CleanPackaging removes stale release-packaging outputs so a plain build
@@ -162,7 +214,7 @@ func CleanPackaging() error {
 			return err
 		}
 	}
-	return nil
+	return os.RemoveAll(filepath.Join("release", "npm"))
 }
 
 // Manifest is the release manifest (.build/next-release.json).

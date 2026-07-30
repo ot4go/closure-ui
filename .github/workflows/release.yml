@@ -11,6 +11,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write # npm --provenance: verifiable build attestation via OIDC
 
 jobs:
   release:
@@ -64,3 +65,16 @@ jobs:
             "release/closure-ui-$tag.md" \
             release/checksums.txt \
             release/release-info.txt
+
+      # The npm package was staged by the release build (release/npm:
+      # bundle pair + composed README + LICENSE + package.json born from
+      # the manifest). Publishing it reaches npm/pnpm/yarn/bun/Deno and
+      # the unpkg/jsDelivr CDNs in one shot.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - run: npm publish release/npm --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
