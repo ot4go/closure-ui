@@ -21,6 +21,37 @@ duplicating the parser.
 
 `*` and `-` are interchangeable as "unset / unbounded" sentinels.
 
+## Shared design tokens
+
+The theming premise is **CSS can be used, never needed**: every component
+ships complete defaults and consumes these shared tokens with the *same*
+canonical fallback everywhere, so with zero page CSS the library looks
+homogeneous — and declaring the tokens once (on `:root`, a wrapper, or an
+element) re-themes everything in one stroke. See `examples/theming.html`.
+
+| Token | Canonical default | Role |
+|---|---|---|
+| `--primary`       | `#4f46e5`    | accent: primary buttons, focus rings, selection |
+| `--primary-light` | `#e0e7ff`    | soft accent: focus glow, hover washes |
+| `--border`        | `#e5e7eb`    | every border and separator |
+| `--bg`            | `#f9fafb`    | chrome surfaces: headers, footers, nav panels |
+| `--text`          | `#111827`    | primary text |
+| `--text-muted`    | `#6b7280`    | secondary text, labels, icons at rest |
+| `--red`           | `#dc2626`    | errors, destructive actions, required marks |
+| `--green`         | `#16a34a`    | success, active/live indicators |
+| `--warning`       | `#d97706`    | warnings |
+| `--font`          | `sans-serif` | UI text |
+| `--font-mono`     | `monospace`  | tabular/timestamp text |
+| `--radius`        | `8px`        | corner rounding of container components |
+
+On top of the shared tokens, each component exposes its own prefixed hooks
+(`--dash-*`, `--dg-*`, `--tab-*`, `--form-btn-*`, `--cfr-*`, `--summary-*`,
+`--ska-*`, `--fh-*`, `--btn-item-*`, `--lazy-iframe-*`) — documented in its
+own *CSS Variables* table. Component hooks with a semantic twin default
+**through** the shared token (e.g. `--dg-border` → `var(--border)`,
+`--ska-warn-color` → `var(--red)`), so the global palette wins unless the
+component hook is set explicitly.
+
 ## `closureFreeSubmit(el, url, defaultMethod, opts?)`
 
 The one encapsulated hidden-form submit of the library: builds a hidden

@@ -69,7 +69,7 @@ class StatusPart extends HTMLElement {
     '  overflow: hidden;',
     '  align-self: stretch;',
     '}',
-    'status-part[border] { border-right: 2px solid var(--border, #d1d5db); }',
+    'status-part[border] { border-right: 2px solid var(--border, #e5e7eb); }',
     'status-part[center] { justify-content: center; }',
     'status-part[right] { justify-content: flex-end; }',
     // layout="stack"

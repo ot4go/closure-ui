@@ -60,7 +60,7 @@ Consumed (host-level):
 | Variable | Default |
 |---|---|
 | `--text`   | `#111827` |
-| `--border` | `#d1d5db` |
+| `--border` | `#e5e7eb` |
 
 Re-themed automatically by `type=...` attributes (background, border,
 `--form-btn-bg`).
@@ -93,7 +93,7 @@ class ClosureStatusBar extends HTMLElement {
     '  text-overflow: ellipsis;',
     '  white-space: nowrap;',
     '  padding: 0 16px;',
-    '  border-right: 2px solid var(--border, #d1d5db);',
+    '  border-right: 2px solid var(--border, #e5e7eb);',
     '  align-self: stretch;',
     '  display: flex;',
     '  align-items: center;',
@@ -105,7 +105,7 @@ class ClosureStatusBar extends HTMLElement {
     '  font-size: 14px;',
     '  color: var(--text, #111827);',
     '  padding: 8px 16px;',
-    '  border-right: 2px solid var(--border, #d1d5db);',
+    '  border-right: 2px solid var(--border, #e5e7eb);',
     '  align-self: stretch;',
     '  display: flex;',
     '  align-items: center;',
@@ -121,7 +121,7 @@ class ClosureStatusBar extends HTMLElement {
     '  align-items: stretch;',
     '  margin-bottom: 12px;',
     '  background: #f3f4f6;',
-    '  border: 1px solid #d1d5db;',
+    '  border: 1px solid var(--border, #e5e7eb);',
     '  border-radius: 6px;',
     '  overflow: hidden;',
     '  min-height: 40px;',

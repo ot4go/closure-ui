@@ -78,6 +78,7 @@ Consumed (with fallbacks):
 | Variable | Default |
 |---|---|
 | `--lazy-iframe-height` | `320px` (body height when the host has none) |
+| `--lazy-iframe-bg` | `#fff` (body background) |
 | `--border`     | `#e5e7eb` |
 | `--bg`         | `#f9fafb` |
 | `--text`       | `#111827` |
@@ -119,7 +120,7 @@ class ClosureLazyIframe extends HTMLElement {
     '.lzi-label { flex: 1; font-weight: 600; font-size: 14px; color: var(--text, #111827); }',
     '.lzi-toggle { border: none; background: none; cursor: pointer; font-size: 14px; color: var(--text-muted, #6b7280); padding: 0 0 0 12px; line-height: 1; }',
     '.lzi-toggle:hover { color: var(--text, #111827); }',
-    '.lzi-body { display: none; position: relative; flex: 1 1 auto; height: var(--lazy-iframe-height, 320px); border-top: 1px solid var(--border, #e5e7eb); background: #fff; }',
+    '.lzi-body { display: none; position: relative; flex: 1 1 auto; height: var(--lazy-iframe-height, 320px); border-top: 1px solid var(--border, #e5e7eb); background: var(--lazy-iframe-bg, #fff); }',
     ':host([expanded]) .lzi-body { display: block; }',
     'iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block; }',
     '.lzi-ph { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; overflow: auto; color: var(--text-muted, #6b7280); font-size: 13px; }',

@@ -244,6 +244,7 @@ shared tokens `--border`, `--bg`, `--text`, `--text-muted`,
 | `--dash-nav-width`      | `220px` |
 | `--dash-client-padding` | `16px` |
 | `--dash-header-bg` / `--dash-nav-bg` | `var(--bg)` |
+| `--dash-bg`             | `#fff` (host & client area background) |
 | `--dash-selected-bg`    | `var(--primary)` |
 | `--dash-selected-text`  | `#fff` |
 
@@ -281,7 +282,7 @@ shared tokens `--border`, `--bg`, `--text`, `--text-muted`,
 class ClosureDashboard extends HTMLElement {
   static _styleId = 'closure-dashboard-default-style';
   static _style = [
-    'closure-dashboard { display: flex; flex-direction: column; height: var(--dash-height, 100dvh); overflow: hidden; background: #fff; font-family: var(--font, sans-serif); }',
+    'closure-dashboard { display: flex; flex-direction: column; height: var(--dash-height, 100dvh); overflow: hidden; background: var(--dash-bg, #fff); font-family: var(--font, sans-serif); }',
     'closure-dashboard .dsh-bar { display: flex; align-items: center; gap: 10px; height: var(--dash-header-height, 48px); padding: 0 12px; flex: none; position: relative; background: var(--dash-header-bg, var(--bg, #f9fafb)); border-bottom: 1px solid var(--border, #e5e7eb); }',
     'closure-dashboard .dsh-burger { border: none; background: none; cursor: pointer; font-size: 18px; line-height: 1; padding: 4px 6px; color: var(--text-muted, #6b7280); border-radius: var(--radius, 8px); }',
     'closure-dashboard .dsh-burger:hover { color: var(--text, #111827); background: rgba(0,0,0,0.06); }',

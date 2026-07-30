@@ -42,7 +42,7 @@ Any button-like elements. Each child can opt in to stretching with:
 | Variable | Default | Description |
 |---|---|---|
 | `--gap`     | `2px` | gap between buttons (mirrored from `gap` attribute) |
-| `--border`  | `#d1d5db` | colour of the inter-cell separators |
+| `--border`  | `#e5e7eb` | colour of the inter-cell separators |
 
 ## Behaviour
 
@@ -122,7 +122,7 @@ class StatusButtons extends HTMLElement {
     var children = Array.from(this.children);
     if (!children.length) { this._reflowing = false; return; }
     var n = children.length;
-    var borderColor = '1px solid var(--border, #d1d5db)';
+    var borderColor = '1px solid var(--border, #e5e7eb)';
 
     // Reset all styles
     children.forEach(function(c) {

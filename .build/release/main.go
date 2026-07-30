@@ -1,7 +1,8 @@
 // Action: release — the canonical release build (release.yml). Runs the
 // full build and then the release packaging: versioned twins of every
 // artifact, checksums.txt and release-info.txt. Requires the manifest's tag
-// to already exist (the workflow creates it right before calling this).
+// to already exist and point at HEAD — tag-driven CI checks out the pushed
+// tag, so both hold by construction; locally you tag first, then rehearse.
 package main
 
 import (

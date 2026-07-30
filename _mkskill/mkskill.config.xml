@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mkskill>
+  <project id="main" name="closure-ui" project-type="JS-Bundle">
+    <meta>
+      <license>MIT</license>
+      <description>Vanilla-JS web components library — custom elements (`&lt;btn-grid&gt;`, `&lt;clock-display&gt;`, `&lt;credential-pwd&gt;`, `&lt;signal-event&gt;`, …) themed via CSS variables, shipped as a single `closure-ui.js`/`closure-ui.min.js` bundle with no framework and no dependencies. Use when working with the closure-ui components, their attributes/events/CSS variables, or a page that loads the bundle. Triggers on closure-ui, `closure-ui.js`, or its custom element tags in HTML.</description>
+    </meta>
+    <import-miniskin content="./src" fm-gen="extern,preserve"/>
+  </project>
+</mkskill>

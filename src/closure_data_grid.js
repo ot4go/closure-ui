@@ -404,7 +404,7 @@ class ClosureDataGrid extends HTMLElement {
     'closure-data-grid .dg-cell-btn.plain:hover { background: transparent; border-color: transparent; color: var(--primary, #4f46e5); }',
     'closure-data-grid .dg-tags-cell { white-space: normal; vertical-align: top; }',
     'closure-data-grid .dg-tags { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 4px; width: 100%; min-width: 0; }',
-    'closure-data-grid .dg-tag { display: inline-flex; align-items: center; max-width: 100%; padding: 1px 7px; border: 1px solid #d1d5db; border-radius: 999px; font-size: 11px; line-height: 1.45; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: #f9fafb; color: #374151; }',
+    'closure-data-grid .dg-tag { display: inline-flex; align-items: center; max-width: 100%; padding: 1px 7px; border: 1px solid var(--dg-border, var(--border, #e5e7eb)); border-radius: 999px; font-size: 11px; line-height: 1.45; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: #f9fafb; color: #374151; }',
     'closure-data-grid .dg-tag-color-0, closure-data-grid .dg-tag-color-blue { background: #dbeafe; color: #1e3a8a; border-color: #bfdbfe; }',
     'closure-data-grid .dg-tag-color-1, closure-data-grid .dg-tag-color-green { background: #dcfce7; color: #166534; border-color: #bbf7d0; }',
     'closure-data-grid .dg-tag-color-2, closure-data-grid .dg-tag-color-yellow { background: #fef9c3; color: #854d0e; border-color: #fde68a; }',
@@ -1503,7 +1503,7 @@ class ClosureDataGrid extends HTMLElement {
         wrap.style.cssText = 'position:relative;display:inline-block;';
         const btn = document.createElement('button');
         btn.type = 'button'; btn.textContent = '☰'; btn.tabIndex = -1;
-        btn.style.cssText = 'border:1px solid var(--dg-border,#e5e7eb);border-radius:4px;background:#fff;cursor:pointer;font-size:14px;padding:2px 6px;';
+        btn.style.cssText = 'border:1px solid var(--dg-border, var(--border, #e5e7eb));border-radius:4px;background:#fff;cursor:pointer;font-size:14px;padding:2px 6px;';
         const panel = document.createElement('div');
         // The Popover API renders the menu in the top layer, so it escapes
         // the grid body's overflow:auto clipping — the menu on the last
@@ -1512,7 +1512,7 @@ class ClosureDataGrid extends HTMLElement {
         // the clipping — only the native light-dismiss niceties are lost.
         const usePopover = typeof panel.showPopover === 'function'
           && Object.prototype.hasOwnProperty.call(HTMLElement.prototype, 'popover');
-        const panelLook = 'background:#fff;border:1px solid var(--dg-border,#e5e7eb);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:100;overflow:hidden;';
+        const panelLook = 'background:#fff;border:1px solid var(--dg-border, var(--border, #e5e7eb));border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:100;overflow:hidden;';
         if (usePopover) {
           panel.popover = 'auto';
           // No inline display: the UA keeps [popover] hidden until open.
@@ -1548,7 +1548,7 @@ class ClosureDataGrid extends HTMLElement {
           mi.type = 'button'; mi.tabIndex = -1;
           mi.textContent = item.getAttribute('icon') || '•';
           mi.title = item.getAttribute('data-action') || '';
-          mi.style.cssText = 'display:flex;align-items:center;justify-content:center;padding:8px 12px;cursor:pointer;font-size:16px;border:none;border-bottom:1px solid var(--dg-border,#e5e7eb);background:none;width:100%;';
+          mi.style.cssText = 'display:flex;align-items:center;justify-content:center;padding:8px 12px;cursor:pointer;font-size:16px;border:none;border-bottom:1px solid var(--dg-border, var(--border, #e5e7eb));background:none;width:100%;';
           mi.addEventListener('click', (e) => {
             e.stopPropagation(); closePanel();
             this._selectRow(i);

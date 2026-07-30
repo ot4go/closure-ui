@@ -1,16 +1,13 @@
 name: Release
 
-# Manifest-driven: pushing a change to .build/next-release.json on main IS
-# the release. The workflow reads tag+title from it, creates the tag, builds
-# and publishes. It FAILS if the manifest's tag already exists — bump the
-# manifest before releasing again.
+# Tag-driven: pushing a v* tag IS the release — and the tag must sit on
+# main. The manifest (.build/next-release.json) must agree with the pushed
+# tag — it still carries the title and drives the versioned packaging — so
+# a tag cannot ship without its manifest bump.
 on:
   push:
-    branches:
-      - main
-    paths:
-      - '.build/next-release.json'
-  workflow_dispatch:
+    tags:
+      - 'v*'
 
 permissions:
   contents: write
@@ -21,16 +18,22 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          fetch-depth: 0 # tags are needed for the already-released check
+          fetch-depth: 0 # main is needed for the on-main ancestry check
 
-      - name: Read manifest
+      - name: Check the tag sits on main and matches the manifest
         id: man
         run: |
-          tag=$(jq -r .tag .build/next-release.json)
-          title=$(jq -r '.title // empty' .build/next-release.json)
+          tag="${GITHUB_REF_NAME}"
           [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::bad tag: $tag"; exit 1; }
-          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
-            echo "::error::$tag already exists — bump .build/next-release.json"
+          git fetch -q origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::$tag is not on main — releases ship from main only"
+            exit 1
+          fi
+          mtag=$(jq -r .tag .build/next-release.json)
+          title=$(jq -r '.title // empty' .build/next-release.json)
+          if [[ "$tag" != "$mtag" ]]; then
+            echo "::error::pushed tag $tag != manifest tag $mtag — bump .build/next-release.json first"
             exit 1
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
@@ -41,20 +44,8 @@ jobs:
           go-version-file: .build/go.mod
           cache-dependency-path: .build/go.sum
 
-      # Tag first: the release build REQUIRES the tag to exist (versioned
-      # artifacts are only legitimate for a real tag). A failure anywhere
-      # below deletes the tag again (cleanup step at the end), so nothing
-      # gets burnt and the run is retryable.
-      - name: Create tag
-        id: tagged
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag "${{ steps.man.outputs.tag }}"
-          git push origin "${{ steps.man.outputs.tag }}"
-
       # `release` is the only mode that emits versioned artifacts; it
-      # verifies the tag just created above.
+      # verifies the tag it runs on.
       - run: go -C .build run ./release
 
       - name: Create release
@@ -73,7 +64,3 @@ jobs:
             "release/closure-ui-$tag.md" \
             release/checksums.txt \
             release/release-info.txt
-
-      - name: Clean up tag on failure
-        if: failure() && steps.tagged.outcome == 'success'
-        run: git push --delete origin "${{ steps.man.outputs.tag }}"

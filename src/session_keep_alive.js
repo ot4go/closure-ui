@@ -64,7 +64,7 @@ Anything else → `session-extend-failed` event, **no** countdown reset.
 | Variable | Default | Used for |
 |---|---|---|
 | `--ska-warn-bg`     | `#fee2e2` | warn-state background |
-| `--ska-warn-color`  | `#c00`    | warn-state text colour |
+| `--ska-warn-color`  | `var(--red, #dc2626)` | warn-state text colour |
 
 ## Behaviour
 
@@ -94,7 +94,7 @@ class SessionKeepAlive extends HTMLElement {
     'session-keep-alive .ska-time { font-size: 14px; font-variant-numeric: tabular-nums; font-weight: 700; }',
     'session-keep-alive[warn] closure-btn {',
     '  --form-btn-bg: var(--ska-warn-bg, #fee2e2);',
-    '  --form-btn-color: var(--ska-warn-color, #c00);',
+    '  --form-btn-color: var(--ska-warn-color, var(--red, #dc2626));',
     '}',
   ].join('\n');
 

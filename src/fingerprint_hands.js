@@ -76,7 +76,7 @@ non-disabled finger.
 | `--fh-palm-stroke`     | `#ddd`    | palm + disabled stroke |
 | `--fh-focus`           | `#3b82f6` | finger focus stroke |
 | `--fh-focus-ring`      | `#3b82f6` | host focus ring |
-| `--text-muted`         | `#888`    | "Left" / "Right" labels |
+| `--text-muted`         | `#6b7280`    | "Left" / "Right" labels |
 
 ## Behaviour
 
@@ -101,7 +101,7 @@ class FingerprintHands extends HTMLElement {
   static _style = [
     ':host { display: inline-flex; gap: 8px; outline: none; }',
     ':host(:focus-visible) { outline: 2px solid var(--fh-focus-ring, #3b82f6); outline-offset: 4px; border-radius: 4px; }',
-    '.fh-label { text-align: center; font-weight: bold; font-size: 10px; color: var(--text-muted, #888); }',
+    '.fh-label { text-align: center; font-weight: bold; font-size: 10px; color: var(--text-muted, #6b7280); }',
     '[data-finger].fh-focus { stroke: var(--fh-focus, #3b82f6); stroke-width: 3; }',
   ].join('\n');
 
