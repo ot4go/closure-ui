@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <mkskill>
   <version-spec params="major:byte,minor:byte,build:byte">
-    <version major="0" minor="0" build="9">
-      <ts>2026-08-05T08:04:18Z</ts>
+    <version major="0" minor="0" build="10">
+      <ts>2026-08-05T08:41:41Z</ts>
     </version>
-    <label key="title" volatile="true" default-to-ts="true">update CI and doc</label>
+    <label key="title" volatile="true" default-to-ts="true">v0.0.10</label>
     <update file="/.build/next-release.json" type="json">
       <entry key="tag">{$$$ version $$$}</entry>
       <entry key="title">{$$$ version $$$}{$$$ &#39; - &#39; + label:title $$$}</entry>
@@ -30,6 +30,6 @@ exit /b 1
     <import-miniskin content="./src" fm-gen="extern,preserve"></import-miniskin>
   </project>
   <version-history max="10">
-    <release version="v0.0.9" ts="2026-08-05T08:04:18Z" title="update CI and doc" method="vinc-build"></release>
+    <release version="v0.0.10" ts="2026-08-05T08:41:41Z" title="v0.0.10" method="vinc-build"></release>
   </version-history>
 </mkskill>
