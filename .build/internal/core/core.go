@@ -115,12 +115,21 @@ func PackageRelease() error {
 	if tagCommit != head {
 		return fmt.Errorf("release packaging: tag %q does not point at HEAD — the artifacts would not match the tag", man.Tag)
 	}
-	dirty, err := gitOut("status", "--porcelain")
+	// Cleanliness is judged on CONTENT, not worktree bytes: the composers
+	// write LF while `*.md eol=crlf` checks out CRLF, so a plain
+	// `status --porcelain` flags phantom modifications right after a build.
+	// `git diff HEAD` compares through the filters; untracked (non-ignored)
+	// files are still refused.
+	dirty, err := gitOut("diff", "--name-only", "HEAD")
 	if err != nil {
 		return err
 	}
-	if dirty != "" {
-		return fmt.Errorf("release packaging: working tree is not clean — the artifacts would not match tag %q", man.Tag)
+	untracked, err := gitOut("ls-files", "--others", "--exclude-standard")
+	if err != nil {
+		return err
+	}
+	if list := strings.TrimSpace(dirty + "\n" + untracked); list != "" {
+		return fmt.Errorf("release packaging: working tree is not clean — the artifacts would not match tag %q:\n%s", man.Tag, list)
 	}
 	pairs := [][2]string{
 		{"release/closure-ui.js", "release/closure-ui-" + man.Tag + ".js"},
