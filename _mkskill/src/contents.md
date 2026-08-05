@@ -6,6 +6,7 @@ mkskill:
 
 ## Contents
 
+- [Install](#install)
 - [Usage](#usage)
 - [Components](#components)
 - [Build](#build)

@@ -45,9 +45,22 @@ jobs:
           go-version-file: .build/go.mod
           cache-dependency-path: .build/go.sum
 
+      - name: Check the tag matches the config
+        # the config owns the release number; the manifest and git only
+        # consume it — a tag the config did not declare is refused at the
+        # door (the mkskill version is the one .build/go.mod pins)
+        run: |
+          want="$(go -C .build run github.com/pablo-botella/mkskill/cmd/mkskill -q -C .. -vout version)"
+          [ "$want" = "$GITHUB_REF_NAME" ] || {
+            echo "::error::config says $want, tag is $GITHUB_REF_NAME"; exit 1; }
+
       # `release` is the only mode that emits versioned artifacts; it
       # verifies the tag it runs on.
       - run: go -C .build run ./release
+
+      # the release build just regenerated the tracked docs from their
+      # sources; any drift means a stale committed artifact — refuse the tag
+      - run: git diff --exit-code
 
       - name: Create release
         env:
