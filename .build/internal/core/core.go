@@ -17,8 +17,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ot4go/miniskin"
-	"github.com/ot4go/mkskill/compiler"
+	"github.com/pablo-botella/miniskin"
+	"github.com/pablo-botella/mkskill/compiler"
 	"github.com/tdewolff/minify/v2"
 	"github.com/tdewolff/minify/v2/js"
 )
@@ -179,8 +179,8 @@ func PackageNpm(man *Manifest) error {
 		"version":     strings.TrimPrefix(man.Tag, "v"),
 		"description": root.Project.MetaValue("description"),
 		"license":     root.Project.MetaValue("license"),
-		"repository":  map[string]string{"type": "git", "url": "git+https://github.com/ot4go/closure-ui.git"},
-		"homepage":    "https://github.com/ot4go/closure-ui#readme",
+		"repository":  map[string]string{"type": "git", "url": "git+https://github.com/pablo-botella/closure-ui.git"},
+		"homepage":    "https://github.com/pablo-botella/closure-ui#readme",
 		"main":        "closure-ui.js",
 		"unpkg":       "closure-ui.min.js",
 		"jsdelivr":    "closure-ui.min.js",

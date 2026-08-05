@@ -6,8 +6,8 @@ mkskill:
 
 # closure-ui
 
-[![Build](https://github.com/ot4go/closure-ui/actions/workflows/build.yml/badge.svg)](https://github.com/ot4go/closure-ui/actions/workflows/build.yml)
-[![Release](https://img.shields.io/github/v/release/ot4go/closure-ui)](https://github.com/ot4go/closure-ui/releases/latest)
+[![Build](https://github.com/pablo-botella/closure-ui/actions/workflows/build.yml/badge.svg)](https://github.com/pablo-botella/closure-ui/actions/workflows/build.yml)
+[![Release](https://img.shields.io/github/v/release/pablo-botella/closure-ui)](https://github.com/pablo-botella/closure-ui/releases/latest)
 [![License](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
 
 Seamless JS UI for application interfaces — a collection of vanilla Web

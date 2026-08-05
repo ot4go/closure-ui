@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ot4go/closure-ui/internal/core"
+	"github.com/pablo-botella/closure-ui/internal/core"
 )
 
 func main() {

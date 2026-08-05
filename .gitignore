@@ -7,3 +7,4 @@ go.work
 go.work.sum
 _*.bat
 
+__publish.bat

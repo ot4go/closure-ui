@@ -1,7 +1,7 @@
 # closure-ui
 
-[![Build](https://github.com/ot4go/closure-ui/actions/workflows/build.yml/badge.svg)](https://github.com/ot4go/closure-ui/actions/workflows/build.yml)
-[![Release](https://img.shields.io/github/v/release/ot4go/closure-ui)](https://github.com/ot4go/closure-ui/releases/latest)
+[![Build](https://github.com/pablo-botella/closure-ui/actions/workflows/build.yml/badge.svg)](https://github.com/pablo-botella/closure-ui/actions/workflows/build.yml)
+[![Release](https://img.shields.io/github/v/release/pablo-botella/closure-ui)](https://github.com/pablo-botella/closure-ui/releases/latest)
 [![License](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
 
 Seamless JS UI for application interfaces — a collection of vanilla Web
@@ -24,11 +24,22 @@ most of the library without ever touching them.
 
 ## Contents
 
+- [Install](#install)
 - [Usage](#usage)
 - [Components](#components)
 - [Build](#build)
 - [Repository layout](#repository-layout)
 - [License](#license)
+
+## Install
+
+Two ways to get the bundle:
+
+- **GitHub release** — download `closure-ui.min.js` (or the readable
+  `closure-ui.js`) from the
+  [latest release](https://github.com/pablo-botella/closure-ui/releases/latest);
+  every release also carries version-stamped twins and `checksums.txt`.
+- **npm** — `npm i closure-ui` (also pnpm/yarn/bun).
 
 ## Usage
 
@@ -38,8 +49,7 @@ Include the bundled script in your page:
 <script src="release/closure-ui.min.js"></script>
 ```
 
-Or take it from npm (`npm i closure-ui` — also pnpm/yarn/bun) or straight
-from a CDN — pin the exact version you tested:
+Or straight from a CDN — pin the exact version you tested:
 
 ```html
 <script src="https://cdn.jsdelivr.net/npm/closure-ui@0/closure-ui.min.js"></script>
@@ -89,7 +99,7 @@ utilities) loaded before the components.
 ## Build
 
 Source files live in [`src/`](src/) and are assembled into a single bundle
-via [miniskin](https://github.com/ot4go/miniskin). The build also copies
+via [miniskin](https://github.com/pablo-botella/miniskin). The build also copies
 the generated documentation and produces a non-aggressively minified
 variant.
 

@@ -7,7 +7,7 @@ mkskill:
 ## Build
 
 Source files live in [`src/`](src/) and are assembled into a single bundle
-via [miniskin](https://github.com/ot4go/miniskin). The build also copies
+via [miniskin](https://github.com/pablo-botella/miniskin). The build also copies
 the generated documentation and produces a non-aggressively minified
 variant.
 

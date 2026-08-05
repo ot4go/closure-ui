@@ -4,6 +4,16 @@ mkskill:
   in: "*"
 ---
 
+## Install
+
+Two ways to get the bundle:
+
+- **GitHub release** — download `closure-ui.min.js` (or the readable
+  `closure-ui.js`) from the
+  [latest release](https://github.com/pablo-botella/closure-ui/releases/latest);
+  every release also carries version-stamped twins and `checksums.txt`.
+- **npm** — `npm i closure-ui` (also pnpm/yarn/bun).
+
 ## Usage
 
 Include the bundled script in your page:
@@ -12,8 +22,7 @@ Include the bundled script in your page:
 <script src="release/closure-ui.min.js"></script>
 ```
 
-Or take it from npm (`npm i closure-ui` — also pnpm/yarn/bun) or straight
-from a CDN — pin the exact version you tested:
+Or straight from a CDN — pin the exact version you tested:
 
 ```html
 <script src="https://cdn.jsdelivr.net/npm/closure-ui@0/closure-ui.min.js"></script>
